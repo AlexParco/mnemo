@@ -1,0 +1,9 @@
+// .stignore — qué NO debe sincronizar Syncthing en el store (modo P2P).
+// Sintaxis tipo gitignore; los comentarios empiezan con //.
+
+// CLAVE: nunca sincronices las tripas de git. Cada máquina lleva su propio
+// historial local; sincronizar .git a nivel de bytes lo corrompe.
+.git
+
+// Versionado interno de Syncthing (sus backups). No es tu memoria.
+.stversions
