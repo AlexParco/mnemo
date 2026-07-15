@@ -10,8 +10,11 @@ confirmación obligatorio. Nunca borres sin mostrar antes qué se va y sin confi
 
 ## Store
 
-`$MEM = $MNEMO_DIR` o `~/.local/share/mnemo`. Si aún no existe, no hay nada que borrar: avisa y
-detente.
+`$MEM = $MNEMO_DIR` o `~/.local/share/mnemo`.
+
+**Si `$MEM` no existe o no es repo git:** con `MNEMO_REMOTE` seteado, clónalo del hub
+(`git clone "$MNEMO_REMOTE" "$MEM"`) para borrar sobre la memoria compartida real; sin
+`MNEMO_REMOTE`, no hay nada que borrar: avisa y detente.
 
 ## Sincroniza primero
 

@@ -9,8 +9,12 @@ Atajo para capturar una sola memoria atómica sin el flujo completo de `/mnemo:s
 
 ## Store
 
-`$MEM = $MNEMO_DIR` o `~/.local/share/mnemo`. Si aún no existe (o el proyecto no existe todavía),
-`/mnemo:mem` no bootstrapea: dile al usuario que arranque con `/mnemo:save-context <slug>` y detente.
+`$MEM = $MNEMO_DIR` o `~/.local/share/mnemo`.
+
+**Si `$MEM` no existe o no es repo git:** con `MNEMO_REMOTE` seteado, clónalo del hub
+(`git clone "$MNEMO_REMOTE" "$MEM"`) para trabajar sobre la memoria compartida; sin `MNEMO_REMOTE`,
+o si el proyecto no existe todavía, `/mnemo:mem` no crea el store: sugiere `/mnemo:save-context <slug>`
+y detente.
 
 ## Pasos
 

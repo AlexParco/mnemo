@@ -14,8 +14,11 @@ tres o el proyecto queda inconsistente. Operación **mutante** → protocolo de 
 
 ## Store
 
-`$MEM = $MNEMO_DIR` o `~/.local/share/mnemo`. Si aún no existe, no hay nada que renombrar: avisa y
-detente.
+`$MEM = $MNEMO_DIR` o `~/.local/share/mnemo`.
+
+**Si `$MEM` no existe o no es repo git:** con `MNEMO_REMOTE` seteado, clónalo del hub
+(`git clone "$MNEMO_REMOTE" "$MEM"`) para renombrar sobre la memoria compartida real; sin
+`MNEMO_REMOTE`, no hay nada que renombrar: avisa y detente.
 
 ## Sincroniza primero
 

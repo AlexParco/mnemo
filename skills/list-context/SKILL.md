@@ -9,8 +9,12 @@ Da una vista de pájaro del store de `mnemo`: qué proyectos hay y su tamaño.
 
 ## Store
 
-`$MEM = $MNEMO_DIR` o `~/.local/share/mnemo`. Si aún no existe, no hay memoria todavía: dile al
-usuario que empiece con `/mnemo:save-context <slug>` (ese comando crea el store) y detente.
+`$MEM = $MNEMO_DIR` o `~/.local/share/mnemo`.
+
+**Si `$MEM` no existe o no es repo git, adopta primero el store compartido:**
+- `MNEMO_REMOTE` seteado → clónalo del hub: `git clone "$MNEMO_REMOTE" "$MEM"`. Trae toda la
+  memoria de tus otras máquinas (sirve para remoto SSH o ruta local). Luego seguí normal.
+- Sin `MNEMO_REMOTE` → no hay memoria todavía: sugiere `/mnemo:save-context <slug>` y detente.
 
 ## Pasos
 
