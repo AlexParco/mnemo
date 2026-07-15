@@ -1,0 +1,13 @@
+{
+  "name": "mnemo",
+  "owner": {
+    "name": "Alexander Parco"
+  },
+  "plugins": [
+    {
+      "name": "mnemo",
+      "source": "./",
+      "description": "Memoria persistente por proyecto para Claude Code, en texto plano versionado en git."
+    }
+  ]
+}

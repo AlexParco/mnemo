@@ -1,6 +1,6 @@
 ---
 name: list-context
-description: Muestra el panorama del store de memoria — todos los proyectos con su estado, servicios y cuántas memorias tiene cada uno. Uso "/list-context". Trigger cuando el usuario quiere ver qué proyectos existen en la memoria, listar proyectos, "qué proyectos tengo", "muéstrame la memoria", "en qué proyectos estoy trabajando", o no recuerda el slug exacto de un proyecto. Agnóstico: cualquier proyecto.
+description: Muestra el panorama del store de memoria — todos los proyectos con su estado, servicios y cuántas memorias tiene cada uno. Uso "/mnemo:list-context". Trigger cuando el usuario quiere ver qué proyectos existen en la memoria, listar proyectos, "qué proyectos tengo", "muéstrame la memoria", "en qué proyectos estoy trabajando", o no recuerda el slug exacto de un proyecto. Agnóstico: cualquier proyecto.
 ---
 
 # list-context
@@ -9,7 +9,8 @@ Da una vista de pájaro del store de `mnemo`: qué proyectos hay y su tamaño.
 
 ## Store
 
-`$MEM = $MNEMO_DIR` o `~/.local/share/mnemo`. Si no existe, avisa y detente.
+`$MEM = $MNEMO_DIR` o `~/.local/share/mnemo`. Si aún no existe, no hay memoria todavía: dile al
+usuario que empiece con `/mnemo:save-context <slug>` (ese comando crea el store) y detente.
 
 ## Pasos
 
@@ -33,10 +34,10 @@ Da una vista de pájaro del store de `mnemo`: qué proyectos hay y su tamaño.
 
 5. **Resumen final** en una línea: total de proyectos, total de memorias, cuántas viven en
    `shared/`. Si el store está vacío (sin proyectos), dilo y recuerda que se crea el primero con
-   `/save-context <slug>`.
+   `/mnemo:save-context <slug>`.
 
 ## Notas
 
 - Solo lectura. No escribe ni commitea.
 - No cargues el contenido de ningún proyecto; esto es solo el índice. Para entrar a uno es
-  `/load-context <slug>`.
+  `/mnemo:load-context <slug>`.

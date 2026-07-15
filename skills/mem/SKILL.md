@@ -1,15 +1,16 @@
 ---
 name: mem
-description: Guarda una nota suelta en la memoria persistente a mitad de sesión, tagueada por proyecto, sin cerrar ni sincronizar todo. Uso "/mem <proyecto>[,proyecto2] <la nota>". Trigger cuando el usuario quiere apuntar rápido una decisión, gotcha o dato en la memoria de uno o varios proyectos, "apunta que...", "recuerda para X que...", sin hacer un save-context completo. Agnóstico: cualquier proyecto.
+description: Guarda una nota suelta en la memoria persistente a mitad de sesión, tagueada por proyecto, sin cerrar ni sincronizar todo. Uso "/mnemo:mem <proyecto>[,proyecto2] <la nota>". Trigger cuando el usuario quiere apuntar rápido una decisión, gotcha o dato en la memoria de uno o varios proyectos, "apunta que...", "recuerda para X que...", sin hacer un save-context completo. Agnóstico: cualquier proyecto.
 ---
 
 # mem
 
-Atajo para capturar una sola memoria atómica sin el flujo completo de `/save-context`.
+Atajo para capturar una sola memoria atómica sin el flujo completo de `/mnemo:save-context`.
 
 ## Store
 
-`$MEM = $MNEMO_DIR` o `~/.local/share/mnemo`.
+`$MEM = $MNEMO_DIR` o `~/.local/share/mnemo`. Si aún no existe (o el proyecto no existe todavía),
+`/mnemo:mem` no bootstrapea: dile al usuario que arranque con `/mnemo:save-context <slug>` y detente.
 
 ## Pasos
 
@@ -33,7 +34,7 @@ Atajo para capturar una sola memoria atómica sin el flujo completo de `/save-co
      (`git -C $MEM config user.name`).
 
 4. **Commit local** `git -C $MEM add -A && git -C $MEM commit -m "mem(<slugs>): <resumen>"`.
-   No hagas push aquí — el push se hace en `/save-context` (o si el usuario lo pide explícito).
+   No hagas push aquí — el push se hace en `/mnemo:save-context` (o si el usuario lo pide explícito).
    Sin `Co-Authored-By`.
 
 5. Confirma en una línea qué se guardó y dónde.

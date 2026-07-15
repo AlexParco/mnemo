@@ -1,6 +1,6 @@
 ---
 name: forget
-description: Borra de la memoria persistente un proyecto entero o una memoria suelta, de forma segura ante overlap (una memoria compartida con otros proyectos se desetiqueta, no se borra). Uso "/forget project <slug>" o "/forget memory <id>". Trigger cuando el usuario quiere borrar/eliminar un proyecto de la memoria, "borra el proyecto X", "elimina X de la memoria", "olvida X", "borra la memoria Y", o limpiar entradas del store. Agnóstico: cualquier proyecto.
+description: Borra de la memoria persistente un proyecto entero o una memoria suelta, de forma segura ante overlap (una memoria compartida con otros proyectos se desetiqueta, no se borra). Uso "/mnemo:forget project <slug>" o "/mnemo:forget memory <id>". Trigger cuando el usuario quiere borrar/eliminar un proyecto de la memoria, "borra el proyecto X", "elimina X de la memoria", "olvida X", "borra la memoria Y", o limpiar entradas del store. Agnóstico: cualquier proyecto.
 ---
 
 # forget
@@ -10,7 +10,8 @@ confirmación obligatorio. Nunca borres sin mostrar antes qué se va y sin confi
 
 ## Store
 
-`$MEM = $MNEMO_DIR` o `~/.local/share/mnemo`. Si no existe, avisa y detente.
+`$MEM = $MNEMO_DIR` o `~/.local/share/mnemo`. Si aún no existe, no hay nada que borrar: avisa y
+detente.
 
 ## Sincroniza primero
 
@@ -19,7 +20,7 @@ vieja puede eliminar una memoria que otra máquina acaba de escribir. Si el pull
 resuélvelo (o para y pregunta) **antes** de clasificar nada, y continúa con
 `GIT_EDITOR=true git -C $MEM rebase --continue` — sin `GIT_EDITOR` la shell se cuelga en el editor.
 
-## Modo A — borrar un proyecto: `/forget project <slug>`
+## Modo A — borrar un proyecto: `/mnemo:forget project <slug>`
 
 1. **Verifica** que `$MEM/projects/<slug>/` existe. Si no, avísalo y lista los proyectos que sí
    existen. No asumas.
@@ -52,7 +53,7 @@ resuélvelo (o para y pregunta) **antes** de clasificar nada, y continúa con
    Sin `Co-Authored-By`. **Push solo con confirmación aparte** (muestra qué se subirá). Recuerda
    al usuario que hasta que suba, las otras máquinas conservan lo borrado.
 
-## Modo B — borrar una memoria: `/forget memory <id>`
+## Modo B — borrar una memoria: `/mnemo:forget memory <id>`
 
 1. Verifica que `$MEM/memories/<id>.md` existe. Si no, avísalo (ofrece buscar por tema).
 2. Muestra su contenido y con qué proyectos está tagueada; pide confirmación explícita.

@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-// mnemo — hook PreToolUse (Edit|Write) que sugiere /save-context cuando se acumula
+// mnemo — hook PreToolUse (Edit|Write) que sugiere /mnemo:save-context cuando se acumula
 // trabajo sin persistir. NO bloquea la edición; solo deja un aviso.
 //
 // Señal primaria: ediciones desde el último guardado. El hook mira el HEAD del
-// store de mnemo; cuando cambia (corriste /save-context o /mem), el contador se
+// store de mnemo; cuando cambia (corriste /mnemo:save-context o /mnemo:mem), el contador se
 // reinicia solo y el hook se calla. Mide trabajo SIN persistir, no tamaño de contexto.
 //
 // Señal secundaria (opcional, off por default): tamaño de contexto en tokens,
@@ -97,7 +97,7 @@ function main() {
   if (!nudge) return;
 
   const msg =
-    `📝 mnemo: ${reason} en esta sesión. Considera /save-context <proyecto> ` +
+    `📝 mnemo: ${reason} en esta sesión. Considera /mnemo:save-context <proyecto> ` +
     `para no perder el avance (nada se sube sin tu confirmación).`;
 
   process.stdout.write(

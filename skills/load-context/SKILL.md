@@ -1,6 +1,6 @@
 ---
 name: load-context
-description: Carga la memoria persistente de un proyecto/iniciativa al inicio de una sesión de Claude — decisiones, restricciones, gotchas y tareas pendientes — para retomar el trabajo donde se quedó. Uso "/load-context <proyecto>". Trigger cuando el usuario pide cargar el contexto de un proyecto, retomar un proyecto, "carga el contexto de X", "seguir con X", "en qué quedamos en X", o abre una sesión nueva para seguir una iniciativa previa. Agnóstico: sirve para cualquier proyecto.
+description: Carga la memoria persistente de un proyecto/iniciativa al inicio de una sesión de Claude — decisiones, restricciones, gotchas y tareas pendientes — para retomar el trabajo donde se quedó. Uso "/mnemo:load-context <proyecto>". Trigger cuando el usuario pide cargar el contexto de un proyecto, retomar un proyecto, "carga el contexto de X", "seguir con X", "en qué quedamos en X", o abre una sesión nueva para seguir una iniciativa previa. Agnóstico: sirve para cualquier proyecto.
 ---
 
 # load-context
@@ -11,20 +11,20 @@ listo para continuar el trabajo.
 ## Resolución del store
 
 Directorio del store = `$MNEMO_DIR` si está definido, si no `~/.local/share/mnemo`.
-Llámalo `$MEM` de aquí en adelante. Si no existe, dile al usuario que clone/instale el repo
-(ver su README) y detente.
+Llámalo `$MEM` de aquí en adelante. Si aún no existe, no hay memoria que cargar: dile al usuario
+que arranque con `/mnemo:save-context <slug>` (ese comando crea el store) y detente.
 
 ## Pasos
 
 0. **El slug es obligatorio.** Si el usuario no pasó proyecto, **no cargues nada**: ejecuta el
-   comportamiento de `/list-context` (muestra el panorama de proyectos) y pídele que elija uno.
+   comportamiento de `/mnemo:list-context` (muestra el panorama de proyectos) y pídele que elija uno.
    No adivines ni cargues "el último".
 
 1. **Sincroniza.** Si el store tiene remoto (`git -C $MEM remote`), corre
    `git -C $MEM pull --rebase --autostash` para traer lo que guardaste desde otras máquinas.
    - Si no hay remoto, o el pull falla por red/acceso, avisa en una línea y sigue con lo local.
    - Si el rebase se detiene por conflicto, **para y avísale al usuario**: este skill es de solo
-     lectura y no resuelve conflictos. Que corra `/save-context` (que sí los fusiona) o los
+     lectura y no resuelve conflictos. Que corra `/mnemo:save-context` (que sí los fusiona) o los
      resuelva a mano. Deja el rebase como está, no lo abortes en silencio.
 
 2. **Resuelve el proyecto.** El argumento es un slug. Verifica `$MEM/projects/<slug>/`.
@@ -52,5 +52,5 @@ Llámalo `$MEM` de aquí en adelante. Si no existe, dile al usuario que clone/in
 
 ## Notas
 
-- Solo lectura. Este skill nunca escribe ni commitea. Para guardar, es `/save-context`.
+- Solo lectura. Este skill nunca escribe ni commitea. Para guardar, es `/mnemo:save-context`.
 - Sin slug → cae en modo lista (paso 0), nunca carga por defecto.

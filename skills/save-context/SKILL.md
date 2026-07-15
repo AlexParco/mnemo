@@ -1,6 +1,6 @@
 ---
 name: save-context
-description: Guarda en la memoria persistente los avances, decisiones y pendientes del trabajo de la sesión actual, etiquetados por proyecto, y los sincroniza al store git de mnemo. Uso "/save-context <proyecto>". Trigger cuando el usuario quiere guardar el contexto, cerrar/pausar una sesión conservando el avance, "guarda lo que hicimos en X", "apunta esto en la memoria de X", o antes de cambiar de proyecto. Agnóstico: sirve para cualquier proyecto.
+description: Guarda en la memoria persistente los avances, decisiones y pendientes del trabajo de la sesión actual, etiquetados por proyecto, y los sincroniza al store git de mnemo. Uso "/mnemo:save-context <proyecto>". Trigger cuando el usuario quiere guardar el contexto, cerrar/pausar una sesión conservando el avance, "guarda lo que hicimos en X", "apunta esto en la memoria de X", o antes de cambiar de proyecto. Agnóstico: sirve para cualquier proyecto.
 ---
 
 # save-context
@@ -10,13 +10,33 @@ pendientes del proyecto, sincronizando al repo git.
 
 ## Resolución del store
 
-Igual que load-context: `$MEM = $MNEMO_DIR` o `~/.local/share/mnemo`. Si no existe, avisa y
-detente.
+`$MEM = $MNEMO_DIR` o `~/.local/share/mnemo`.
+
+**Bootstrap (primer uso).** `save-context` es el comando que da de alta el store: si `$MEM` no
+existe o no es un repo git, créalo antes de seguir. Corré:
+
+```bash
+mkdir -p "$MEM"/{projects,memories,shared}
+git -C "$MEM" rev-parse --git-dir >/dev/null 2>&1 || git -C "$MEM" init -q -b main
+[ -f "$MEM/.gitignore" ] || printf '.DS_Store\n' > "$MEM/.gitignore"
+# copia el contrato del schema si el plugin lo trae a mano (best-effort)
+[ -f "$MEM/shared/SCHEMA.md" ] || cp "${CLAUDE_PLUGIN_ROOT:-/nonexistent}/templates/SCHEMA.md" "$MEM/shared/SCHEMA.md" 2>/dev/null || true
+# remoto opcional: si el usuario exportó MNEMO_REMOTE, engánchalo y adopta su historia si ya tiene
+if [ -n "${MNEMO_REMOTE:-}" ] && ! git -C "$MEM" remote get-url origin >/dev/null 2>&1; then
+  git -C "$MEM" remote add origin "$MNEMO_REMOTE"
+  if git -C "$MEM" fetch -q origin 2>/dev/null && git -C "$MEM" rev-parse -q --verify origin/main >/dev/null; then
+    git -C "$MEM" rev-parse -q --verify HEAD >/dev/null || git -C "$MEM" checkout -q -B main --track origin/main
+  fi
+fi
+```
+
+Si el bootstrap acaba de crear el store, avísale al usuario en una línea dónde quedó (`$MEM`) y
+que para sincronizar entre máquinas puede exportar `MNEMO_REMOTE` o agregar un remoto git a mano.
 
 ## Pasos
 
 0. **El slug es obligatorio.** Si el usuario no pasó proyecto, **no guardes nada**: ejecuta el
-   comportamiento de `/list-context` (muestra los proyectos existentes) y pídele a cuál guardar,
+   comportamiento de `/mnemo:list-context` (muestra los proyectos existentes) y pídele a cuál guardar,
    o que confirme un slug nuevo. Nunca guardes "por defecto" ni adivines el proyecto.
 
 1. **Sincroniza primero.** Si hay remoto, `git -C $MEM pull --rebase --autostash` **antes de
@@ -47,7 +67,7 @@ detente.
    - Enlaza memorias relacionadas con `[[id]]`.
 
 5. **Actualiza pendientes** `$MEM/projects/<slug>/pending.md`: marca lo hecho, agrega lo nuevo,
-   deja claro qué quedó en curso para el próximo `/load-context`. Actualiza `updated` e info de
+   deja claro qué quedó en curso para el próximo `/mnemo:load-context`. Actualiza `updated` e info de
    estado en `INDEX.md` si cambió.
 
 6. **Commit.** `git -C $MEM add -A && git -C $MEM commit -m "save(<slug>): <resumen corto>"`.
@@ -82,4 +102,4 @@ el rebase se resuelve leyendo, no adivinando:
 
 - Muéstrale al usuario un resumen de qué memorias creaste/actualizaste y qué pendientes quedaron.
 - Respeta la regla global: nada de commits/push sin que el usuario lo apruebe; invocar
-  `/save-context` autoriza el commit local, pero el push se confirma aparte.
+  `/mnemo:save-context` autoriza el commit local, pero el push se confirma aparte.
