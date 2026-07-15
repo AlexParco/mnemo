@@ -38,7 +38,10 @@ y detente.
      (`git -C $MEM config user.name`).
 
 4. **Commit local** `git -C $MEM add -A && git -C $MEM commit -m "mem(<slugs>): <resumen>"`.
-   No hagas push aquí — el push se hace en `/mnemo:save-context` (o si el usuario lo pide explícito).
    Sin `Co-Authored-By`.
+   - **Por default no pushees** — el push se hace en `/mnemo:save-context` (o si el usuario lo pide).
+   - **Con `MNEMO_AUTOPUSH=1`**, pusheá igual que save-context: primero el **chequeo de secretos**
+     (grep del diff `origin/main..HEAD` por claves/tokens/connection strings; si hay match, no
+     pushees y avisá), y si limpia, `git -C $MEM push` y reportá `subido ✓`.
 
 5. Confirma en una línea qué se guardó y dónde.

@@ -64,6 +64,18 @@ Llámalo `$MEM` de aquí en adelante.
 5. **No cargues otros proyectos.** Solo el pedido. Si una memoria pertenece también a otro
    proyecto, úsala igual (overlap) pero no arrastres el resto de ese otro proyecto.
 
+## Conciencia de máquina
+
+La memoria es compartida entre máquinas, pero **algunos ítems son de UNA máquina** (código local,
+"commitear/pushear el repo X"). Van estampados `[@<máquina>]` y el render los marca con **⚠** cuando
+no son de esta máquina (actual = `${MNEMO_MACHINE:-$(hostname -s)}`).
+
+**Regla: no actúes sobre trabajo que no es de esta máquina.** Si el usuario pide commitear/pushear/
+correr algo que corresponde a un ítem `⚠ [@otra]` —o cuyo repo de código **no existe en esta
+máquina**— **no busques el repo ni intentes la acción**: decile claro *"esto es de `<máquina>`; el
+código no está en esta (`<actual>`)"*. Antes de cualquier acción de git/build sobre un repo de
+código, verificá que exista localmente. (Esto es aparte del store de mnemo, que sí está en todas.)
+
 ## Notas
 
 - Solo lectura. Este skill nunca escribe ni commitea. Para guardar, es `/mnemo:save-context`.

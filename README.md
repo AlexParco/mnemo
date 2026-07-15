@@ -59,7 +59,10 @@ git; los comandos lo gestionan por ti.
 
 En una sola máquina esto ya funciona out-of-the-box, sin servidor ni cuenta de nada.
 
-Variables: `MNEMO_DIR` cambia la ruta del store, `MNEMO_REMOTE` engancha un remoto al crearlo.
+Variables: `MNEMO_DIR` cambia la ruta del store, `MNEMO_REMOTE` engancha un remoto al crearlo,
+`MNEMO_AUTOPUSH=1` hace que `save-context`/`mem` suban solos (ver [Uso](#uso)), `MNEMO_MACHINE`
+pone una etiqueta linda para esta máquina (default: el hostname) — ver
+[Trabajo atado a una máquina](#trabajo-atado-a-una-máquina).
 
 ## Sincronizar entre máquinas
 
@@ -129,13 +132,30 @@ respaldalo como respaldás cualquier otra cosa tuya.
 | `/mnemo:rename <viejo> <nuevo>` | renombra el slug de un proyecto (dir + INDEX + `projects` de cada nota, overlap-safe) |
 | `/mnemo:forget project\|memory <x>` | borra un proyecto o una nota (overlap-safe: una nota compartida se desetiqueta, no se borra) |
 
-Ningún comando sube nada sin que lo confirmes. Hasta que subas, tus otras máquinas no lo ven.
+**Push:** por default ningún comando sube nada sin que lo confirmes (hasta que subas, tus otras
+máquinas no lo ven). Con `MNEMO_AUTOPUSH=1`, `save-context` y `mem` **suben solos** — pensado para
+un flujo multi-máquina hands-off. Aun en auto, dos guardas nunca se saltan: un **escaneo de
+secretos** frena el push si detecta claves/tokens/connection strings, y un **conflicto semántico**
+(dos decisiones que se contradicen) para y te pregunta. El merge no-semántico se resuelve solo
+(unión, conservando ambos lados).
 
 ### Desde cero
 
 No hay comando "crear proyecto": lo bootstrapeas con `/mnemo:save-context <slug>` la primera vez
 (Claude te pide el nombre y arma el `INDEX.md` + `pending.md`; y si el store no existía, lo crea).
 Luego, en cualquier laptop, `/mnemo:load-context <slug>` retoma donde quedaste.
+
+### Trabajo atado a una máquina
+
+La memoria es la misma en todas tus máquinas, pero **algunos pendientes son de una sola** — código
+local sin commitear, "pushear el repo X", un servicio corriendo en *esta* laptop. Esos ítems se
+estampan `[@<máquina>]` en el `pending.md`. Cuando los ves **desde otra máquina**, `load-context`
+los marca con **⚠** y Claude **no intenta actuar sobre ellos ahí** (no busca un repo de código que
+no está en esa máquina): te dice *"esto es de `<máquina>`, no de acá"*.
+
+La etiqueta de máquina es `MNEMO_MACHINE` (si la exportás) o el hostname. Las tareas **portables**
+(implementar X, decisiones de diseño) no se estampan — valen en cualquier lado. Así la misma memoria
+sirve en todas las máquinas sin que Claude confunda *dónde* vive cada trabajo.
 
 ### Recordatorio de guardado (hook incluido)
 

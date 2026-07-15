@@ -72,3 +72,9 @@ Las secciones extra las elige cada proyecto según lo que ayude a retomar. Ejemp
 de trabajo: `Deuda` (deuda técnica / known issues), `Ramas` (qué se pusheó a qué rama),
 `Hecho`/`Desplegado` (lo ya cerrado, con items `- [x]`, para no repisar), `Riesgos`,
 `Decisiones abiertas`… Ninguna es obligatoria; agregá solo las que apliquen.
+
+**Ítems atados a una máquina.** La memoria se comparte entre máquinas, pero algunos ítems son de
+UNA sola (código local sin commitear, "pushear el repo X", un servicio corriendo acá). Estampalos
+con `[@<máquina>]` al final (`<máquina>` = `MNEMO_MACHINE` o el hostname). Vistos desde otra
+máquina, `load-context` los marca con **⚠** y Claude no intenta actuar sobre ellos ahí. Las tareas
+portables (implementar X, decisiones) no se estampan.

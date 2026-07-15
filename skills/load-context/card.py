@@ -7,6 +7,7 @@ memoria produce siempre la misma tarjeta. Si el proyecto no existe, sale 1.
 """
 
 import os
+import platform
 import re
 import sys
 from pathlib import Path
@@ -80,6 +81,17 @@ def project_slugs(fm: dict) -> list:
 def truncate(s: str) -> str:
     s = s.strip()
     return s if len(s) <= MAX_ITEM_LEN else s[: MAX_ITEM_LEN - 1] + "…"
+
+
+def current_machine() -> str:
+    """Etiqueta de esta máquina: MNEMO_MACHINE, si no el hostname corto."""
+    return (os.environ.get("MNEMO_MACHINE") or platform.node().split(".")[0]).strip()
+
+
+def machine_flag(text: str, here: str) -> str:
+    """'⚠ ' si el ítem está estampado con una máquina distinta a la actual."""
+    m = re.search(r"\[@([^\]]+)\]", text)
+    return "⚠ " if m and m.group(1).strip() != here else ""
 
 
 def parse_pending(path: Path) -> dict:
@@ -175,12 +187,14 @@ def main() -> int:
     out.append("")
     out.append(f"▶ Retomar por: {'; '.join(retomar) if retomar else '—'}")
 
+    here = current_machine()
+
     pend = en_curso + siguiente
     out.append("")
     out.append("Pendientes")
     if pend:
         for i, it in enumerate(pend[:MAX_PENDING], 1):
-            out.append(f" {i}. {it}")
+            out.append(f" {i}. {machine_flag(it, here)}{it}")
         if len(pend) > MAX_PENDING:
             out.append(f"    … (+{len(pend) - MAX_PENDING} más)")
     else:
@@ -195,7 +209,7 @@ def main() -> int:
         out.append(f"{section_icon(key)} {data['label']} ({len(data['items'])})")
         for it in data["items"]:
             mark = "✓ " if it["done"] else ""
-            out.append(f" • {mark}{it['text']}")
+            out.append(f" • {machine_flag(it['text'], here)}{mark}{it['text']}")
 
     out.append("")
     out.append(f"Contexto guardado ({len(mems)})")

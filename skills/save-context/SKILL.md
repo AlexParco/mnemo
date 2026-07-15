@@ -76,14 +76,41 @@ que para sincronizar entre máquinas puede exportar `MNEMO_REMOTE` o agregar un 
    p. ej. `## Deuda`, `## Ramas` (qué se pusheó a qué rama), `## Hecho`/`Desplegado` (`- [x]`, para
    no repisar), `## Riesgos`. **Solo las que apliquen a ESTE proyecto**; no fuerces secciones vacías
    ni copies las de otro. Actualiza `updated` e info de estado en `INDEX.md` si cambió.
+   - **Estampá `[@<máquina>]` SOLO en ítems atados físicamente a UNA máquina** (`<máquina>` =
+     `${MNEMO_MACHINE:-$(hostname -s)}`): cambios sin commitear, un proceso/servicio corriendo acá,
+     una rama local sin pushear, una ruta local. **La mayoría de los pendientes NO se estampan.**
+     **Test:** *¿lo podría hacer cualquier máquina que tenga el repo?* → **sí = portable, NO estampes**
+     ("implementar X", "el front debe…", decisiones de diseño valen en cualquier lado). Estampá solo
+     lo que **no existe** en otra máquina. Ante la duda, **no estampes**: un ítem portable marcado ⚠
+     de más confunde tanto como uno local sin marcar.
 
 6. **Commit.** `git -C $MEM add -A && git -C $MEM commit -m "save(<slug>): <resumen corto>"`.
    Nunca uses `Co-Authored-By`.
 
-7. **Push (con confirmación).** Si hay remoto, **muestra al usuario** qué se va a subir
-   (`git -C $MEM log origin/main..HEAD --oneline` y `git -C $MEM show --stat HEAD`) y
-   **pide confirmación explícita antes de `git push`**. Sin confirmación, deja el commit local
-   y avísale que quedó sin subir — hasta que suba, las otras máquinas no lo ven.
+7. **Push.** Si hay remoto:
+
+   a. **Chequeo de secretos — SIEMPRE, no opcional.** Antes de cualquier push, escaneá lo que
+      subiría por patrones de secreto:
+      ```bash
+      git -C $MEM diff origin/main..HEAD 2>/dev/null | grep -inE -e \
+        '-----BEGIN [A-Z ]*PRIVATE KEY-----|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[baprs]-|(password|passwd|secret|token|api[_-]?key)["'"'"' ]*[:=]|[a-z][a-z0-9+.-]*://[^/:@ ]+:[^/@ ]+@'
+      ```
+      (El `-e` es necesario: el patrón empieza con `---` y sin `-e` grep lo toma como flags.)
+
+      Si hay match → **NO pushees**, mostrale al usuario las líneas y pará. La memoria no lleva
+      secretos; esto los atrapa antes de que salgan de la máquina. (Si `origin/main` no se resolvió,
+      escaneá el/los commit(s) nuevos con `git -C $MEM show HEAD`.)
+
+   b. **Modo push:**
+      - **`MNEMO_AUTOPUSH` seteado (1/true)** → pusheá automáticamente (`git -C $MEM push`) y reportá
+        `subido al hub ✓`. Sin fricción.
+      - **Sin `MNEMO_AUTOPUSH`** (default) → mostrá qué se va a subir
+        (`git -C $MEM log origin/main..HEAD --oneline` y `git -C $MEM show --stat HEAD`) y **pedí
+        confirmación explícita** antes de `git push`. Sin confirmación, dejá el commit local y avisá
+        que quedó sin subir.
+
+   Un conflicto **semántico** en el rebase (paso 1) ya te paró antes de llegar acá — el auto-push
+   solo corre sobre un merge limpio.
 
 ## Conflictos
 
@@ -121,5 +148,6 @@ guardar, una línea: "Nada nuevo que persistir en <slug>."
 
 ## Notas
 
-- Respeta la regla global: nada de commits/push sin que el usuario lo apruebe; invocar
-  `/mnemo:save-context` autoriza el commit local, pero el push se confirma aparte.
+- Push: por default se confirma aparte (invocar `/mnemo:save-context` autoriza el commit local, no
+  el push). Con `MNEMO_AUTOPUSH=1` el push es automático — pero el **chequeo de secretos y la parada
+  por conflicto semántico corren igual**, no se saltan nunca.
