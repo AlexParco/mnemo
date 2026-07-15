@@ -35,7 +35,8 @@ Llámalo `$MEM` de aquí en adelante.
    - Si no existe, lista los proyectos disponibles (`ls $MEM/projects`) con su `status` y
      pregunta a cuál se refería. No inventes un proyecto.
 
-3. **Reúne el contexto** (leer, no escribir):
+3. **Reúne el contexto** (leer, no escribir). Leelo **todo** para tenerlo en la sesión —
+   pero NO lo imprimas entero; el paso 4 define qué se muestra.
    - `$MEM/projects/<slug>/INDEX.md` — qué es, alcance, estado, servicios.
    - `$MEM/projects/<slug>/pending.md` — tareas pendientes.
    - **Todas** las memorias de `$MEM/memories/` cuyo frontmatter `projects` **incluya el slug**.
@@ -44,12 +45,21 @@ Llámalo `$MEM` de aquí en adelante.
      overlap importa: una memoria tagueada con varios proyectos entra si el slug está presente.
    - `$MEM/shared/` — convenciones globales que siempre aplican.
 
-4. **Resume para el usuario**, conciso y accionable:
-   - 1-2 líneas: qué es el proyecto y su estado.
-   - Servicios/áreas que toca.
-   - Decisiones y restricciones clave (bullet corto por memoria relevante; agrupa por `type`).
-   - **Pendientes**: lo que estaba en curso y lo siguiente.
-   - Cierra preguntando en qué tarea quiere continuar.
+4. **Mostrá la tarjeta con el script (formato estricto).** El formato NO lo redactás vos: lo
+   genera un script determinista. Corré:
+
+   ```bash
+   MNEMO_DIR="$MEM" python3 "${CLAUDE_SKILL_DIR}/card.py" <slug>
+   ```
+
+   y mostrá su **salida tal cual, como la respuesta completa** — sin agregar prosa antes ni
+   después. Ya leíste todo en el paso 3 (tenés el detalle en contexto para trabajar), pero acá
+   **solo se muestra la tarjeta**.
+   - Si el usuario pide "el detalle" / "las decisiones" / "qué había de X", **ahí sí** desplegás lo
+     relevante de lo que leíste en el paso 3. Por default, la tarjeta y nada más.
+   - **Fallback:** si el script sale con error (≠0) o no hay `python3`, mostrá a mano un resumen
+     mínimo equivalente: `📁 <slug> · <status>`, `▶ Retomar por: …`, los pendientes de `pending.md`
+     y `🗄 <N> memorias`. Nada de volcar decisiones/deuda.
 
 5. **No cargues otros proyectos.** Solo el pedido. Si una memoria pertenece también a otro
    proyecto, úsala igual (overlap) pero no arrastres el resto de ese otro proyecto.

@@ -42,6 +42,7 @@ Da una vista de pájaro del store de `mnemo`: qué proyectos hay y su tamaño.
 
 ## Notas
 
+- **Salida compacta:** solo la tabla y la línea de resumen. Nada de prosa alrededor ni de
+  describir cada proyecto — para el detalle de uno es `/mnemo:load-context <slug>`.
 - Solo lectura. No escribe ni commitea.
-- No cargues el contenido de ningún proyecto; esto es solo el índice. Para entrar a uno es
-  `/mnemo:load-context <slug>`.
+- No cargues el contenido de ningún proyecto; esto es solo el índice.

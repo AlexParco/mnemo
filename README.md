@@ -35,8 +35,9 @@ y el store se queda en esta máquina.
 
 ## Instalación
 
-**Requisitos:** [Claude Code](https://claude.com/claude-code), `git` y `node` (el hook de
-recordatorio corre con node; normalmente ya viene con el entorno de Claude Code).
+**Requisitos:** [Claude Code](https://claude.com/claude-code), `git`, `node` (el hook de
+recordatorio) y `python3` (el render de la tarjeta de `load-context`). node y python3 suelen venir
+con el entorno.
 
 Es un plugin de Claude Code. Desde Claude Code:
 
@@ -168,9 +169,10 @@ Contrato completo del frontmatter: `templates/SCHEMA.md` (se copia al store en e
 mnemo/
   .claude-plugin/plugin.json        # manifest (nombre, versión, referencia al hook)
   .claude-plugin/marketplace.json   # catálogo para instalar desde GitHub
-  skills/<comando>/SKILL.md         # los 6 slash-commands /mnemo:*
+  skills/<comando>/SKILL.md         # los slash-commands /mnemo:*
+  skills/load-context/card.py       # render estricto de la tarjeta de retomar (python3)
   hooks/hooks.json                  # registra el hook de recordatorio
-  scripts/suggest-save.js           # el hook (sin dependencias)
+  scripts/suggest-save.js           # el hook (node, sin dependencias)
   templates/SCHEMA.md               # contrato del frontmatter (se copia al store)
 ```
 

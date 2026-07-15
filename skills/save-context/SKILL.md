@@ -101,8 +101,21 @@ el rebase se resuelve leyendo, no adivinando:
 - Antes de dar por cerrado: `git -C $MEM status` no debe mostrar rebase en curso, y no puede quedar
   ningún `<<<<<<<` en los `.md` (`grep -rn '^<<<<<<<' $MEM`).
 
+## Formato de salida
+
+Confirmación **compacta**, no un volcado de lo que escribiste. Formato:
+
+```
+✅ Guardado en <slug>
+ • Memorias: <N> nueva(s)/actualizada(s) — <ids o temas cortos, coma-separados>
+ • Pendientes: <qué cambió, ej. "+2 nuevos, 1 marcado hecho">
+ • Commit <hash corto> · <"subido al hub ✓" | "local, sin subir (confirmá para push)">
+```
+
+No repitas el contenido de cada memoria; el usuario ya vivió la sesión. Si no hubo nada que
+guardar, una línea: "Nada nuevo que persistir en <slug>."
+
 ## Notas
 
-- Muéstrale al usuario un resumen de qué memorias creaste/actualizaste y qué pendientes quedaron.
 - Respeta la regla global: nada de commits/push sin que el usuario lo apruebe; invocar
   `/mnemo:save-context` autoriza el commit local, pero el push se confirma aparte.
