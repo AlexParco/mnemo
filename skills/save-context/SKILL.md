@@ -18,16 +18,19 @@ existe o no es un repo git, créalo antes de seguir. Corré:
 ```bash
 mkdir -p "$MEM"/{projects,memories,shared}
 git -C "$MEM" rev-parse --git-dir >/dev/null 2>&1 || git -C "$MEM" init -q -b main
-[ -f "$MEM/.gitignore" ] || printf '.DS_Store\n' > "$MEM/.gitignore"
-# copia el contrato del schema si el plugin lo trae a mano (best-effort)
-[ -f "$MEM/shared/SCHEMA.md" ] || cp "${CLAUDE_PLUGIN_ROOT:-/nonexistent}/templates/SCHEMA.md" "$MEM/shared/SCHEMA.md" 2>/dev/null || true
-# remoto opcional: si el usuario exportó MNEMO_REMOTE, engánchalo y adopta su historia si ya tiene
+# Remoto opcional + adopción de historia. Va ANTES de escribir plantillas locales:
+# en una máquina nueva contra un VPS que ya tiene memoria, el checkout traería el
+# store, y un .gitignore/SCHEMA.md sin versionar lo bloquearía.
 if [ -n "${MNEMO_REMOTE:-}" ] && ! git -C "$MEM" remote get-url origin >/dev/null 2>&1; then
   git -C "$MEM" remote add origin "$MNEMO_REMOTE"
   if git -C "$MEM" fetch -q origin 2>/dev/null && git -C "$MEM" rev-parse -q --verify origin/main >/dev/null; then
     git -C "$MEM" rev-parse -q --verify HEAD >/dev/null || git -C "$MEM" checkout -q -B main --track origin/main
   fi
 fi
+# Plantillas: solo lo que falte (en una máquina nueva ya vinieron del remoto).
+[ -f "$MEM/.gitignore" ] || printf '.DS_Store\n' > "$MEM/.gitignore"
+# copia el contrato del schema si el plugin lo trae a mano (best-effort)
+[ -f "$MEM/shared/SCHEMA.md" ] || cp "${CLAUDE_PLUGIN_ROOT:-/nonexistent}/templates/SCHEMA.md" "$MEM/shared/SCHEMA.md" 2>/dev/null || true
 ```
 
 Si el bootstrap acaba de crear el store, avísale al usuario en una línea dónde quedó (`$MEM`) y
