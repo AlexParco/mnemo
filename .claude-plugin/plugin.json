@@ -1,13 +1,12 @@
 {
   "name": "mnemo",
   "description": "Memoria persistente por proyecto para Claude Code: notas en texto plano versionadas en git, sincronizables entre tus máquinas. Comandos /mnemo:load-context, /mnemo:save-context, /mnemo:mem, /mnemo:list-context, /mnemo:forget.",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "author": {
     "name": "Alexander Parco"
   },
   "homepage": "https://github.com/AlexParco/mnemo",
   "repository": "https://github.com/AlexParco/mnemo",
   "license": "MIT",
-  "keywords": ["memory", "context", "persistence", "notes", "git"],
-  "hooks": "./hooks/hooks.json"
+  "keywords": ["memory", "context", "persistence", "notes", "git"]
 }
