@@ -13,7 +13,33 @@ from pathlib import Path
 
 STATUS_ES = {"active": "activo", "paused": "pausado", "done": "hecho"}
 MAX_PENDING = 5
-MAX_ITEM_LEN = 90
+MAX_ITEM_LEN = 100
+
+# Orden e íconos por tipo de memoria (para agrupar el contexto).
+TYPE_ORDER = ["decision", "constraint", "gotcha", "bug", "reference", "todo"]
+TYPE_ICON = {
+    "decision": "⚖",
+    "constraint": "⛔",
+    "gotcha": "⚠",
+    "bug": "🐛",
+    "reference": "🔗",
+    "todo": "☐",
+}
+
+# Secciones de pending.md que NO son "pendientes" numerados: se muestran como
+# bloques propios (bloqueado, deuda, desplegado, etc.). Íconos por nombre conocido.
+CORE_SECTIONS = {"en curso", "siguiente"}
+SECTION_ICON = {
+    "bloqueado": "⛔", "deuda": "🧾", "desplegado": "✅", "hecho": "✅",
+    "ramas": "🌿", "riesgos": "⚠", "pusheado": "🌿",
+}
+
+
+def section_icon(key: str) -> str:
+    for name, icon in SECTION_ICON.items():
+        if key.startswith(name):
+            return icon
+    return "▸"
 
 
 def store_dir() -> Path:
@@ -57,8 +83,9 @@ def truncate(s: str) -> str:
 
 
 def parse_pending(path: Path) -> dict:
-    """Devuelve {'en curso': [...], 'siguiente': [...], 'bloqueado': [...]} con
-    solo los items abiertos ('- [ ]')."""
+    """Todas las secciones del pending.md, en orden. Clave = título en minúsculas;
+    valor = {'label': título original, 'items': [{'text', 'done'}]}. Genérico: sirve
+    para En curso / Siguiente / Bloqueado y también Deuda / Desplegado / lo que haya."""
     sections: dict = {}
     current = None
     if not path.exists():
@@ -66,25 +93,46 @@ def parse_pending(path: Path) -> dict:
     for line in path.read_text(encoding="utf-8").splitlines():
         h = re.match(r"^##\s+(.*)$", line.strip())
         if h:
-            current = h.group(1).strip().lower()
-            sections.setdefault(current, [])
+            label = h.group(1).strip()
+            current = label.lower()
+            sections.setdefault(current, {"label": label, "items": []})
             continue
         item = re.match(r"^\s*-\s*\[( |x|X)\]\s*(.+)$", line)
         if item and current is not None:
-            if item.group(1) == " ":  # solo abiertos
-                sections[current].append(truncate(item.group(2)))
+            sections[current]["items"].append({
+                "text": truncate(item.group(2)),
+                "done": item.group(1).lower() == "x",
+            })
     return sections
 
 
-def count_memories(mem_dir: Path, slug: str) -> int:
+def memory_summary(text: str) -> str:
+    """Primera línea de contenido del cuerpo (sin frontmatter ni marcadores md)."""
+    body = text
+    if text.startswith("---"):
+        end = text.find("\n---", 3)
+        if end != -1:
+            body = text[end + 4:]
+    for line in body.splitlines():
+        s = re.sub(r"^[#\-\*>\s]+", "", line.strip()).strip()
+        if s:
+            return truncate(s)
+    return "(sin resumen)"
+
+
+def collect_memories(mem_dir: Path, slug: str) -> list:
+    """Memorias tagueadas con el slug, como {type, summary}, ordenadas por tipo."""
+    items = []
     if not mem_dir.exists():
-        return 0
-    n = 0
-    for f in mem_dir.glob("*.md"):
-        fm = parse_frontmatter(f.read_text(encoding="utf-8"))
+        return items
+    for f in sorted(mem_dir.glob("*.md")):
+        text = f.read_text(encoding="utf-8")
+        fm = parse_frontmatter(text)
         if slug in project_slugs(fm):
-            n += 1
-    return n
+            items.append({"type": fm.get("type", ""), "summary": memory_summary(text)})
+    items.sort(key=lambda it: TYPE_ORDER.index(it["type"])
+               if it["type"] in TYPE_ORDER else len(TYPE_ORDER))
+    return items
 
 
 def main() -> int:
@@ -106,10 +154,13 @@ def main() -> int:
         services = [services]
 
     sec = parse_pending(proj / "pending.md")
-    en_curso = sec.get("en curso", [])
-    siguiente = sec.get("siguiente", [])
-    bloqueado = sec.get("bloqueado", [])
-    n_mem = count_memories(mem / "memories", slug)
+
+    def open_texts(key):
+        return [i["text"] for i in sec.get(key, {}).get("items", []) if not i["done"]]
+
+    en_curso = open_texts("en curso")
+    siguiente = open_texts("siguiente")
+    mems = collect_memories(mem / "memories", slug)
 
     # --- armar la tarjeta ---
     out = []
@@ -135,11 +186,25 @@ def main() -> int:
     else:
         out.append(" (ninguno)")
 
-    tail = f"🗄 {n_mem} memoria{'s' if n_mem != 1 else ''}"
-    if bloqueado:
-        tail += f" · {len(bloqueado)} bloqueo{'s' if len(bloqueado) != 1 else ''}"
+    # Secciones extra del pending.md (bloqueado, deuda, desplegado, lo que exista).
+    # Se muestran solo si tienen items → la tarjeta se adapta a cada proyecto.
+    for key, data in sec.items():
+        if key in CORE_SECTIONS or not data["items"]:
+            continue
+        out.append("")
+        out.append(f"{section_icon(key)} {data['label']} ({len(data['items'])})")
+        for it in data["items"]:
+            mark = "✓ " if it["done"] else ""
+            out.append(f" • {mark}{it['text']}")
+
     out.append("")
-    out.append(tail)
+    out.append(f"Contexto guardado ({len(mems)})")
+    if mems:
+        for m in mems:
+            icon = TYPE_ICON.get(m["type"], "•")
+            out.append(f" {icon} {m['summary']}")
+    else:
+        out.append(" (sin notas)")
 
     shown = min(len(pend), MAX_PENDING)
     if shown == 0:

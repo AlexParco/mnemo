@@ -70,8 +70,12 @@ que para sincronizar entre máquinas puede exportar `MNEMO_REMOTE` o agregar un 
    - Enlaza memorias relacionadas con `[[id]]`.
 
 5. **Actualiza pendientes** `$MEM/projects/<slug>/pending.md`: marca lo hecho, agrega lo nuevo,
-   deja claro qué quedó en curso para el próximo `/mnemo:load-context`. Actualiza `updated` e info de
-   estado en `INDEX.md` si cambió.
+   deja claro qué quedó en curso para el próximo `/mnemo:load-context`. Las secciones son **libres**
+   y propias de cada proyecto (`load-context` muestra las que existan): además de
+   `En curso`/`Siguiente`/`Bloqueado`, agregá las que la sesión haya producido y ayuden a retomar —
+   p. ej. `## Deuda`, `## Ramas` (qué se pusheó a qué rama), `## Hecho`/`Desplegado` (`- [x]`, para
+   no repisar), `## Riesgos`. **Solo las que apliquen a ESTE proyecto**; no fuerces secciones vacías
+   ni copies las de otro. Actualiza `updated` e info de estado en `INDEX.md` si cambió.
 
 6. **Commit.** `git -C $MEM add -A && git -C $MEM commit -m "save(<slug>): <resumen corto>"`.
    Nunca uses `Co-Authored-By`.

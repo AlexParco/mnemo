@@ -47,8 +47,10 @@ Servicios/áreas que toca y por qué. Decisiones macro con enlace a [[memoria-id
 
 ## Pendientes — `projects/<slug>/pending.md`
 
-Lista viva de lo que falta. `/save-context` la actualiza; `/load-context` la lee para
-retomar. Formato libre pero recomendado:
+Lista viva del **estado del proyecto**. `/save-context` la actualiza; `/load-context` la lee para
+retomar. Las secciones son **libres**: la tarjeta de `load-context` renderiza las que existan, así
+que agregá solo las que apliquen al proyecto. `## En curso` y `## Siguiente` alimentan los
+"Pendientes" numerados; el resto (`Bloqueado`, `Deuda`, `Desplegado`, …) se muestran como bloques.
 
 ```markdown
 # Pendientes — <nombre>
@@ -59,6 +61,14 @@ retomar. Formato libre pero recomendado:
 ## Siguiente
 - [ ] <tarea>
 
-## Bloqueado
+## Bloqueado                 <!-- opcional -->
 - [ ] <tarea> — bloqueado por <razón>
+
+## <sección propia del proyecto>   <!-- opcional, cuantas quieras -->
+- [ ] <ítem>
 ```
+
+Las secciones extra las elige cada proyecto según lo que ayude a retomar. Ejemplos según el tipo
+de trabajo: `Deuda` (deuda técnica / known issues), `Ramas` (qué se pusheó a qué rama),
+`Hecho`/`Desplegado` (lo ya cerrado, con items `- [x]`, para no repisar), `Riesgos`,
+`Decisiones abiertas`… Ninguna es obligatoria; agregá solo las que apliquen.
