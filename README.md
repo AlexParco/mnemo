@@ -110,6 +110,24 @@ No hay comando "crear proyecto": lo bootstrapeas con `/save-context <slug>` la p
 (Claude te pide el nombre y arma el `INDEX.md` + `pending.md`). Luego, en cualquier laptop,
 `/load-context <slug>` retoma donde quedaste.
 
+### Recordatorio de guardado (hook opcional)
+
+Es fácil trabajar una sesión larga y olvidarte de `/save-context`. Hay un hook opcional que, tras
+acumular ediciones sin guardar, te sugiere correr `/save-context` (no bloquea nada, solo avisa).
+Cuenta **trabajo sin persistir**: en cuanto guardas, el contador se reinicia solo y se calla.
+
+```bash
+MNEMO_HOOK=1 ./install.sh     # lo agrega a ~/.claude/settings.json (merge seguro, idempotente)
+```
+
+Sin `MNEMO_HOOK=1` el instalador solo imprime el snippet para que lo pegues a mano. Ajustes por env:
+
+| Variable | Default | Qué hace |
+|---|---|---|
+| `MNEMO_SAVE_EDITS` | `40` | ediciones sin guardar antes de avisar (y cada cuántas re-avisar). `0` lo apaga |
+| `MNEMO_SAVE_TOKENS` | `0` (off) | avisa también si el contexto supera N tokens (señal opcional; el formato del transcript es interno de Claude Code) |
+| `MNEMO_SAVE_TOKENS_STEP` | `60000` | re-aviso por tokens |
+
 ## Estructura del store
 
 ```

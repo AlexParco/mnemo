@@ -10,6 +10,9 @@
 #
 #   MNEMO_DIR     ruta del store   (default: ~/.local/share/mnemo)
 #   MNEMO_REMOTE  URL del remoto   (opcional; ej. git@mi-vps:mnemo.git)
+#   MNEMO_HOOK=1  instala el hook que sugiere /save-context en sesiones largas
+#                 (opcional; modifica ~/.claude/settings.json. Sin esto, solo
+#                  imprime el snippet para que lo agregues a mano)
 #
 # Idempotente: correlo las veces que quieras, en cualquier máquina.
 set -euo pipefail
@@ -19,6 +22,9 @@ SKILLS_SRC="$ENGINE_DIR/skills"
 SKILLS_DST="$HOME/.claude/skills"
 STORE_DIR="${MNEMO_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/mnemo}"
 REMOTE="${MNEMO_REMOTE:-}"
+SETTINGS="$HOME/.claude/settings.json"
+HOOK_JS="$ENGINE_DIR/skills/save-context/suggest-save.js"
+HOOK_CMD="node $HOOK_JS"
 
 # --- 1. enlazar skills ---
 mkdir -p "$SKILLS_DST"
@@ -95,6 +101,42 @@ fi
 
 if [ -f "$STORE_DIR/.stignore" ]; then
   echo "ℹ  quedó un .stignore del viejo modo P2P; ya no se usa, podés borrarlo."
+fi
+
+# --- 6. hook opcional: sugerir /save-context en sesiones largas ---
+# Solo se instala con MNEMO_HOOK=1, porque toca ~/.claude/settings.json (global).
+# El merge es idempotente: si el hook ya está, no duplica nada.
+if [ "${MNEMO_HOOK:-}" = "1" ] || [ "${MNEMO_HOOK:-}" = "true" ]; then
+  set +e
+  out="$(SETTINGS="$SETTINGS" HOOK_CMD="$HOOK_CMD" node - <<'NODE'
+const fs = require("fs"), path = require("path");
+const p = process.env.SETTINGS, cmd = process.env.HOOK_CMD;
+let s = {};
+if (fs.existsSync(p)) {
+  try { s = JSON.parse(fs.readFileSync(p, "utf8")) || {}; }
+  catch { console.error("INVALID"); process.exit(3); }
+}
+s.hooks = s.hooks || {};
+s.hooks.PreToolUse = s.hooks.PreToolUse || [];
+const has = s.hooks.PreToolUse.some(e =>
+  (e.hooks || []).some(h => typeof h.command === "string" && h.command.includes("suggest-save.js")));
+if (has) { console.log("EXISTS"); process.exit(0); }
+s.hooks.PreToolUse.push({ matcher: "Edit|Write", hooks: [{ type: "command", command: cmd }] });
+fs.mkdirSync(path.dirname(p), { recursive: true });
+fs.writeFileSync(p, JSON.stringify(s, null, 2) + "\n");
+console.log("ADDED");
+NODE
+)"
+  rc=$?
+  set -e
+  case "$out" in
+    ADDED)  echo "✓ hook instalado en $SETTINGS (sugiere /save-context; reinicia Claude Code)";;
+    EXISTS) echo "✓ hook ya estaba en $SETTINGS";;
+    *)      echo "⚠  no pude editar $SETTINGS (¿JSON inválido? rc=$rc). Agrégalo a mano:" >&2
+            echo "   \"hooks\":{\"PreToolUse\":[{\"matcher\":\"Edit|Write\",\"hooks\":[{\"type\":\"command\",\"command\":\"$HOOK_CMD\"}]}]}" >&2;;
+  esac
+else
+  echo "ℹ  hook de sugerencia de guardado: no instalado. Para activarlo: MNEMO_HOOK=1 ./install.sh"
 fi
 
 echo
