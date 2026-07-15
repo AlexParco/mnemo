@@ -1,6 +1,6 @@
 ---
 name: save-context
-description: Guarda en la memoria persistente los avances, decisiones y pendientes del trabajo de la sesión actual, etiquetados por proyecto, y los sincroniza al store git de mnemo. Uso "/save-context <proyecto>". Trigger cuando el usuario quiere guardar el contexto, cerrar/pausar una sesión conservando el avance, "guarda lo que hicimos en X", "apunta esto en la memoria de X", o antes de cambiar de proyecto. Agnóstico: cualquier proyecto, no solo Ari.
+description: Guarda en la memoria persistente los avances, decisiones y pendientes del trabajo de la sesión actual, etiquetados por proyecto, y los sincroniza al store git de mnemo. Uso "/save-context <proyecto>". Trigger cuando el usuario quiere guardar el contexto, cerrar/pausar una sesión conservando el avance, "guarda lo que hicimos en X", "apunta esto en la memoria de X", o antes de cambiar de proyecto. Agnóstico: sirve para cualquier proyecto.
 ---
 
 # save-context
@@ -30,15 +30,18 @@ detente.
 3. **Destila la sesión.** Revisa lo trabajado y extrae SOLO lo que valga persistir:
    decisiones tomadas, restricciones/invariantes descubiertas, gotchas, bugs conocidos,
    referencias útiles. **No** guardes lo que ya está en el código, en git, o es efímero de esta
-   conversación. Ante la duda, menos es más.
+   conversación. Ante la duda, menos es más. **Si no hay nada que valga la pena, díselo al usuario
+   y no crees notas vacías ni triviales solo para "guardar algo".**
 
 4. **Escribe memorias atómicas** en `$MEM/memories/<id>.md` siguiendo `shared/SCHEMA.md`:
    - Un hecho por archivo. `id` = nombre de archivo, kebab-case único.
-   - `projects: [<slug>, ...]` — incluye el slug actual; **si el hecho también aplica a otro
-     proyecto que toca el mismo servicio, taguéalo con ambos** (overlap explícito). Pregunta al
-     usuario si no está claro que aplique a más de un proyecto.
-   - Rellena `services`, `type`, `updated` (fecha de hoy) y `author`
-     (`git -C $MEM config user.name`).
+   - `projects: [<slug>, ...]` — normalmente solo el slug actual. **Overlap** = añadir OTRO
+     proyecto solo si el mismo hecho también le sirve a un proyecto **distinto** (ej. un bug de una
+     librería compartida). No confundas overlap con partes internas del mismo proyecto: para
+     distinguir repos/módulos/áreas de este proyecto usá `services`, **no** `projects`. Pregunta al
+     usuario antes de taguear un segundo proyecto si no está claro.
+   - Rellena `services` (qué repo/módulo/área toca dentro del proyecto), `type`, `updated` (fecha
+     de hoy) y `author` (`git -C $MEM config user.name`).
    - **Antes de crear, busca duplicado** (`grep` por tema/id). Si existe, actualiza ese archivo
      y su `updated` en vez de duplicar.
    - Enlaza memorias relacionadas con `[[id]]`.

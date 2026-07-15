@@ -1,6 +1,6 @@
 ---
 name: load-context
-description: Carga la memoria persistente de un proyecto/iniciativa al inicio de una sesión de Claude — decisiones, restricciones, gotchas y tareas pendientes — para retomar el trabajo donde se quedó. Uso "/load-context <proyecto>". Trigger cuando el usuario pide cargar el contexto de un proyecto, retomar un proyecto, "carga el contexto de X", "seguir con X", "en qué quedamos en X", o abre una sesión nueva para seguir una iniciativa previa. Agnóstico: sirve para cualquier proyecto, no solo Ari.
+description: Carga la memoria persistente de un proyecto/iniciativa al inicio de una sesión de Claude — decisiones, restricciones, gotchas y tareas pendientes — para retomar el trabajo donde se quedó. Uso "/load-context <proyecto>". Trigger cuando el usuario pide cargar el contexto de un proyecto, retomar un proyecto, "carga el contexto de X", "seguir con X", "en qué quedamos en X", o abre una sesión nueva para seguir una iniciativa previa. Agnóstico: sirve para cualquier proyecto.
 ---
 
 # load-context
