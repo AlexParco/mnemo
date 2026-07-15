@@ -4,9 +4,6 @@ Memoria persistente **por proyecto** para Claude Code: guarda el contexto de tu 
 **texto plano** en un repo git y lo mantiene **sincronizado entre tus máquinas**. Simple,
 domain-agnostic, tu data es tuya.
 
-Es como [engram](https://github.com/Gentleman-Programming/engram) pero minimalista y sin base de
-datos: la memoria son archivos `.md` versionados en git, no un binario opaco.
-
 > **Estado: temprano (WIP).** Los comandos y el hook corren en local como plugin de Claude Code.
 > El flujo multi-máquina está diseñado pero poco probado.
 
@@ -38,6 +35,9 @@ y el store se queda en esta máquina.
 
 ## Instalación
 
+**Requisitos:** [Claude Code](https://claude.com/claude-code), `git` y `node` (el hook de
+recordatorio corre con node; normalmente ya viene con el entorno de Claude Code).
+
 Es un plugin de Claude Code. Desde Claude Code:
 
 ```
@@ -45,36 +45,57 @@ Es un plugin de Claude Code. Desde Claude Code:
 /plugin install mnemo@mnemo
 ```
 
+Reinicia Claude Code (o corre `/reload-plugins`) para que registre los comandos. Verifica con
+`/mnemo:list-context` — la primera vez te dirá que aún no hay memoria, y eso es correcto.
+
 No hay instalador ni paso de setup del store: **el store se crea solo** la primera vez que corres
 `/mnemo:save-context <slug>` (git init + estructura, en `~/.local/share/mnemo`). No necesitas saber
 git; los comandos lo gestionan por ti.
 
-En una sola máquina esto ya funciona out-of-the-box, sin servidor ni cuenta de nada. Para tener la
-misma memoria en varias máquinas, dale un remoto (siguiente sección).
+> **¿Vas a sincronizar entre máquinas?** Exportá `MNEMO_REMOTE` **antes** del primer
+> `/mnemo:save-context` (ver [Sincronizar entre máquinas](#sincronizar-entre-máquinas)). Si guardas
+> primero sin remoto, el store queda local y luego tenés que engancharlo a mano.
+
+En una sola máquina esto ya funciona out-of-the-box, sin servidor ni cuenta de nada.
 
 Variables: `MNEMO_DIR` cambia la ruta del store, `MNEMO_REMOTE` engancha un remoto al crearlo.
 
 ## Sincronizar entre máquinas
 
-El store es un repo git normal. Apuntalo a un remoto tuyo y las máquinas se sincronizan por ahí.
-**Vos elegís el servidor**; al plugin le da igual mientras hable git.
+**El servidor no corre el plugin — solo guarda tus datos.** El plugin corre en cada computadora;
+el servidor es un repo git tuyo (un bare repo) que hace de punto central siempre encendido. Vos
+elegís el servidor; al plugin le da igual mientras hable git.
 
-Un bare repo en un VPS propio es lo más barato y lo que menos terceros mete en el medio:
+```
+        TU VPS                      CADA COMPUTADORA
+  ┌──────────────────┐          ┌──────────────────────────┐
+  │  mnemo.git        │◄────────►│  plugin mnemo (la tool)  │
+  │  (bare repo)      │  git     │  + store local            │
+  │  = TUS DATOS      │  push/   │  ~/.local/share/mnemo     │
+  └──────────────────┘  pull    └──────────────────────────┘
+```
+
+**1. En el VPS (una sola vez).** Solo necesita `git` y que tengas acceso SSH (con llave, ideal):
 
 ```bash
-# en el servidor, una vez
 git init --bare ~/mnemo.git
 ```
 
-Luego, en cada máquina, exporta `MNEMO_REMOTE` **antes** del primer `/mnemo:save-context`:
+**2. En tu compu principal.** Instala el plugin (ver arriba), y **antes** del primer
+`/mnemo:save-context` exporta el remoto en tu shell rc:
 
 ```bash
-export MNEMO_REMOTE=usuario@tu-vps:mnemo.git   # en tu shell rc
+export MNEMO_REMOTE=usuario@tu-vps:mnemo.git   # ruta relativa al home del VPS
 ```
 
-Al crear el store, mnemo engancha ese remoto. La primera máquina sube su store (`push` con tu
-confirmación); las siguientes lo bajan solas: si el remoto ya tiene memoria, se adopta esa historia
-en vez de crear una nueva. Si el store ya existía sin remoto, agrégalo a mano una vez:
+El primer `/mnemo:save-context <slug>` crea el store, lo engancha al remoto y (con tu confirmación)
+lo sube. Tu memoria ya está en el VPS.
+
+**3. En cada compu adicional.** Instala el plugin y exporta el **mismo** `MNEMO_REMOTE`. Al
+bootstrapear, en vez de crear un store vacío **adopta la memoria que ya está en el VPS**. De ahí en
+más `/mnemo:load-context` trae lo de las otras máquinas y `/mnemo:save-context` sube lo tuyo.
+
+Si un store ya existía sin remoto, engánchalo a mano una vez:
 
 ```bash
 git -C ~/.local/share/mnemo remote add origin <URL> && git -C ~/.local/share/mnemo push -u origin main
