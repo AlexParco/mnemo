@@ -1,16 +1,24 @@
 #!/usr/bin/env bash
 # Instala el ENGINE de mnemo:
 #   1) enlaza los skills en ~/.claude/skills
-#   2) crea (si no existe) tu DATA STORE en un repo git aparte, listo para sincronizar P2P
-# El engine (esto) se comparte en GitHub; el store (tu data) es tuyo y se sincroniza
-# directo entre tus máquinas con Syncthing (P2P). Nunca toca GitHub ni un servidor.
-# Idempotente.
+#   2) crea (o repara) tu DATA STORE: un repo git aparte
+#
+# El engine (esto) se comparte en GitHub. El store (tu data) vive donde vos decidas:
+# un bare repo en tu VPS, un repo privado en GitHub/GitLab, un Gitea self-hosted, o
+# solo en esta máquina. El engine no opina sobre el servidor: le basta con que haya
+# un remoto git, o ninguno.
+#
+#   MNEMO_DIR     ruta del store   (default: ~/.local/share/mnemo)
+#   MNEMO_REMOTE  URL del remoto   (opcional; ej. git@mi-vps:mnemo.git)
+#
+# Idempotente: correlo las veces que quieras, en cualquier máquina.
 set -euo pipefail
 
 ENGINE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILLS_SRC="$ENGINE_DIR/skills"
 SKILLS_DST="$HOME/.claude/skills"
 STORE_DIR="${MNEMO_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/mnemo}"
+REMOTE="${MNEMO_REMOTE:-}"
 
 # --- 1. enlazar skills ---
 mkdir -p "$SKILLS_DST"
@@ -21,38 +29,86 @@ for skill in "$SKILLS_SRC"/*/; do
     echo "⚠  $target existe y NO es symlink; lo dejo intacto." >&2
     continue
   fi
-  ln -sfn "$skill" "$target"
+  ln -sfn "${skill%/}" "$target"
   echo "✓ skill $name"
 done
 
-# --- 2. crear el data store (separado del engine) ---
-if [ ! -d "$STORE_DIR" ]; then
-  mkdir -p "$STORE_DIR"/{projects,memories,shared}
-  cp "$ENGINE_DIR/templates/SCHEMA.md" "$STORE_DIR/shared/SCHEMA.md"
-  cp "$ENGINE_DIR/templates/gitignore" "$STORE_DIR/.gitignore"
-  cp "$ENGINE_DIR/templates/stignore" "$STORE_DIR/.stignore"
-  touch "$STORE_DIR/projects/.gitkeep" "$STORE_DIR/memories/.gitkeep"
+# --- 2. store ---
+# Cada pieza se verifica y repara por separado. En una máquina nueva el store puede
+# existir a medias, así que "el directorio existe" NO significa "está instalado".
+mkdir -p "$STORE_DIR"/{projects,memories,shared}
+
+if ! git -C "$STORE_DIR" rev-parse --git-dir >/dev/null 2>&1; then
   git -C "$STORE_DIR" init -q -b main
-  git -C "$STORE_DIR" add -A
-  git -C "$STORE_DIR" commit -q -m "init: data store"
-  echo "✓ store creado en $STORE_DIR (repo git local, sin remoto — el historial es tuyo)"
-  echo
-  echo "Para sincronizar entre máquinas (P2P, sin servidor), comparte esta carpeta con Syncthing:"
-  echo "  1. Instala Syncthing en cada máquina (brew install syncthing / apt install syncthing)."
-  echo "  2. Añade $STORE_DIR como folder compartido y emparéjalo con tu otra máquina."
-  echo "  El .stignore ya excluye .git para no corromper el historial. Ver README."
-else
-  echo "✓ store ya existe en $STORE_DIR"
-  # Backfill del .stignore para stores creados antes del modo P2P.
-  if [ ! -f "$STORE_DIR/.stignore" ]; then
-    cp "$ENGINE_DIR/templates/stignore" "$STORE_DIR/.stignore"
-    echo "✓ .stignore añadido al store (necesario para sincronizar P2P con Syncthing)"
+  echo "✓ repo git inicializado"
+fi
+
+# --- 3. remoto (opcional) ---
+if [ -n "$REMOTE" ]; then
+  if current_remote="$(git -C "$STORE_DIR" remote get-url origin 2>/dev/null)"; then
+    if [ "$current_remote" != "$REMOTE" ]; then
+      echo "⚠  origin ya apunta a $current_remote, no a $REMOTE. Lo dejo intacto." >&2
+      echo "   Para cambiarlo: git -C $STORE_DIR remote set-url origin $REMOTE" >&2
+    fi
+  else
+    git -C "$STORE_DIR" remote add origin "$REMOTE"
+    echo "✓ origin → $REMOTE"
   fi
+
+  # Máquina nueva contra un servidor que ya tiene memoria: adoptamos su historia.
+  # Se hace ANTES de copiar plantillas, para no chocar con archivos sin versionar.
+  if git -C "$STORE_DIR" fetch -q origin 2>/dev/null &&
+     git -C "$STORE_DIR" rev-parse -q --verify origin/main >/dev/null; then
+    if git -C "$STORE_DIR" rev-parse -q --verify HEAD >/dev/null; then
+      git -C "$STORE_DIR" branch --set-upstream-to=origin/main main >/dev/null 2>&1 || true
+    else
+      git -C "$STORE_DIR" checkout -q -B main --track origin/main
+      echo "✓ store traído desde origin"
+    fi
+  else
+    echo "ℹ  no pude leer origin/main (¿remoto vacío, o sin acceso?). Sigo con lo local."
+  fi
+fi
+
+# --- 4. plantillas: copiar solo lo que falte ---
+[ -f "$STORE_DIR/shared/SCHEMA.md" ] || {
+  cp "$ENGINE_DIR/templates/SCHEMA.md" "$STORE_DIR/shared/SCHEMA.md"
+  echo "✓ shared/SCHEMA.md"
+}
+[ -f "$STORE_DIR/.gitignore" ] || {
+  cp "$ENGINE_DIR/templates/gitignore" "$STORE_DIR/.gitignore"
+  echo "✓ .gitignore"
+}
+touch "$STORE_DIR/projects/.gitkeep" "$STORE_DIR/memories/.gitkeep"
+
+# --- 5. commit de lo que haya quedado suelto ---
+if [ -n "$(git -C "$STORE_DIR" status --porcelain)" ]; then
+  if git -C "$STORE_DIR" rev-parse -q --verify HEAD >/dev/null; then
+    msg="chore: alinea el store con las plantillas del engine"
+  else
+    msg="init: data store"
+  fi
+  git -C "$STORE_DIR" add -A
+  git -C "$STORE_DIR" commit -q -m "$msg"
+  echo "✓ commit: $msg"
+fi
+
+if [ -f "$STORE_DIR/.stignore" ]; then
+  echo "ℹ  quedó un .stignore del viejo modo P2P; ya no se usa, podés borrarlo."
 fi
 
 echo
 echo "Engine: $ENGINE_DIR   (compartible en GitHub)"
-echo "Store:  $STORE_DIR   (tu data, se sincroniza P2P entre tus máquinas)"
+echo "Store:  $STORE_DIR   (tu data)"
 echo "Skills: /list-context /load-context /save-context /mem /forget"
+echo
+if [ -n "$REMOTE" ]; then
+  echo "El store sincroniza contra $REMOTE. Los skills hacen pull --rebase al leer"
+  echo "y te piden confirmación antes de cada push."
+else
+  echo "El store es solo local. Para sincronizarlo entre máquinas, apuntalo a un"
+  echo "remoto git tuyo (bare repo en un VPS, repo privado, Gitea...):"
+  echo "  git -C $STORE_DIR remote add origin <URL> && git -C $STORE_DIR push -u origin main"
+fi
 echo
 echo "Si tu store NO está en la ruta default, exporta MNEMO_DIR en tu shell rc."

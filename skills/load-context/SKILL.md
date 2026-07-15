@@ -20,12 +20,12 @@ Llámalo `$MEM` de aquí en adelante. Si no existe, dile al usuario que clone/in
    comportamiento de `/list-context` (muestra el panorama de proyectos) y pídele que elija uno.
    No adivines ni cargues "el último".
 
-1. **Sincroniza.** El store se sincroniza P2P con Syncthing por fuera, así que normalmente ya
-   está al día. Si además hay remoto git (`git -C $MEM remote`, modo VPS opcional), corre
-   `git -C $MEM pull --ff-only`; si no hay remoto o falla, avisa en una línea y sigue con lo local.
-   **Chequea conflictos de Syncthing:** `find $MEM -name '*.sync-conflict-*'`. Si hay alguno,
-   avísale al usuario (lístalos) antes de cargar; puede haber una versión de la nota más nueva sin
-   fusionar. No los borres ni los fusiones en silencio.
+1. **Sincroniza.** Si el store tiene remoto (`git -C $MEM remote`), corre
+   `git -C $MEM pull --rebase --autostash` para traer lo que guardaste desde otras máquinas.
+   - Si no hay remoto, o el pull falla por red/acceso, avisa en una línea y sigue con lo local.
+   - Si el rebase se detiene por conflicto, **para y avísale al usuario**: este skill es de solo
+     lectura y no resuelve conflictos. Que corra `/save-context` (que sí los fusiona) o los
+     resuelva a mano. Deja el rebase como está, no lo abortes en silencio.
 
 2. **Resuelve el proyecto.** El argumento es un slug. Verifica `$MEM/projects/<slug>/`.
    - Si no existe, lista los proyectos disponibles (`ls $MEM/projects`) con su `status` y

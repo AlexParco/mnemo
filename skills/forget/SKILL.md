@@ -14,8 +14,10 @@ confirmación obligatorio. Nunca borres sin mostrar antes qué se va y sin confi
 
 ## Sincroniza primero
 
-Si hay remoto, `git -C $MEM pull --ff-only` antes de tocar nada, para no borrar sobre una copia
-vieja.
+Si hay remoto, `git -C $MEM pull --rebase --autostash` antes de tocar nada: borrar sobre una copia
+vieja puede eliminar una memoria que otra máquina acaba de escribir. Si el pull conflictúa,
+resuélvelo (o para y pregunta) **antes** de clasificar nada, y continúa con
+`GIT_EDITOR=true git -C $MEM rebase --continue` — sin `GIT_EDITOR` la shell se cuelga en el editor.
 
 ## Modo A — borrar un proyecto: `/forget project <slug>`
 
@@ -40,12 +42,15 @@ vieja.
    - Borra los archivos de las memorias exclusivas.
    - Borra el directorio `projects/<slug>/`.
 
-5. **Verifica después:** confirma que ya no queda `<slug>` en ningún frontmatter
-   (`grep -rn "<slug>" $MEM/memories $MEM/projects` no debe devolver el slug como proyecto) y que
-   las memorias compartidas siguen existiendo con sus otros proyectos. Reporta el resultado.
+5. **Verifica después:** confirma que ningún frontmatter sigue listando `<slug>` como proyecto, y
+   que las memorias compartidas siguen existiendo con sus otros proyectos. Para verificar, **lee el
+   campo `projects` de las memorias que grepeaste en el paso 2**; no grepees el slug pelado contra
+   todo el store: aparece en la prosa de las notas y te dará falsos positivos (y un slug corto como
+   `mnemo` hace match dentro de `mnemo-web`). Reporta el resultado.
 
 6. **Commit** `git -C $MEM add -A && git -C $MEM commit -m "forget(project <slug>): <resumen>"`.
-   Sin `Co-Authored-By`. **Push solo con confirmación aparte** (muestra qué se subirá).
+   Sin `Co-Authored-By`. **Push solo con confirmación aparte** (muestra qué se subirá). Recuerda
+   al usuario que hasta que suba, las otras máquinas conservan lo borrado.
 
 ## Modo B — borrar una memoria: `/forget memory <id>`
 

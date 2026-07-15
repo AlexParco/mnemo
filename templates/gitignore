@@ -1,8 +1,3 @@
 # El contenido del store ES tu memoria; casi nada que ignorar.
 
-# Artefactos operativos de Syncthing (modo P2P). No son tu memoria.
-.stversions/
-.stfolder/
-
-# Copias de conflicto de Syncthing: se revisan y fusionan a mano, no se versionan.
-*.sync-conflict-*
+.DS_Store

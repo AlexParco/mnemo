@@ -13,6 +13,11 @@ Atajo para capturar una sola memoria atómica sin el flujo completo de `/save-co
 
 ## Pasos
 
+0. **Sincroniza** si hay remoto: `git -C $MEM pull --rebase --autostash`. Si conflictúa, fusiona
+   conservando ambos lados (o para y pregunta si el choque es semántico) antes de escribir, y
+   continúa con `GIT_EDITOR=true git -C $MEM rebase --continue` — sin `GIT_EDITOR` la shell se
+   cuelga en el editor.
+
 1. **Parsea el argumento.** Primer token = proyecto(s), separados por coma para overlap
    (`rappi-f3,inventory-hotfix`). El resto = contenido de la nota. Si no hay proyecto claro,
    pregúntalo (ofrece los proyectos existentes de `$MEM/projects`).
@@ -24,7 +29,8 @@ Atajo para capturar una sola memoria atómica sin el flujo completo de `/save-co
    - `id` kebab-case derivado del contenido, único (revisa que no exista; si el tema ya existe,
      actualiza esa memoria).
    - `projects: [...]` con todos los slugs dados (overlap).
-   - Infiere `type` y `services` del contenido; `author` y `updated` (hoy).
+   - Infiere `type` y `services` del contenido; `updated` (hoy) y `author`
+     (`git -C $MEM config user.name`).
 
 4. **Commit local** `git -C $MEM add -A && git -C $MEM commit -m "mem(<slugs>): <resumen>"`.
    No hagas push aquí — el push se hace en `/save-context` (o si el usuario lo pide explícito).

@@ -13,9 +13,9 @@ Da una vista de pájaro del store de `mnemo`: qué proyectos hay y su tamaño.
 
 ## Pasos
 
-1. **Sincroniza** si hay remoto git (modo VPS opcional): `git -C $MEM pull --ff-only` (si falla,
-   sigue con lo local y avisa en una línea). En P2P la sincronización la hace Syncthing por fuera.
-   Chequea conflictos: `find $MEM -name '*.sync-conflict-*'`; si hay, menciónalos en el resumen.
+1. **Sincroniza** si hay remoto (`git -C $MEM remote`): `git -C $MEM pull --rebase --autostash`.
+   Si falla o el rebase conflictúa, no lo resuelvas aquí (esto es solo lectura): menciónalo en el
+   resumen y sigue con lo local.
 
 2. **Reúne los proyectos** de `$MEM/projects/*/INDEX.md`. Para cada uno lee del frontmatter:
    `slug`, `name`, `status`, `services`, `updated`.
