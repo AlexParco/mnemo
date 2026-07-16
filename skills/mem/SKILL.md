@@ -1,47 +1,49 @@
 ---
 name: mem
-description: Guarda una nota suelta en la memoria persistente a mitad de sesión, tagueada por proyecto, sin cerrar ni sincronizar todo. Uso "/mnemo:mem <proyecto>[,proyecto2] <la nota>". Trigger cuando el usuario quiere apuntar rápido una decisión, gotcha o dato en la memoria de uno o varios proyectos, "apunta que...", "recuerda para X que...", sin hacer un save-context completo. Agnóstico: cualquier proyecto.
+description: Save a loose note into persistent memory mid-session, tagged by project, without closing or syncing everything. Usage/Uso: "/mnemo:mem <project>[,project2] <the note>". Triggers: user wants to quickly jot down a decision, gotcha or fact into one or several projects' memory, "note that...", "remember for X that...", without doing a full save-context, plus "apunta que...", "recuerda para X que...". Works for any project / sirve para cualquier proyecto.
 ---
 
 # mem
 
-Atajo para capturar una sola memoria atómica sin el flujo completo de `/mnemo:save-context`.
+Shortcut to capture a single atomic memory without the full `/mnemo:save-context` flow.
+
+**Output language:** write all user-facing output in the language the user is writing in (Spanish or English).
 
 ## Store
 
-`$MEM = $MNEMO_DIR` o `~/.local/share/mnemo`.
+`$MEM = $MNEMO_DIR` or `~/.local/share/mnemo`.
 
-**Si `$MEM` no existe o no es repo git:** con `MNEMO_REMOTE` seteado, clónalo del hub
-(`git clone "$MNEMO_REMOTE" "$MEM"`) para trabajar sobre la memoria compartida; sin `MNEMO_REMOTE`,
-o si el proyecto no existe todavía, `/mnemo:mem` no crea el store: sugiere `/mnemo:save-context <slug>`
-y detente.
+**If `$MEM` doesn't exist or isn't a git repo:** with `MNEMO_REMOTE` set, clone it from the hub
+(`git clone "$MNEMO_REMOTE" "$MEM"`) to work on the shared memory; without `MNEMO_REMOTE`,
+or if the project doesn't exist yet, `/mnemo:mem` doesn't create the store: suggest `/mnemo:save-context <slug>`
+and stop.
 
-## Pasos
+## Steps
 
-0. **Sincroniza** si hay remoto: `git -C $MEM pull --rebase --autostash`. Si conflictúa, fusiona
-   conservando ambos lados (o para y pregunta si el choque es semántico) antes de escribir, y
-   continúa con `GIT_EDITOR=true git -C $MEM rebase --continue` — sin `GIT_EDITOR` la shell se
-   cuelga en el editor.
+0. **Sync** if there's a remote: `git -C $MEM pull --rebase --autostash`. If it conflicts, merge
+   keeping both sides (or stop and ask if the clash is a semantic conflict) before writing, and
+   continue with `GIT_EDITOR=true git -C $MEM rebase --continue` — without `GIT_EDITOR` the shell
+   hangs in the editor.
 
-1. **Parsea el argumento.** Primer token = proyecto(s), separados por coma para overlap
-   (`rappi-f3,inventory-hotfix`). El resto = contenido de la nota. Si no hay proyecto claro,
-   pregúntalo (ofrece los proyectos existentes de `$MEM/projects`).
+1. **Parse the argument.** First token = project(s), comma-separated for overlap
+   (`rappi-f3,inventory-hotfix`). The rest = the note content. If there's no clear project,
+   ask for it (offer the existing projects from `$MEM/projects`).
 
-2. **Verifica que los proyectos existan** en `$MEM/projects/`. Si alguno no existe, avísalo y
-   pregunta si crearlo o corregir el slug (no lo crees en silencio).
+2. **Verify the projects exist** in `$MEM/projects/`. If any doesn't exist, flag it and
+   ask whether to create it or fix the slug (don't create it silently).
 
-3. **Escribe una memoria** en `$MEM/memories/<id>.md` según `shared/SCHEMA.md`:
-   - `id` kebab-case derivado del contenido, único (revisa que no exista; si el tema ya existe,
-     actualiza esa memoria).
-   - `projects: [...]` con todos los slugs dados (overlap).
-   - Infiere `type` y `services` del contenido; `updated` (hoy) y `author`
+3. **Write a memory** to `$MEM/memories/<id>.md` per `shared/SCHEMA.md`:
+   - `id` kebab-case derived from the content, unique (check it doesn't exist; if the topic already exists,
+     update that memory).
+   - `projects: [...]` with all the given slugs (overlap).
+   - Infer `type` and `services` from the content; `updated` (today) and `author`
      (`git -C $MEM config user.name`).
 
-4. **Commit local** `git -C $MEM add -A && git -C $MEM commit -m "mem(<slugs>): <resumen>"`.
-   Sin `Co-Authored-By`.
-   - **Por default no pushees** — el push se hace en `/mnemo:save-context` (o si el usuario lo pide).
-   - **Con `MNEMO_AUTOPUSH=1`**, pusheá igual que save-context: primero el **chequeo de secretos**
-     (grep del diff `origin/main..HEAD` por claves/tokens/connection strings; si hay match, no
-     pushees y avisá), y si limpia, `git -C $MEM push` y reportá `subido ✓`.
+4. **Local commit** `git -C $MEM add -A && git -C $MEM commit -m "mem(<slugs>): <summary>"`.
+   No `Co-Authored-By`.
+   - **By default don't push** — the push happens in `/mnemo:save-context` (or if the user asks).
+   - **With `MNEMO_AUTOPUSH=1`**, push just like save-context: first the **secret scan**
+     (grep the `origin/main..HEAD` diff for keys/tokens/connection strings; if there's a match, don't
+     push and warn), and if it's clean, `git -C $MEM push` and report `pushed ✓`.
 
-5. Confirma en una línea qué se guardó y dónde.
+5. Confirm in one line what was saved and where.

@@ -1,72 +1,74 @@
 ---
 name: forget
-description: Borra de la memoria persistente un proyecto entero o una memoria suelta, de forma segura ante overlap (una memoria compartida con otros proyectos se desetiqueta, no se borra). Uso "/mnemo:forget project <slug>" o "/mnemo:forget memory <id>". Trigger cuando el usuario quiere borrar/eliminar un proyecto de la memoria, "borra el proyecto X", "elimina X de la memoria", "olvida X", "borra la memoria Y", o limpiar entradas del store. Agnóstico: cualquier proyecto.
+description: Delete a whole project or a single loose memory from persistent memory, safely handling overlap (a memory shared with other projects gets untagged, not deleted). Usage/Uso "/mnemo:forget project <slug>" or "/mnemo:forget memory <id>". Triggers when the user wants to delete/remove a project from memory or clean up store entries, "delete project X", "forget X", "remove X from memory", plus the Spanish phrases "borra el proyecto X", "olvida X", "elimina X de la memoria". Works for any project / sirve para cualquier proyecto.
 ---
 
 # forget
 
-Elimina entradas del store de `mnemo`. Operación **destructiva** → protocolo de
-confirmación obligatorio. Nunca borres sin mostrar antes qué se va y sin confirmación explícita.
+Delete entries from the `mnemo` store. **Destructive** operation → mandatory
+confirmation protocol. Never delete without first showing what will go and without explicit confirmation.
+
+**Output language:** write all user-facing output in the language the user is writing in (Spanish or English).
 
 ## Store
 
-`$MEM = $MNEMO_DIR` o `~/.local/share/mnemo`.
+`$MEM = $MNEMO_DIR` or `~/.local/share/mnemo`.
 
-**Si `$MEM` no existe o no es repo git:** con `MNEMO_REMOTE` seteado, clónalo del hub
-(`git clone "$MNEMO_REMOTE" "$MEM"`) para borrar sobre la memoria compartida real; sin
-`MNEMO_REMOTE`, no hay nada que borrar: avisa y detente.
+**If `$MEM` does not exist or is not a git repo:** with `MNEMO_REMOTE` set, clone it from the hub
+(`git clone "$MNEMO_REMOTE" "$MEM"`) to delete against the real shared memory; without
+`MNEMO_REMOTE`, there is nothing to delete: warn and stop.
 
-## Sincroniza primero
+## Sync first
 
-Si hay remoto, `git -C $MEM pull --rebase --autostash` antes de tocar nada: borrar sobre una copia
-vieja puede eliminar una memoria que otra máquina acaba de escribir. Si el pull conflictúa,
-resuélvelo (o para y pregunta) **antes** de clasificar nada, y continúa con
-`GIT_EDITOR=true git -C $MEM rebase --continue` — sin `GIT_EDITOR` la shell se cuelga en el editor.
+If there is a remote, `git -C $MEM pull --rebase --autostash` before touching anything: deleting against an
+old copy can wipe a memory another machine just wrote. If the pull conflicts,
+resolve it (or stop and ask) **before** classifying anything, and continue with
+`GIT_EDITOR=true git -C $MEM rebase --continue` — without `GIT_EDITOR` the shell hangs in the editor.
 
-## Modo A — borrar un proyecto: `/mnemo:forget project <slug>`
+## Mode A — delete a project: `/mnemo:forget project <slug>`
 
-1. **Verifica** que `$MEM/projects/<slug>/` existe. Si no, avísalo y lista los proyectos que sí
-   existen. No asumas.
+1. **Verify** that `$MEM/projects/<slug>/` exists. If not, say so and list the projects that do
+   exist. Do not assume.
 
-2. **Clasifica el impacto** ANTES de borrar. Recorre `$MEM/memories/` y separa las memorias cuyo
-   frontmatter `projects` incluya `<slug>` en dos grupos:
-   - **Exclusivas** (`projects` == `[<slug>]`, solo ese) → se BORRARÁN.
-   - **Compartidas** (`projects` tiene `<slug>` + otros) → se DESETIQUETARÁN (se quita `<slug>`
-     de la lista, la memoria sobrevive para los demás proyectos).
+2. **Classify the impact** BEFORE deleting. Walk `$MEM/memories/` and split the memories whose
+   frontmatter `projects` includes `<slug>` into two groups:
+   - **Exclusive** (`projects` == `[<slug>]`, only that one) → will be DELETED.
+   - **Shared** (`projects` has `<slug>` + others) → will be UNTAGGED (remove `<slug>`
+     from the list, the memory survives for the other projects).
 
-3. **Muestra el plan exacto** al usuario y pide confirmación:
-   - `projects/<slug>/` (INDEX.md, pending.md) → se elimina.
-   - Lista de memorias exclusivas a borrar (por `id`).
-   - Lista de memorias compartidas a desetiquetar, indicando con qué otros proyectos se quedan.
-   - **Espera "sí" explícito.** Sin confirmación, no borres nada.
+3. **Show the exact plan** to the user and ask for confirmation:
+   - `projects/<slug>/` (INDEX.md, pending.md) → deleted.
+   - List of exclusive memories to delete (by `id`).
+   - List of shared memories to untag, indicating which other projects they stay with.
+   - **Wait for an explicit "yes".** Without confirmation, delete nothing.
 
-4. **Ejecuta:**
-   - Quita `<slug>` del `projects` de cada memoria compartida (deja el resto intacto) y actualiza
-     su `updated`.
-   - Borra los archivos de las memorias exclusivas.
-   - Borra el directorio `projects/<slug>/`.
+4. **Execute:**
+   - Remove `<slug>` from the `projects` of each shared memory (leave the rest intact) and update
+     its `updated`.
+   - Delete the files of the exclusive memories.
+   - Delete the `projects/<slug>/` directory.
 
-5. **Verifica después:** confirma que ningún frontmatter sigue listando `<slug>` como proyecto, y
-   que las memorias compartidas siguen existiendo con sus otros proyectos. Para verificar, **lee el
-   campo `projects` de las memorias que grepeaste en el paso 2**; no grepees el slug pelado contra
-   todo el store: aparece en la prosa de las notas y te dará falsos positivos (y un slug corto como
-   `mnemo` hace match dentro de `mnemo-web`). Reporta el resultado.
+5. **Verify afterward:** confirm that no frontmatter still lists `<slug>` as a project, and
+   that the shared memories still exist with their other projects. To verify, **read the
+   `projects` field of the memories you grepped in step 2**; do not grep the bare slug against
+   the whole store: it appears in note prose and will give you false positives (and a short slug like
+   `mnemo` matches inside `mnemo-web`). Report the result.
 
-6. **Commit** `git -C $MEM add -A && git -C $MEM commit -m "forget(project <slug>): <resumen>"`.
-   Sin `Co-Authored-By`. **Push solo con confirmación aparte** (muestra qué se subirá). Recuerda
-   al usuario que hasta que suba, las otras máquinas conservan lo borrado.
+6. **Commit** `git -C $MEM add -A && git -C $MEM commit -m "forget(project <slug>): <summary>"`.
+   No `Co-Authored-By`. **Push only with separate confirmation** (show what will be uploaded). Remind
+   the user that until they push, the other machines keep what was deleted.
 
-## Modo B — borrar una memoria: `/mnemo:forget memory <id>`
+## Mode B — delete a memory: `/mnemo:forget memory <id>`
 
-1. Verifica que `$MEM/memories/<id>.md` existe. Si no, avísalo (ofrece buscar por tema).
-2. Muestra su contenido y con qué proyectos está tagueada; pide confirmación explícita.
-3. Al confirmar, borra el archivo. Si algún `pending.md` o memoria la enlazaba con `[[id]]`,
-   avisa de esos enlaces rotos (no los arregles en silencio).
-4. Verifica que ya no existe. Commit con mensaje `forget(memory <id>)`. Push solo confirmado.
+1. Verify that `$MEM/memories/<id>.md` exists. If not, say so (offer to search by topic).
+2. Show its content and which projects it is tagged with; ask for explicit confirmation.
+3. On confirmation, delete the file. If any `pending.md` or memory linked to it with `[[id]]`,
+   warn about those broken links (do not fix them silently).
+4. Verify it no longer exists. Commit with message `forget(memory <id>)`. Push only confirmed.
 
-## Reglas
+## Rules
 
-- Ante ambigüedad (slug no existe, id dudoso, "borra X" sin decir si es proyecto o memoria),
-  **pregunta**; no adivines qué borrar.
-- Una memoria compartida JAMÁS se borra al borrar uno solo de sus proyectos: se desetiqueta.
-- Respeta la regla global: nada de push sin confirmación explícita del usuario.
+- On ambiguity (slug does not exist, dubious id, "delete X" without saying whether it is a project or a memory),
+  **ask**; do not guess what to delete.
+- A shared memory is NEVER deleted when deleting just one of its projects: it is untagged.
+- Respect the global rule: no push without explicit confirmation from the user.

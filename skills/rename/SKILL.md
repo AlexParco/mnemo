@@ -1,66 +1,68 @@
 ---
 name: rename
-description: Renombra el slug (la identidad) de un proyecto en la memoria persistente, actualizando el directorio, el INDEX y el campo projects de cada memoria tagueada, de forma segura ante overlap. Uso "/mnemo:rename <slug-viejo> <slug-nuevo>". Trigger cuando el usuario quiere renombrar un proyecto, cambiarle el slug o el identificador, "renombra el proyecto X a Y", "cambia el slug de X", "el proyecto se llama mal". Para cambiar solo el nombre legible (no el slug) basta editar el INDEX. Agnóstico: cualquier proyecto.
+description: Rename the slug (the identity) of a project in persistent memory, updating the directory, the INDEX and the projects field of each tagged memory, safely handling overlap. Usage/Uso "/mnemo:rename <old-slug> <new-slug>". Triggers when the user wants to rename a project or change its slug/identifier, "rename project X to Y", "change the slug of X", plus the Spanish phrases "renombra el proyecto X a Y", "cambia el slug de X". To change only the readable name (not the slug) just edit the INDEX. Works for any project / sirve para cualquier proyecto.
 ---
 
 # rename
 
-Cambia el **slug** de un proyecto (su identidad) en todo el store. El slug vive en el nombre del
-directorio, en el `INDEX.md`, y en el campo `projects` de cada memoria tagueada — hay que tocar los
-tres o el proyecto queda inconsistente. Operación **mutante** → protocolo de confirmación.
+Change the **slug** of a project (its identity) across the whole store. The slug lives in the
+directory name, in `INDEX.md`, and in the `projects` field of each tagged memory — you have to touch all
+three or the project ends up inconsistent. **Mutating** operation → confirmation protocol.
 
-> ¿Solo querés cambiar el **nombre legible** (el `name:` que se muestra, no el slug)? Eso es una
-> edición de una línea en `INDEX.md`, no necesita este skill. `rename` es para el **slug**.
+> Just want to change the **readable name** (the `name:` that is shown, not the slug)? That is a
+> one-line edit in `INDEX.md`, it does not need this skill. `rename` is for the **slug**.
+
+**Output language:** write all user-facing output in the language the user is writing in (Spanish or English).
 
 ## Store
 
-`$MEM = $MNEMO_DIR` o `~/.local/share/mnemo`.
+`$MEM = $MNEMO_DIR` or `~/.local/share/mnemo`.
 
-**Si `$MEM` no existe o no es repo git:** con `MNEMO_REMOTE` seteado, clónalo del hub
-(`git clone "$MNEMO_REMOTE" "$MEM"`) para renombrar sobre la memoria compartida real; sin
-`MNEMO_REMOTE`, no hay nada que renombrar: avisa y detente.
+**If `$MEM` does not exist or is not a git repo:** with `MNEMO_REMOTE` set, clone it from the hub
+(`git clone "$MNEMO_REMOTE" "$MEM"`) to rename against the real shared memory; without
+`MNEMO_REMOTE`, there is nothing to rename: warn and stop.
 
-## Sincroniza primero
+## Sync first
 
-Si hay remoto, `git -C $MEM pull --rebase --autostash` antes de tocar nada, para no renombrar sobre
-una copia vieja. Si conflictúa, resuélvelo (o para y pregunta si el choque es semántico) y continúa
-con `GIT_EDITOR=true git -C $MEM rebase --continue` — sin `GIT_EDITOR` la shell se cuelga en el editor.
+If there is a remote, `git -C $MEM pull --rebase --autostash` before touching anything, so as not to rename against
+an old copy. If it conflicts, resolve it (or stop and ask if the clash is a semantic conflict) and continue
+with `GIT_EDITOR=true git -C $MEM rebase --continue` — without `GIT_EDITOR` the shell hangs in the editor.
 
-## Pasos
+## Steps
 
-1. **Parsea el argumento:** `<slug-viejo> <slug-nuevo>`. Si falta alguno, pídelo. El slug nuevo
-   debe ser kebab-case válido.
+1. **Parse the argument:** `<old-slug> <new-slug>`. If either is missing, ask for it. The new slug
+   must be valid kebab-case.
 
-2. **Valida:**
-   - `$MEM/projects/<slug-viejo>/` **existe**. Si no, lista los proyectos (`ls $MEM/projects`) y
-     pregunta a cuál se refería.
-   - `$MEM/projects/<slug-nuevo>/` **NO existe**. Si existe, para: renombrar fusionaría dos
-     proyectos y este skill no hace merge. Avísale al usuario.
+2. **Validate:**
+   - `$MEM/projects/<old-slug>/` **exists**. If not, list the projects (`ls $MEM/projects`) and
+     ask which one they meant.
+   - `$MEM/projects/<new-slug>/` **does NOT exist**. If it exists, stop: renaming would merge two
+     projects and this skill does not do merges. Warn the user.
 
-3. **Reúne el impacto y confírmalo.** Encuentra las memorias que taguean el slug viejo:
-   `grep -rl "<slug-viejo>" $MEM/memories`. **Lee el campo `projects` de cada una** para quedarte
-   solo con las que lo listan como proyecto (no las que lo mencionan en la prosa; un slug corto
-   puede aparecer dentro de otro, ej. `mnemo` dentro de `mnemo-web`). **Muestra al usuario** qué se
-   va a cambiar (directorio, INDEX, y la lista de memorias afectadas) y **pide confirmación
-   explícita** antes de tocar nada.
+3. **Gather the impact and confirm it.** Find the memories that tag the old slug:
+   `grep -rl "<old-slug>" $MEM/memories`. **Read the `projects` field of each one** to keep
+   only those that list it as a project (not those that mention it in prose; a short slug
+   can appear inside another, e.g. `mnemo` inside `mnemo-web`). **Show the user** what will
+   change (directory, INDEX, and the list of affected memories) and **ask for explicit
+   confirmation** before touching anything.
 
-4. **Ejecuta:**
-   - Renombra el directorio: `git -C $MEM mv projects/<slug-viejo> projects/<slug-nuevo>`.
-   - En `$MEM/projects/<slug-nuevo>/INDEX.md`, cambia `slug: <slug-viejo>` → `slug: <slug-nuevo>`.
-   - En **cada memoria afectada**, cambia el slug **solo dentro del campo `projects:`** del
-     frontmatter (respeta el overlap: si es `projects: [<slug-viejo>, otro]`, queda
-     `projects: [<slug-nuevo>, otro]`). No toques la prosa del cuerpo.
-   - Actualiza `updated` (hoy) en el `INDEX.md` y en las memorias que editaste.
+4. **Execute:**
+   - Rename the directory: `git -C $MEM mv projects/<old-slug> projects/<new-slug>`.
+   - In `$MEM/projects/<new-slug>/INDEX.md`, change `slug: <old-slug>` → `slug: <new-slug>`.
+   - In **each affected memory**, change the slug **only inside the `projects:` field** of the
+     frontmatter (respect the overlap: if it is `projects: [<old-slug>, other]`, it becomes
+     `projects: [<new-slug>, other]`). Do not touch the body prose.
+   - Update `updated` (today) in the `INDEX.md` and in the memories you edited.
 
-5. **Verifica después:** ningún frontmatter debe listar ya `<slug-viejo>` como proyecto (revisa el
-   campo `projects` de las memorias que grepeaste, no el slug pelado contra todo el store),
-   `projects/<slug-viejo>/` ya no existe y `projects/<slug-nuevo>/` sí. Reporta el resultado.
+5. **Verify afterward:** no frontmatter should list `<old-slug>` as a project anymore (check the
+   `projects` field of the memories you grepped, not the bare slug against the whole store),
+   `projects/<old-slug>/` no longer exists and `projects/<new-slug>/` does. Report the result.
 
-6. **Commit** `git -C $MEM add -A && git -C $MEM commit -m "rename(<slug-viejo> → <slug-nuevo>): <resumen>"`.
-   Sin `Co-Authored-By`. **Push solo con confirmación aparte** (muestra qué se subirá). Recuérdale
-   que hasta que suba, las otras máquinas conservan el slug viejo.
+6. **Commit** `git -C $MEM add -A && git -C $MEM commit -m "rename(<old-slug> → <new-slug>): <summary>"`.
+   No `Co-Authored-By`. **Push only with separate confirmation** (show what will be uploaded). Remind them
+   that until they push, the other machines keep the old slug.
 
-## Notas
+## Notes
 
-- El slug nuevo es la identidad nueva: a partir de aquí `/mnemo:load-context <slug-nuevo>`.
-- Si el proyecto tenía `pending.md` con el nombre en el título, actualízalo también si aplica.
+- The new slug is the new identity: from here on `/mnemo:load-context <new-slug>`.
+- If the project had a `pending.md` with the name in the title, update it too if applicable.

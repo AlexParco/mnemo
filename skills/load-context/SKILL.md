@@ -1,82 +1,85 @@
 ---
 name: load-context
-description: Carga la memoria persistente de un proyecto/iniciativa al inicio de una sesión de Claude — decisiones, restricciones, gotchas y tareas pendientes — para retomar el trabajo donde se quedó. Uso "/mnemo:load-context <proyecto>". Trigger cuando el usuario pide cargar el contexto de un proyecto, retomar un proyecto, "carga el contexto de X", "seguir con X", "en qué quedamos en X", o abre una sesión nueva para seguir una iniciativa previa. Agnóstico: sirve para cualquier proyecto.
+description: Load a project/initiative's persistent memory at the start of a Claude session — decisions, constraints, gotchas and pending tasks — to resume work where it was left off. Usage/Uso "/mnemo:load-context <project>". Triggers: user asks to load a project's context, resume a project, start a new session to continue a prior initiative, plus original Spanish phrases "carga el contexto de X", "seguir con X", "en qué quedamos en X". Works for any project / sirve para cualquier proyecto.
 ---
 
 # load-context
 
-Recupera la memoria de un proyecto desde el store git de `mnemo` y deja al asistente
-listo para continuar el trabajo.
+Retrieves a project's memory from the `mnemo` git store and leaves the assistant
+ready to continue the work.
 
-## Resolución del store
+**Output language:** write all user-facing output in the language the user is writing in (Spanish or English), and pass that language to card.py (step 4).
 
-Directorio del store = `$MNEMO_DIR` si está definido, si no `~/.local/share/mnemo`.
-Llámalo `$MEM` de aquí en adelante.
+## Store resolution
 
-**Si `$MEM` no existe o no es repo git, adopta primero el store compartido:**
-- `MNEMO_REMOTE` seteado → clónalo del hub: `git clone "$MNEMO_REMOTE" "$MEM"`. Trae toda la
-  memoria de tus otras máquinas (sirve para remoto SSH o ruta local). Luego seguí normal.
-- Sin `MNEMO_REMOTE` → no hay memoria que cargar: sugiere `/mnemo:save-context <slug>` y detente.
+Store directory = `$MNEMO_DIR` if set, otherwise `~/.local/share/mnemo`.
+Call it `$MEM` from here on.
 
-## Pasos
+**If `$MEM` does not exist or is not a git repo, adopt the shared store first:**
+- `MNEMO_REMOTE` set → clone it from the hub: `git clone "$MNEMO_REMOTE" "$MEM"`. Brings all the
+  memory from your other machines (works for remote SSH or a local path). Then continue normally.
+- No `MNEMO_REMOTE` → there's no memory to load: suggest `/mnemo:save-context <slug>` and stop.
 
-0. **El slug es obligatorio.** Si el usuario no pasó proyecto, **no cargues nada**: ejecuta el
-   comportamiento de `/mnemo:list-context` (muestra el panorama de proyectos) y pídele que elija uno.
-   No adivines ni cargues "el último".
+## Steps
 
-1. **Sincroniza.** Si el store tiene remoto (`git -C $MEM remote`), corre
-   `git -C $MEM pull --rebase --autostash` para traer lo que guardaste desde otras máquinas.
-   - Si no hay remoto, o el pull falla por red/acceso, avisa en una línea y sigue con lo local.
-   - Si el rebase se detiene por conflicto, **para y avísale al usuario**: este skill es de solo
-     lectura y no resuelve conflictos. Que corra `/mnemo:save-context` (que sí los fusiona) o los
-     resuelva a mano. Deja el rebase como está, no lo abortes en silencio.
+0. **The slug is required.** If the user didn't pass a project, **don't load anything**: run the
+   behavior of `/mnemo:list-context` (show the project overview) and ask them to pick one.
+   Don't guess or load "the last one".
 
-2. **Resuelve el proyecto.** El argumento es un slug. Verifica `$MEM/projects/<slug>/`.
-   - Si no existe, lista los proyectos disponibles (`ls $MEM/projects`) con su `status` y
-     pregunta a cuál se refería. No inventes un proyecto.
+1. **Sync.** If the store has a remote (`git -C $MEM remote`), run
+   `git -C $MEM pull --rebase --autostash` to bring in what you saved from other machines.
+   - If there's no remote, or the pull fails due to network/access, note it in one line and continue with local.
+   - If the rebase stops on a conflict, **stop and tell the user**: this skill is read-only
+     and doesn't resolve conflicts. Have them run `/mnemo:save-context` (which does merge them) or
+     resolve them by hand. Leave the rebase as is, don't abort it silently.
 
-3. **Reúne el contexto** (leer, no escribir). Leelo **todo** para tenerlo en la sesión —
-   pero NO lo imprimas entero; el paso 4 define qué se muestra.
-   - `$MEM/projects/<slug>/INDEX.md` — qué es, alcance, estado, servicios.
-   - `$MEM/projects/<slug>/pending.md` — tareas pendientes.
-   - **Todas** las memorias de `$MEM/memories/` cuyo frontmatter `projects` **incluya el slug**.
-     Búscalas con: `grep -rl "projects:.*<slug>" $MEM/memories/` y afina leyendo el frontmatter
-     (el slug debe estar en la lista `projects`, no ser substring de otro). Aquí es donde el
-     overlap importa: una memoria tagueada con varios proyectos entra si el slug está presente.
-   - `$MEM/shared/` — convenciones globales que siempre aplican.
+2. **Resolve the project.** The argument is a slug. Check `$MEM/projects/<slug>/`.
+   - If it doesn't exist, list the available projects (`ls $MEM/projects`) with their `status` and
+     ask which one they meant. Don't invent a project.
 
-4. **Mostrá la tarjeta con el script (formato estricto).** El formato NO lo redactás vos: lo
-   genera un script determinista. Corré:
+3. **Gather the context** (read, don't write). Read it **all** to have it in the session —
+   but do NOT print it whole; step 4 defines what gets shown.
+   - `$MEM/projects/<slug>/INDEX.md` — what it is, scope, status, services.
+   - `$MEM/projects/<slug>/pending.md` — pending tasks.
+   - **All** memories in `$MEM/memories/` whose frontmatter `projects` **includes the slug**.
+     Find them with: `grep -rl "projects:.*<slug>" $MEM/memories/` and refine by reading the frontmatter
+     (the slug must be in the `projects` list, not a substring of another). This is where the
+     overlap matters: a memory tagged with several projects counts if the slug is present.
+   - `$MEM/shared/` — global conventions that always apply.
+
+4. **Show the card with the script (strict format).** You don't write the format: it's
+   generated by a deterministic script. Run:
 
    ```bash
-   MNEMO_DIR="$MEM" python3 "${CLAUDE_SKILL_DIR}/card.py" <slug>
+   MNEMO_DIR="$MEM" python3 "${CLAUDE_SKILL_DIR}/card.py" <slug> <lang>
    ```
 
-   y mostrá su **salida tal cual, como la respuesta completa** — sin agregar prosa antes ni
-   después. Ya leíste todo en el paso 3 (tenés el detalle en contexto para trabajar), pero acá
-   **solo se muestra la tarjeta**.
-   - Si el usuario pide "el detalle" / "las decisiones" / "qué había de X", **ahí sí** desplegás lo
-     relevante de lo que leíste en el paso 3. Por default, la tarjeta y nada más.
-   - **Fallback:** si el script sale con error (≠0) o no hay `python3`, mostrá a mano un resumen
-     mínimo equivalente: `📁 <slug> · <status>`, `▶ Retomar por: …`, los pendientes de `pending.md`
-     y `🗄 <N> memorias`. Nada de volcar decisiones/deuda.
+   where `<lang>` is `es` if the user is writing in Spanish, otherwise `en`. This makes the card
+   render in the user's language. Show its **output verbatim, as the full response** — without
+   adding prose before or after. You already read everything in step 3 (you have the detail in
+   context to work with), but here **only the card is shown**.
+   - If the user asks for "the detail" / "the decisions" / "what there was about X", **then** you
+     unfold the relevant part of what you read in step 3. By default, the card and nothing else.
+   - **Fallback:** if the script exits with an error (≠0) or there's no `python3`, show a minimal
+     equivalent summary by hand: `📁 <slug> · <status>`, `▶ Resume with: …`, the pending items from
+     `pending.md` and `🗄 <N> memories`. No dumping decisions/debt.
 
-5. **No cargues otros proyectos.** Solo el pedido. Si una memoria pertenece también a otro
-   proyecto, úsala igual (overlap) pero no arrastres el resto de ese otro proyecto.
+5. **Don't load other projects.** Only the one requested. If a memory also belongs to another
+   project, use it anyway (overlap) but don't drag in the rest of that other project.
 
-## Conciencia de máquina
+## Machine awareness
 
-La memoria es compartida entre máquinas, pero **algunos ítems son de UNA máquina** (código local,
-"commitear/pushear el repo X"). Van estampados `[@<máquina>]` y el render los marca con **⚠** cuando
-no son de esta máquina (actual = `${MNEMO_MACHINE:-$(hostname -s)}`).
+Memory is shared across machines, but **some items are machine-bound** (local code,
+"commit/push repo X"). They're stamped `[@<machine>]` and the render marks them with **⚠** when
+they aren't from this machine (current = `${MNEMO_MACHINE:-$(hostname -s)}`).
 
-**Regla: no actúes sobre trabajo que no es de esta máquina.** Si el usuario pide commitear/pushear/
-correr algo que corresponde a un ítem `⚠ [@otra]` —o cuyo repo de código **no existe en esta
-máquina**— **no busques el repo ni intentes la acción**: decile claro *"esto es de `<máquina>`; el
-código no está en esta (`<actual>`)"*. Antes de cualquier acción de git/build sobre un repo de
-código, verificá que exista localmente. (Esto es aparte del store de mnemo, que sí está en todas.)
+**Rule: don't act on work that isn't from this machine.** If the user asks to commit/push/
+run something that corresponds to a `⚠ [@other]` item —or whose code repo **doesn't exist on this
+machine**— **don't look for the repo or attempt the action**: tell them clearly *"this is from
+`<machine>`; the code isn't on this one (`<current>`)"*. Before any git/build action on a code
+repo, verify it exists locally. (This is separate from the mnemo store, which is on all of them.)
 
-## Notas
+## Notes
 
-- Solo lectura. Este skill nunca escribe ni commitea. Para guardar, es `/mnemo:save-context`.
-- Sin slug → cae en modo lista (paso 0), nunca carga por defecto.
+- Read-only. This skill never writes or commits. To save, it's `/mnemo:save-context`.
+- No slug → falls into list mode (step 0), never loads by default.

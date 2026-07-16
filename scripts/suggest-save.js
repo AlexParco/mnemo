@@ -1,24 +1,25 @@
 #!/usr/bin/env node
-// mnemo — hook PreToolUse (Edit|Write) que sugiere /mnemo:save-context cuando se acumula
-// trabajo sin persistir. NO bloquea la edición; solo deja un aviso.
+// mnemo — PreToolUse hook (Edit|Write) that suggests /mnemo:save-context when
+// unsaved work piles up. It does NOT block the edit; it only leaves a nudge.
 //
-// Señal primaria: ediciones desde el último guardado. El hook mira el HEAD del
-// store de mnemo; cuando cambia (corriste /mnemo:save-context o /mnemo:mem), el contador se
-// reinicia solo y el hook se calla. Mide trabajo SIN persistir, no tamaño de contexto.
+// Primary signal: edits since the last save. The hook watches the mnemo store's
+// HEAD; when it changes (you ran /mnemo:save-context or /mnemo:mem) the counter
+// resets and the hook goes quiet. It measures UNSAVED work, not context size.
 //
-// Señal secundaria (opcional, off por default): tamaño de contexto en tokens,
-// leído del transcript. El formato del transcript es interno de Claude Code y puede
-// cambiar entre versiones, por eso va apagado salvo que lo actives.
+// Secondary signal (optional, off by default): context size in tokens, read from
+// the transcript. The transcript format is internal to Claude Code and may change
+// between versions, so it stays off unless you enable it.
 //
 // Config (env):
-//   MNEMO_DIR              ruta del store          (default: ~/.local/share/mnemo)
-//   MNEMO_SAVE_EDITS       ediciones antes de avisar, y cada cuántas re-avisar
-//                          (default: 40; 0 lo desactiva)
-//   MNEMO_SAVE_TOKENS      umbral de contexto en tokens (default: 0 = off)
-//   MNEMO_SAVE_TOKENS_STEP re-aviso por tokens        (default: 60000)
+//   MNEMO_DIR              store path              (default: ~/.local/share/mnemo)
+//   MNEMO_SAVE_EDITS       edits before nudging, and how often to re-nudge
+//                          (default: 40; 0 disables it)
+//   MNEMO_SAVE_TOKENS      context token threshold (default: 0 = off)
+//   MNEMO_SAVE_TOKENS_STEP re-nudge step by tokens (default: 60000)
+//   MNEMO_LANG             message language, "en" (default) or "es"
 //
-// Nunca lanza: ante cualquier error sale 0 sin avisar. Un hook roto no debe
-// entorpecer tu trabajo.
+// Never throws: on any error it exits 0 silently. A broken hook must not get in
+// the way of your work.
 
 const fs = require("fs");
 const path = require("path");
@@ -29,7 +30,7 @@ function main() {
   try {
     stdin = fs.readFileSync(0, "utf8");
   } catch {
-    return; // sin stdin no hay nada que hacer
+    return; // no stdin, nothing to do
   }
 
   let input;
@@ -48,24 +49,25 @@ function main() {
       process.env.XDG_DATA_HOME || path.join(os.homedir(), ".local", "share"),
       "mnemo"
     );
-  // Si el store no existe, mnemo no está instalado: no molestamos.
+  // If the store doesn't exist, mnemo isn't installed: don't bother.
   if (!isDir(store)) return;
 
   const editThreshold = intEnv("MNEMO_SAVE_EDITS", 40);
   const tokenThreshold = intEnv("MNEMO_SAVE_TOKENS", 0);
   const tokenStep = intEnv("MNEMO_SAVE_TOKENS_STEP", 60000);
+  const es = (process.env.MNEMO_LANG || "en").trim().toLowerCase().startsWith("es");
 
   const state = loadState(sessionId);
 
-  // --- reset al guardar: si el HEAD del store cambió, el usuario persistió algo ---
+  // --- reset on save: if the store's HEAD changed, the user persisted something ---
   const head = storeHead(store);
   if (head && state.storeHead && head !== state.storeHead) {
-    state.editsAtLastNudge = state.edits; // "0 ediciones sin guardar" otra vez
+    state.editsAtLastNudge = state.edits; // back to "0 unsaved edits"
     state.tokensAtLastNudge = 0;
   }
   if (head) state.storeHead = head;
 
-  // --- señal de ediciones ---
+  // --- edits signal ---
   state.edits = (state.edits || 0) + 1;
   const unsaved = state.edits - (state.editsAtLastNudge || 0);
 
@@ -74,11 +76,13 @@ function main() {
 
   if (editThreshold > 0 && unsaved >= editThreshold) {
     nudge = true;
-    reason = `${unsaved} ediciones sin guardar`;
+    reason = es
+      ? `${unsaved} ediciones sin guardar`
+      : `${unsaved} unsaved edit${unsaved === 1 ? "" : "s"}`;
     state.editsAtLastNudge = state.edits;
   }
 
-  // --- señal opcional de contexto ---
+  // --- optional context signal ---
   if (!nudge && tokenThreshold > 0 && input.transcript_path) {
     const tokens = contextTokens(input.transcript_path);
     if (
@@ -87,7 +91,8 @@ function main() {
       tokens - (state.tokensAtLastNudge || 0) >= tokenStep
     ) {
       nudge = true;
-      reason = `contexto en ~${Math.round(tokens / 1000)}k tokens`;
+      const k = Math.round(tokens / 1000);
+      reason = es ? `contexto en ~${k}k tokens` : `context at ~${k}k tokens`;
       state.tokensAtLastNudge = tokens;
     }
   }
@@ -96,9 +101,11 @@ function main() {
 
   if (!nudge) return;
 
-  const msg =
-    `📝 mnemo: ${reason} en esta sesión. Considera /mnemo:save-context <proyecto> ` +
-    `para no perder el avance (nada se sube sin tu confirmación).`;
+  const msg = es
+    ? `📝 mnemo: ${reason} en esta sesión. Considera /mnemo:save-context <proyecto> ` +
+      `para no perder el avance.`
+    : `📝 mnemo: ${reason} this session. Consider /mnemo:save-context <project> ` +
+      `so you don't lose progress.`;
 
   process.stdout.write(
     JSON.stringify({
@@ -156,11 +163,11 @@ function saveState(sessionId, state) {
     );
     pruneOldState(dir);
   } catch {
-    // el aviso no vale una excepción
+    // the nudge isn't worth an exception
   }
 }
 
-// Limpia estados de sesiones viejas (>7 días) para que no se acumulen.
+// Clean up state from old sessions (>7 days) so files don't pile up.
 function pruneOldState(dir) {
   try {
     const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
@@ -173,7 +180,7 @@ function pruneOldState(dir) {
   }
 }
 
-// SHA del HEAD del store sin lanzar git (lectura directa de .git).
+// Store HEAD SHA without spawning git (direct read of .git).
 function storeHead(store) {
   try {
     const gitDir = path.join(store, ".git");
@@ -194,8 +201,8 @@ function storeHead(store) {
   }
 }
 
-// Tamaño de contexto del último turno = input + cache_read + cache_creation.
-// Formato interno de Claude Code; puede romper entre versiones (por eso es opt-in).
+// Context size of the latest turn = input + cache_read + cache_creation.
+// Claude Code internal format; may break between versions (hence opt-in).
 function contextTokens(transcriptPath) {
   try {
     const lines = fs
@@ -219,7 +226,7 @@ function contextTokens(transcriptPath) {
       }
     }
   } catch {
-    // transcript ilegible: señal de tokens simplemente off
+    // unreadable transcript: token signal simply off
   }
   return null;
 }

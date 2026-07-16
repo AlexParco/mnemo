@@ -1,80 +1,82 @@
-# Contrato de datos
+# Data contract
 
-## Memoria atómica — `memories/<id>.md`
+## Atomic memory — `memories/<id>.md`
 
 ```markdown
 ---
-id: <kebab-case-unico>          # = nombre del archivo sin .md
-projects: [<slug>, <slug2>]     # 1+ proyectos. AQUÍ vive el overlap.
-services: [<opcional>]          # áreas/servicios/módulos que toca (opcional)
-tags: [<opcional>]              # etiquetas libres para búsqueda (opcional)
+id: <unique-kebab-case>          # = file name without .md
+projects: [<slug>, <slug2>]     # 1+ projects. THE overlap lives HERE.
+services: [<optional>]          # areas/services/modules it touches (optional)
+tags: [<optional>]              # free-form tags for search (optional)
 type: decision | constraint | gotcha | bug | reference | todo
-author: <nombre>
+author: <name>
 updated: <YYYY-MM-DD>
 ---
 
-Cuerpo en markdown. Un hecho por archivo, autoexplicativo y conciso.
-Enlaza memorias relacionadas con [[otro-id]].
+Markdown body. One fact per file, self-explanatory and concise.
+Link related memories with [[other-id]].
 ```
 
-### Reglas
+### Rules
 
-- **`id` == nombre del archivo.** `memories/checkout-customer-immutable.md` → `id: checkout-customer-immutable`.
-- **`projects` es una lista, siempre.** Aunque sea un solo proyecto: `projects: [rappi-f3]`.
-  Filtrar por proyecto = "¿el slug está en `projects`?". El overlap sale gratis.
-- **Un hecho por archivo.** Si una nota mezcla dos temas, pártela. Facilita el re-tag y el diff.
-- **Antes de crear, busca duplicado** por `id`/tema. Si existe, actualiza ese archivo y su `updated`.
-- **`type`**: `decision` (se decidió X), `constraint` (invariante que no se debe romper),
-  `gotcha` (trampa/no-obvio), `bug` (incidente/known issue), `reference` (puntero externo),
-  `todo` (pendiente puntual; lo grande va en `pending.md`).
+- **`id` == file name.** `memories/checkout-customer-immutable.md` → `id: checkout-customer-immutable`.
+- **`projects` is always a list.** Even for a single project: `projects: [rappi-f3]`.
+  Filtering by project = "is the slug in `projects`?". The overlap comes for free.
+- **One fact per file.** If a note mixes two topics, split it. This makes re-tagging and diffing easier.
+- **Before creating, search for a duplicate** by `id`/topic. If it exists, update that file and its `updated`.
+- **`type`**: `decision` (X was decided), `constraint` (invariant that must not be broken),
+  `gotcha` (trap/non-obvious), `bug` (incident/known issue), `reference` (external pointer),
+  `todo` (one-off pending item; the big stuff goes in `pending.md`).
 
-## Proyecto — `projects/<slug>/INDEX.md`
+## Project — `projects/<slug>/INDEX.md`
 
 ```markdown
 ---
 slug: <kebab-case>
-name: <nombre legible>
+name: <readable name>
 status: active | paused | done
-services: [<áreas que toca>]
+services: [<areas it touches>]
 updated: <YYYY-MM-DD>
 ---
 
-# <nombre>
+# <name>
 
-Qué es el proyecto, objetivo, alcance. Contexto que no se deriva del código.
-Servicios/áreas que toca y por qué. Decisiones macro con enlace a [[memoria-id]].
+What the project is, its goal, its scope. Context that isn't derived from the code.
+Services/areas it touches and why. Macro decisions with a link to [[memory-id]].
 ```
 
-## Pendientes — `projects/<slug>/pending.md`
+## Pending — `projects/<slug>/pending.md`
 
-Lista viva del **estado del proyecto**. `/save-context` la actualiza; `/load-context` la lee para
-retomar. Las secciones son **libres**: la tarjeta de `load-context` renderiza las que existan, así
-que agregá solo las que apliquen al proyecto. `## En curso` y `## Siguiente` alimentan los
-"Pendientes" numerados; el resto (`Bloqueado`, `Deuda`, `Desplegado`, …) se muestran como bloques.
+A living list of the **project state**. `/save-context` updates it; `/load-context` reads it to
+resume. The sections are **free-form**: the `load-context` card renders whichever ones exist, so
+add only the ones that apply to the project. `## In progress` and `## Next` feed the numbered
+"Pending" items; the rest (`Blocked`, `Debt`, `Deployed`, …) are shown as blocks.
 
 ```markdown
-# Pendientes — <nombre>
+# Pending — <name>
 
-## En curso
-- [ ] <tarea> — <contexto/nota>
+## In progress
+- [ ] <task> — <context/note>
 
-## Siguiente
-- [ ] <tarea>
+## Next
+- [ ] <task>
 
-## Bloqueado                 <!-- opcional -->
-- [ ] <tarea> — bloqueado por <razón>
+## Blocked                 <!-- optional -->
+- [ ] <task> — blocked by <reason>
 
-## <sección propia del proyecto>   <!-- opcional, cuantas quieras -->
-- [ ] <ítem>
+## <project-specific section>   <!-- optional, as many as you want -->
+- [ ] <item>
 ```
 
-Las secciones extra las elige cada proyecto según lo que ayude a retomar. Ejemplos según el tipo
-de trabajo: `Deuda` (deuda técnica / known issues), `Ramas` (qué se pusheó a qué rama),
-`Hecho`/`Desplegado` (lo ya cerrado, con items `- [x]`, para no repisar), `Riesgos`,
-`Decisiones abiertas`… Ninguna es obligatoria; agregá solo las que apliquen.
+Section names are free-form and bilingual: the card renders whatever exists, so old Spanish names
+(`## En curso`, `## Siguiente`, `## Bloqueado`, …) still work. Each project picks the extra
+sections according to what helps it resume. Examples by type of work: `Debt` (technical debt /
+known issues), `Branches` (what was pushed to which branch), `Done`/`Deployed` (already closed,
+with `- [x]` items, so you don't redo it), `Risks`, `Open decisions`… None are mandatory; add only
+the ones that apply.
 
-**Ítems atados a una máquina.** La memoria se comparte entre máquinas, pero algunos ítems son de
-UNA sola (código local sin commitear, "pushear el repo X", un servicio corriendo acá). Estampalos
-con `[@<máquina>]` al final (`<máquina>` = `MNEMO_MACHINE` o el hostname). Vistos desde otra
-máquina, `load-context` los marca con **⚠** y Claude no intenta actuar sobre ellos ahí. Las tareas
-portables (implementar X, decisiones) no se estampan.
+**Items tied to a machine.** Memory is shared across machines, but some items belong to just ONE
+(local uncommitted code, "push repo X", a service running here). Stamp them with `[@<machine>]` at
+the end (`<machine>` = `MNEMO_MACHINE` or the hostname). Seen from another machine, `load-context`
+marks them with **⚠** and Claude won't try to act on them there. Portable tasks (implement X,
+decisions) aren't stamped.

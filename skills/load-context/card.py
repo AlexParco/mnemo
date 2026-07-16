@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
-"""Renderiza la 'tarjeta de retomar' de un proyecto de mnemo, en formato estricto.
+"""Render a project's strict "resume card" for mnemo.
 
-Uso:  python3 card.py <slug>
-Lee el store de $MNEMO_DIR (o ~/.local/share/mnemo). Determinista: la misma
-memoria produce siempre la misma tarjeta. Si el proyecto no existe, sale 1.
+Usage:  python3 card.py <slug> [lang]
+  lang: output language, "en" (default) or "es". Also read from $MNEMO_LANG.
+Reads the store from $MNEMO_DIR (or ~/.local/share/mnemo). Deterministic: same
+memory + same lang always yields the same card. Exits 1 if the project is missing.
+
+The script (comments, code) is English; only the OUTPUT is localized, so the card
+comes out in the language the caller asks for.
 """
 
 import os
@@ -12,11 +16,10 @@ import re
 import sys
 from pathlib import Path
 
-STATUS_ES = {"active": "activo", "paused": "pausado", "done": "hecho"}
 MAX_PENDING = 5
 MAX_ITEM_LEN = 100
 
-# Orden e íconos por tipo de memoria (para agrupar el contexto).
+# Order and icons per memory type (to group the saved context).
 TYPE_ORDER = ["decision", "constraint", "gotcha", "bug", "reference", "todo"]
 TYPE_ICON = {
     "decision": "⚖",
@@ -27,13 +30,48 @@ TYPE_ICON = {
     "todo": "☐",
 }
 
-# Secciones de pending.md que NO son "pendientes" numerados: se muestran como
-# bloques propios (bloqueado, deuda, desplegado, etc.). Íconos por nombre conocido.
-CORE_SECTIONS = {"en curso", "siguiente"}
+# Core sections feed the numbered "Pending" list and "Resume with". Bilingual so
+# both old (Spanish) and new (English) pending.md files work.
+IN_PROGRESS = {"en curso", "in progress"}
+NEXT = {"siguiente", "next"}
+CORE_SECTIONS = IN_PROGRESS | NEXT
+
+# Non-core pending.md sections render as their own blocks (blocked, debt, deployed,
+# etc.). Icons by known name, bilingual; anything else falls back to "▸".
 SECTION_ICON = {
-    "bloqueado": "⛔", "deuda": "🧾", "desplegado": "✅", "hecho": "✅",
-    "ramas": "🌿", "riesgos": "⚠", "pusheado": "🌿",
+    "bloqueado": "⛔", "blocked": "⛔",
+    "deuda": "🧾", "debt": "🧾",
+    "desplegado": "✅", "deployed": "✅", "hecho": "✅", "done": "✅",
+    "ramas": "🌿", "branches": "🌿", "pusheado": "🌿", "pushed": "🌿",
+    "riesgos": "⚠", "risks": "⚠",
 }
+
+# Localized output labels. The card renders in whichever language the caller asks
+# for; the skill passes the language the user is writing in.
+LABELS = {
+    "en": {
+        "services": "Services", "resume": "Resume with", "pending": "Pending",
+        "none": "(none)", "more": "more", "saved": "Saved context",
+        "no_notes": "(no notes)", "no_summary": "(no summary)",
+        "status": {"active": "active", "paused": "paused", "done": "done"},
+        "start": "Where do we start?", "one": "Continue with 1?",
+        "many": ("Continue with ", " or "),
+    },
+    "es": {
+        "services": "Servicios", "resume": "Retomar por", "pending": "Pendientes",
+        "none": "(ninguno)", "more": "más", "saved": "Contexto guardado",
+        "no_notes": "(sin notas)", "no_summary": "(sin resumen)",
+        "status": {"active": "activo", "paused": "pausado", "done": "hecho"},
+        "start": "¿Por dónde arrancamos?", "one": "¿Seguimos con la 1?",
+        "many": ("¿Seguimos con ", " o "),
+    },
+}
+
+
+def resolve_lang() -> str:
+    lang = (sys.argv[2] if len(sys.argv) > 2 else os.environ.get("MNEMO_LANG", "en"))
+    lang = lang.strip().lower()[:2]
+    return lang if lang in LABELS else "en"
 
 
 def section_icon(key: str) -> str:
@@ -52,7 +90,7 @@ def store_dir() -> Path:
 
 
 def parse_frontmatter(text: str) -> dict:
-    """Parseo simple de frontmatter YAML: key: value y key: [a, b]."""
+    """Simple YAML frontmatter parse: key: value and key: [a, b]."""
     fm: dict = {}
     if not text.startswith("---"):
         return fm
@@ -84,20 +122,20 @@ def truncate(s: str) -> str:
 
 
 def current_machine() -> str:
-    """Etiqueta de esta máquina: MNEMO_MACHINE, si no el hostname corto."""
+    """This machine's label: MNEMO_MACHINE, else the short hostname."""
     return (os.environ.get("MNEMO_MACHINE") or platform.node().split(".")[0]).strip()
 
 
 def machine_flag(text: str, here: str) -> str:
-    """'⚠ ' si el ítem está estampado con una máquina distinta a la actual."""
+    """'⚠ ' if the item is stamped with a machine other than the current one."""
     m = re.search(r"\[@([^\]]+)\]", text)
     return "⚠ " if m and m.group(1).strip() != here else ""
 
 
 def parse_pending(path: Path) -> dict:
-    """Todas las secciones del pending.md, en orden. Clave = título en minúsculas;
-    valor = {'label': título original, 'items': [{'text', 'done'}]}. Genérico: sirve
-    para En curso / Siguiente / Bloqueado y también Deuda / Desplegado / lo que haya."""
+    """All sections of pending.md, in order. Key = lowercased title; value =
+    {'label': original title, 'items': [{'text', 'done'}]}. Generic: works for
+    In progress / Next / Blocked as well as Debt / Deployed / anything else."""
     sections: dict = {}
     current = None
     if not path.exists():
@@ -119,7 +157,7 @@ def parse_pending(path: Path) -> dict:
 
 
 def memory_summary(text: str) -> str:
-    """Primera línea de contenido del cuerpo (sin frontmatter ni marcadores md)."""
+    """First content line of the body (no frontmatter, no md markers). '' if none."""
     body = text
     if text.startswith("---"):
         end = text.find("\n---", 3)
@@ -129,11 +167,11 @@ def memory_summary(text: str) -> str:
         s = re.sub(r"^[#\-\*>\s]+", "", line.strip()).strip()
         if s:
             return truncate(s)
-    return "(sin resumen)"
+    return ""
 
 
 def collect_memories(mem_dir: Path, slug: str) -> list:
-    """Memorias tagueadas con el slug, como {type, summary}, ordenadas por tipo."""
+    """Memories tagged with the slug, as {type, summary}, sorted by type."""
     items = []
     if not mem_dir.exists():
         return items
@@ -149,59 +187,64 @@ def collect_memories(mem_dir: Path, slug: str) -> list:
 
 def main() -> int:
     if len(sys.argv) < 2:
-        print("uso: card.py <slug>", file=sys.stderr)
+        print("usage: card.py <slug> [lang]", file=sys.stderr)
         return 2
     slug = sys.argv[1]
+    L = LABELS[resolve_lang()]
     mem = store_dir()
     proj = mem / "projects" / slug
     if not (proj / "INDEX.md").exists():
-        print(f"proyecto '{slug}' no existe en {mem}", file=sys.stderr)
+        print(f"project '{slug}' not found in {mem}", file=sys.stderr)
         return 1
 
     fm = parse_frontmatter((proj / "INDEX.md").read_text(encoding="utf-8"))
     name = fm.get("name", slug)
-    status = STATUS_ES.get(fm.get("status", ""), fm.get("status", "?"))
+    raw_status = fm.get("status", "?")
+    status = L["status"].get(raw_status, raw_status)
     services = fm.get("services", [])
     if not isinstance(services, list):
         services = [services]
 
     sec = parse_pending(proj / "pending.md")
 
-    def open_texts(key):
-        return [i["text"] for i in sec.get(key, {}).get("items", []) if not i["done"]]
+    def open_texts(keys):
+        out = []
+        for k in keys:
+            out += [i["text"] for i in sec.get(k, {}).get("items", []) if not i["done"]]
+        return out
 
-    en_curso = open_texts("en curso")
-    siguiente = open_texts("siguiente")
+    in_progress = open_texts(IN_PROGRESS)
+    nxt = open_texts(NEXT)
     mems = collect_memories(mem / "memories", slug)
 
-    # --- armar la tarjeta ---
+    # --- build the card ---
     out = []
     out.append(f"📁 {slug} · {status}")
     out.append(f"   {name}")
     if services:
         shown = ", ".join(services[:2])
         extra = f" (+{len(services) - 2})" if len(services) > 2 else ""
-        out.append(f"   Servicios: {shown}{extra}")
+        out.append(f"   {L['services']}: {shown}{extra}")
 
-    retomar = en_curso[:2] or siguiente[:1]
+    resume = in_progress[:2] or nxt[:1]
     out.append("")
-    out.append(f"▶ Retomar por: {'; '.join(retomar) if retomar else '—'}")
+    out.append(f"▶ {L['resume']}: {'; '.join(resume) if resume else '—'}")
 
     here = current_machine()
 
-    pend = en_curso + siguiente
+    pend = in_progress + nxt
     out.append("")
-    out.append("Pendientes")
+    out.append(L["pending"])
     if pend:
         for i, it in enumerate(pend[:MAX_PENDING], 1):
             out.append(f" {i}. {machine_flag(it, here)}{it}")
         if len(pend) > MAX_PENDING:
-            out.append(f"    … (+{len(pend) - MAX_PENDING} más)")
+            out.append(f"    … (+{len(pend) - MAX_PENDING} {L['more']})")
     else:
-        out.append(" (ninguno)")
+        out.append(f" {L['none']}")
 
-    # Secciones extra del pending.md (bloqueado, deuda, desplegado, lo que exista).
-    # Se muestran solo si tienen items → la tarjeta se adapta a cada proyecto.
+    # Extra pending.md sections (blocked, debt, deployed, whatever exists).
+    # Shown only if they have items → the card adapts to each project.
     for key, data in sec.items():
         if key in CORE_SECTIONS or not data["items"]:
             continue
@@ -212,22 +255,23 @@ def main() -> int:
             out.append(f" • {machine_flag(it['text'], here)}{mark}{it['text']}")
 
     out.append("")
-    out.append(f"Contexto guardado ({len(mems)})")
+    out.append(f"{L['saved']} ({len(mems)})")
     if mems:
         for m in mems:
             icon = TYPE_ICON.get(m["type"], "•")
-            out.append(f" {icon} {m['summary']}")
+            out.append(f" {icon} {m['summary'] or L['no_summary']}")
     else:
-        out.append(" (sin notas)")
+        out.append(f" {L['no_notes']}")
 
     shown = min(len(pend), MAX_PENDING)
     if shown == 0:
-        prompt = "¿Por dónde arrancamos?"
+        prompt = L["start"]
     elif shown == 1:
-        prompt = "¿Seguimos con la 1?"
+        prompt = L["one"]
     else:
         nums = [str(i) for i in range(1, shown + 1)]
-        prompt = "¿Seguimos con " + ", ".join(nums[:-1]) + " o " + nums[-1] + "?"
+        head, joiner = L["many"]
+        prompt = head + ", ".join(nums[:-1]) + joiner + nums[-1] + "?"
     out.append("")
     out.append(prompt)
 

@@ -1,203 +1,205 @@
 # mnemo
 
-Memoria persistente **por proyecto** para Claude Code: guarda el contexto de tu trabajo como
-**texto plano** en un repo git y lo mantiene **sincronizado entre tus máquinas**. Simple,
-domain-agnostic, tu data es tuya.
+Persistent, **per-project** memory for Claude Code: it stores your work context as **plain text**
+in a git repo and keeps it **synced across your machines**. Simple, domain-agnostic, your data is
+yours.
 
-> **Estado: temprano (WIP).** Los comandos y el hook corren en local como plugin de Claude Code.
-> El flujo multi-máquina está diseñado pero poco probado.
+> **Status: early (WIP).** The commands and the hook run locally as a Claude Code plugin.
+> The multi-machine flow is designed but lightly tested.
 
-## Dos piezas separadas
+## Two separate pieces
 
-| | Qué es | Dónde vive |
+| | What it is | Where it lives |
 |---|---|---|
-| **Plugin** (este repo) | La herramienta: los slash-commands `/mnemo:*` + el hook | GitHub — **compartible**. Cualquiera lo instala y lo usa para lo suyo |
-| **Store** | *Tu* memoria: tus proyectos y notas | Donde vos decidas: un repo git en tu servidor, o solo en tu máquina |
+| **Plugin** (this repo) | The tool: the `/mnemo:*` slash-commands + the hook | GitHub — **shareable**. Anyone installs it and uses it for their own stuff |
+| **Store** | *Your* memory: your projects and notes | Wherever you decide: a git repo on your server, or only on your machine |
 
-Cada persona instala el mismo plugin y tiene **su propio store privado**. Tu contexto no se mezcla
-con el de nadie.
+Everyone installs the same plugin and has **their own private store**. Your context doesn't mix
+with anyone else's.
 
-**El plugin no elige tu servidor.** Solo necesita un remoto git; qué hay del otro lado es cosa
-tuya: un bare repo en un VPS, un repo privado en GitHub/GitLab, un Gitea self-hosted. O ninguno,
-y el store se queda en esta máquina.
+**The plugin doesn't pick your server.** It only needs a git remote; what's on the other side is up
+to you: a bare repo on a VPS, a private repo on GitHub/GitLab, a self-hosted Gitea. Or none, and
+the store stays on this machine.
 
-## Cómo funciona (en 30 segundos)
+## How it works (in 30 seconds)
 
-- Una **nota** = un `.md` en el store con etiquetas al inicio (`projects: [a, b]`, `type`, ...).
-- El overlap es nativo: una nota puede pertenecer a **varios proyectos** a la vez (etiquetas, no
-  carpetas rígidas). Cargar un proyecto = filtrar las notas que lo incluyen.
-- **`projects` vs `services`:** `projects` dice *de qué proyecto(s)* es la nota (overlap = varios
-  proyectos distintos); `services` distingue *partes internas* de un mismo proyecto (repos,
-  módulos, áreas). Dos repos de un mismo producto = **un** proyecto con dos `services`, no dos
-  proyectos.
-- Los comandos hacen el trabajo sucio: `pull --rebase` → leer/escribir notas → `commit` → `push`
-  (con tu confirmación). Nunca escribes git a mano.
+- A **note** = a `.md` in the store with tags at the top (`projects: [a, b]`, `type`, ...).
+- Overlap is native: a note can belong to **several projects** at once (tags, not rigid folders).
+  Loading a project = filtering the notes that include it.
+- **`projects` vs `services`:** `projects` says *which project(s)* the note belongs to (overlap =
+  several distinct projects); `services` distinguishes *internal parts* of a single project (repos,
+  modules, areas). Two repos of the same product = **one** project with two `services`, not two
+  projects.
+- The commands do the dirty work: `pull --rebase` → read/write notes → `commit` → `push` (with
+  your confirmation). You never write git by hand.
 
-## Instalación
+## Installation
 
-**Requisitos:** [Claude Code](https://claude.com/claude-code), `git`, `node` (el hook de
-recordatorio) y `python3` (el render de la tarjeta de `load-context`). node y python3 suelen venir
-con el entorno.
+**Requirements:** [Claude Code](https://claude.com/claude-code), `git`, `node` (the reminder hook)
+and `python3` (the `load-context` card render). node and python3 usually come with the environment.
 
-Es un plugin de Claude Code. Desde Claude Code:
+It's a Claude Code plugin. From Claude Code:
 
 ```
 /plugin marketplace add AlexParco/mnemo
 /plugin install mnemo@mnemo
 ```
 
-Reinicia Claude Code (o corre `/reload-plugins`) para que registre los comandos. Verifica con
-`/mnemo:list-context` — la primera vez te dirá que aún no hay memoria, y eso es correcto.
+Restart Claude Code (or run `/reload-plugins`) so it registers the commands. Verify with
+`/mnemo:list-context` — the first time it will tell you there's no memory yet, and that's correct.
 
-No hay instalador ni paso de setup del store: **el store se crea solo** la primera vez que corres
-`/mnemo:save-context <slug>` (git init + estructura, en `~/.local/share/mnemo`). No necesitas saber
-git; los comandos lo gestionan por ti.
+There's no installer or store setup step: **the store creates itself** the first time you run
+`/mnemo:save-context <slug>` (git init + structure, in `~/.local/share/mnemo`). You don't need to
+know git; the commands manage it for you.
 
-> **¿Vas a sincronizar entre máquinas?** Exportá `MNEMO_REMOTE` **antes** del primer
-> `/mnemo:save-context` (ver [Sincronizar entre máquinas](#sincronizar-entre-máquinas)). Si guardas
-> primero sin remoto, el store queda local y luego tenés que engancharlo a mano.
+> **Going to sync across machines?** Export `MNEMO_REMOTE` **before** the first
+> `/mnemo:save-context` (see [Sync across machines](#sync-across-machines)). If you save first
+> without a remote, the store stays local and you then have to hook it up by hand.
 
-En una sola máquina esto ya funciona out-of-the-box, sin servidor ni cuenta de nada.
+On a single machine this already works out-of-the-box, with no server or account for anything.
 
-Variables: `MNEMO_DIR` cambia la ruta del store, `MNEMO_REMOTE` engancha un remoto al crearlo,
-`MNEMO_AUTOPUSH=1` hace que `save-context`/`mem` suban solos (ver [Uso](#uso)), `MNEMO_MACHINE`
-pone una etiqueta linda para esta máquina (default: el hostname) — ver
-[Trabajo atado a una máquina](#trabajo-atado-a-una-máquina).
+Variables: `MNEMO_DIR` changes the store path, `MNEMO_REMOTE` hooks up a remote at creation,
+`MNEMO_AUTOPUSH=1` makes `save-context`/`mem` push on their own (see [Usage](#usage)),
+`MNEMO_MACHINE` sets a nice label for this machine (default: the hostname) — see
+[Machine-tied work](#machine-tied-work).
 
-## Sincronizar entre máquinas
+## Sync across machines
 
-**El servidor no corre el plugin — solo guarda tus datos.** El plugin corre en cada computadora;
-el servidor es un repo git tuyo (un bare repo) que hace de punto central siempre encendido. Vos
-elegís el servidor; al plugin le da igual mientras hable git.
+**The server doesn't run the plugin — it just stores your data.** The plugin runs on each
+computer; the server is a git repo of yours (a bare repo) that acts as an always-on central point.
+You pick the server; the plugin doesn't care as long as it speaks git.
 
 ```
-        TU VPS                      CADA COMPUTADORA
+       YOUR VPS                    EACH COMPUTER
   ┌──────────────────┐          ┌──────────────────────────┐
-  │  mnemo.git        │◄────────►│  plugin mnemo (la tool)  │
-  │  (bare repo)      │  git     │  + store local            │
-  │  = TUS DATOS      │  push/   │  ~/.local/share/mnemo     │
+  │  mnemo.git        │◄────────►│  mnemo plugin (the tool) │
+  │  (bare repo)      │  git     │  + local store            │
+  │  = YOUR DATA      │  push/   │  ~/.local/share/mnemo     │
   └──────────────────┘  pull    └──────────────────────────┘
 ```
 
-**1. En el VPS (una sola vez).** Solo necesita `git` y que tengas acceso SSH (con llave, ideal):
+**1. On the VPS (once).** It only needs `git` and SSH access for you (with a key, ideally):
 
 ```bash
 git init --bare ~/mnemo.git
 ```
 
-**2. En tu compu principal.** Instala el plugin (ver arriba), y **antes** del primer
-`/mnemo:save-context` exporta el remoto en tu shell rc:
+**2. On your main machine.** Install the plugin (see above), and **before** the first
+`/mnemo:save-context` export the remote in your shell rc:
 
 ```bash
-export MNEMO_REMOTE=usuario@tu-vps:mnemo.git   # ruta relativa al home del VPS
+export MNEMO_REMOTE=user@your-vps:mnemo.git   # path relative to the VPS home
 ```
 
-El primer `/mnemo:save-context <slug>` crea el store, lo engancha al remoto y (con tu confirmación)
-lo sube. Tu memoria ya está en el VPS.
+The first `/mnemo:save-context <slug>` creates the store, hooks it to the remote and (with your
+confirmation) pushes it. Your memory is now on the VPS.
 
-**3. En cada compu adicional.** Instala el plugin y exporta el **mismo** `MNEMO_REMOTE`. Al
-bootstrapear, en vez de crear un store vacío **adopta la memoria que ya está en el VPS**. De ahí en
-más `/mnemo:load-context` trae lo de las otras máquinas y `/mnemo:save-context` sube lo tuyo.
+**3. On each additional machine.** Install the plugin and export the **same** `MNEMO_REMOTE`. When
+bootstrapping, instead of creating an empty store it **adopts the memory already on the VPS**. From
+there on `/mnemo:load-context` brings in what's from the other machines and `/mnemo:save-context`
+pushes yours.
 
-Si un store ya existía sin remoto, engánchalo a mano una vez:
+If a store already existed without a remote, hook it up by hand once:
 
 ```bash
 git -C ~/.local/share/mnemo remote add origin <URL> && git -C ~/.local/share/mnemo push -u origin main
 ```
 
-Si preferís un repo privado en GitHub/GitLab o un Gitea self-hosted, cambia la URL y nada más.
-Ojo con la privacidad: en un servicio de terceros tu memoria vive en su disco.
+If you prefer a private repo on GitHub/GitLab or a self-hosted Gitea, just change the URL and
+nothing else. Mind the privacy: on a third-party service your memory lives on their disk.
 
-### Conflictos
+### Conflicts
 
-Los resuelve git, no un daemon. Antes de escribir, los comandos hacen `pull --rebase`; si dos
-máquinas tocaron la misma nota, se fusiona el `.md` conservando ambos lados. Como cada memoria es
-**un hecho por archivo**, los choques son raros; el único archivo caliente es `pending.md`, donde
-la fusión correcta casi siempre es la unión de las tareas. Si el conflicto es semántico (dos
-decisiones que se contradicen), el comando se para y te pregunta en vez de elegir por vos.
+git resolves them, not a daemon. Before writing, the commands run `pull --rebase`; if two machines
+touched the same note, the `.md` is merged keeping both sides. Since each memory is **one fact per
+file**, clashes are rare; the only hot file is `pending.md`, where the correct merge is almost
+always the union of the tasks. If the conflict is semantic (two decisions that contradict each
+other), the command stops and asks you instead of choosing for you.
 
 ### Backup
 
-El remoto es tu copia de respaldo, además del clon de cada máquina. Si el servidor es tuyo,
-respaldalo como respaldás cualquier otra cosa tuya.
+The remote is your backup, on top of each machine's clone. If the server is yours, back it up like
+you back up anything else of yours.
 
-## Uso
+## Usage
 
-| Comando | Qué hace |
+| Command | What it does |
 |---|---|
-| `/mnemo:list-context` | panorama del store: proyectos, estado, nº de memorias. Solo lectura |
-| `/mnemo:load-context <slug>` | carga un proyecto (INDEX + notas tagueadas + pendientes) y te deja retomar. Slug obligatorio; sin él → lista |
-| `/mnemo:save-context <slug>` | destila la sesión en notas tagueadas, actualiza pendientes, commitea y (con tu confirmación) sube. Crea el store y el proyecto si no existen. Slug obligatorio; sin él → lista |
-| `/mnemo:mem <slug>[,slug2] <nota>` | guarda una nota suelta a mitad de sesión, commit local |
-| `/mnemo:rename <viejo> <nuevo>` | renombra el slug de un proyecto (dir + INDEX + `projects` de cada nota, overlap-safe) |
-| `/mnemo:forget project\|memory <x>` | borra un proyecto o una nota (overlap-safe: una nota compartida se desetiqueta, no se borra) |
+| `/mnemo:list-context` | overview of the store: projects, status, number of memories. Read-only |
+| `/mnemo:load-context <slug>` | loads a project (INDEX + tagged notes + pending) and lets you resume. Slug required; without it → list |
+| `/mnemo:save-context <slug>` | distills the session into tagged notes, updates pending, commits and (with your confirmation) pushes. Creates the store and the project if they don't exist. Slug required; without it → list |
+| `/mnemo:mem <slug>[,slug2] <note>` | saves a loose note mid-session, local commit |
+| `/mnemo:rename <old> <new>` | renames a project's slug (dir + INDEX + `projects` of each note, overlap-safe) |
+| `/mnemo:forget project\|memory <x>` | deletes a project or a note (overlap-safe: a shared note is un-tagged, not deleted) |
 
-**Push:** por default ningún comando sube nada sin que lo confirmes (hasta que subas, tus otras
-máquinas no lo ven). Con `MNEMO_AUTOPUSH=1`, `save-context` y `mem` **suben solos** — pensado para
-un flujo multi-máquina hands-off. Aun en auto, dos guardas nunca se saltan: un **escaneo de
-secretos** frena el push si detecta claves/tokens/connection strings, y un **conflicto semántico**
-(dos decisiones que se contradicen) para y te pregunta. El merge no-semántico se resuelve solo
-(unión, conservando ambos lados).
+**Push:** by default no command pushes anything without your confirmation (until you push, your
+other machines don't see it). With `MNEMO_AUTOPUSH=1`, `save-context` and `mem` **push on their
+own** — meant for a hands-off multi-machine flow. Even on auto, two guards are never skipped: a
+**secret scan** stops the push if it detects keys/tokens/connection strings, and a **semantic
+conflict** (two decisions that contradict each other) stops and asks you. The non-semantic merge
+resolves itself (union, keeping both sides).
 
-### Desde cero
+### From scratch
 
-No hay comando "crear proyecto": lo bootstrapeas con `/mnemo:save-context <slug>` la primera vez
-(Claude te pide el nombre y arma el `INDEX.md` + `pending.md`; y si el store no existía, lo crea).
-Luego, en cualquier laptop, `/mnemo:load-context <slug>` retoma donde quedaste.
+There's no "create project" command: you bootstrap it with `/mnemo:save-context <slug>` the first
+time (Claude asks you for the name and builds the `INDEX.md` + `pending.md`; and if the store
+didn't exist, it creates it). Later, on any laptop, `/mnemo:load-context <slug>` resumes where you
+left off.
 
-### Trabajo atado a una máquina
+### Machine-tied work
 
-La memoria es la misma en todas tus máquinas, pero **algunos pendientes son de una sola** — código
-local sin commitear, "pushear el repo X", un servicio corriendo en *esta* laptop. Esos ítems se
-estampan `[@<máquina>]` en el `pending.md`. Cuando los ves **desde otra máquina**, `load-context`
-los marca con **⚠** y Claude **no intenta actuar sobre ellos ahí** (no busca un repo de código que
-no está en esa máquina): te dice *"esto es de `<máquina>`, no de acá"*.
+The memory is the same on all your machines, but **some pending items belong to just one** — local
+uncommitted code, "push repo X", a service running on *this* laptop. Those items get stamped
+`[@<machine>]` in `pending.md`. When you see them **from another machine**, `load-context` marks
+them with **⚠** and Claude **won't try to act on them there** (it won't look for a code repo that
+isn't on that machine): it tells you *"this belongs to `<machine>`, not here"*.
 
-La etiqueta de máquina es `MNEMO_MACHINE` (si la exportás) o el hostname. Las tareas **portables**
-(implementar X, decisiones de diseño) no se estampan — valen en cualquier lado. Así la misma memoria
-sirve en todas las máquinas sin que Claude confunda *dónde* vive cada trabajo.
+The machine label is `MNEMO_MACHINE` (if you export it) or the hostname. **Portable** tasks
+(implement X, design decisions) aren't stamped — they hold anywhere. This way the same memory works
+on all machines without Claude getting confused about *where* each piece of work lives.
 
-### Recordatorio de guardado (hook incluido)
+### Save reminder (hook included)
 
-Es fácil trabajar una sesión larga y olvidarte de `/mnemo:save-context`. El plugin trae un hook que,
-tras acumular ediciones sin guardar, te sugiere correr `/mnemo:save-context` (no bloquea nada, solo
-avisa). Cuenta **trabajo sin persistir**: en cuanto guardas, el contador se reinicia solo y se calla.
+It's easy to work a long session and forget `/mnemo:save-context`. The plugin ships a hook that,
+after accumulating unsaved edits, suggests running `/mnemo:save-context` (it blocks nothing, just
+warns). It counts **unpersisted work**: as soon as you save, the counter resets itself and goes
+quiet.
 
-Viene activo con el plugin. Se ajusta o apaga por env:
+It comes active with the plugin. Tune or turn it off via env:
 
-| Variable | Default | Qué hace |
+| Variable | Default | What it does |
 |---|---|---|
-| `MNEMO_SAVE_EDITS` | `40` | ediciones sin guardar antes de avisar (y cada cuántas re-avisar). `0` lo apaga |
-| `MNEMO_SAVE_TOKENS` | `0` (off) | avisa también si el contexto supera N tokens (señal opcional; el formato del transcript es interno de Claude Code) |
-| `MNEMO_SAVE_TOKENS_STEP` | `60000` | re-aviso por tokens |
+| `MNEMO_SAVE_EDITS` | `40` | unsaved edits before warning (and how often to re-warn). `0` turns it off |
+| `MNEMO_SAVE_TOKENS` | `0` (off) | also warns if the context exceeds N tokens (optional signal; the transcript format is internal to Claude Code) |
+| `MNEMO_SAVE_TOKENS_STEP` | `60000` | re-warn interval by tokens |
 
-## Estructura del store
+## Store structure
 
 ```
 <store>/
-  projects/<slug>/INDEX.md     # qué es, alcance, estado
-  projects/<slug>/pending.md   # tareas pendientes -> "seguir donde quedé"
-  memories/<id>.md             # notas atómicas, multi-tag (aquí vive el overlap)
-  shared/SCHEMA.md             # contrato del frontmatter
+  projects/<slug>/INDEX.md     # what it is, scope, status
+  projects/<slug>/pending.md   # pending tasks -> "pick up where I left off"
+  memories/<id>.md             # atomic notes, multi-tag (the overlap lives here)
+  shared/SCHEMA.md             # frontmatter contract
 ```
 
-Contrato completo del frontmatter: `templates/SCHEMA.md` (se copia al store en el primer guardado).
+Full frontmatter contract: `templates/SCHEMA.md` (copied into the store on the first save).
 
-## Estructura del plugin
+## Plugin structure
 
 ```
 mnemo/
-  .claude-plugin/plugin.json        # manifest (nombre, versión, referencia al hook)
-  .claude-plugin/marketplace.json   # catálogo para instalar desde GitHub
-  skills/<comando>/SKILL.md         # los slash-commands /mnemo:*
-  skills/load-context/card.py       # render estricto de la tarjeta de retomar (python3)
-  hooks/hooks.json                  # registra el hook de recordatorio
-  scripts/suggest-save.js           # el hook (node, sin dependencias)
-  templates/SCHEMA.md               # contrato del frontmatter (se copia al store)
+  .claude-plugin/plugin.json        # manifest (name, version, hook reference)
+  .claude-plugin/marketplace.json   # catalog to install from GitHub
+  skills/<command>/SKILL.md         # the /mnemo:* slash-commands
+  skills/load-context/card.py       # strict render of the resume card (python3)
+  hooks/hooks.json                  # registers the reminder hook
+  scripts/suggest-save.js           # the hook (node, no dependencies)
+  templates/SCHEMA.md               # frontmatter contract (copied into the store)
 ```
 
-## Futuro
+## Future
 
-El store son archivos. Si algún día tienes miles de notas y el `grep` se queda corto, se le monta
-un índice de búsqueda encima (SQLite/MCP) **sin cambiar tus archivos**. Empezar con texto+git es a
-propósito: cero infra, cero lock-in, tu data siempre legible.
+The store is files. If someday you have thousands of notes and `grep` falls short, a search index
+gets mounted on top (SQLite/MCP) **without changing your files**. Starting with text+git is on
+purpose: zero infra, zero lock-in, your data always readable.
