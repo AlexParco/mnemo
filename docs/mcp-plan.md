@@ -1,6 +1,7 @@
 # mnemo as an MCP server — implementation plan
 
-> Status: proposal, not yet started. Branch `feat/mcp-server`.
+> Status: **P0 and P1 landed** (store library + read-only tools, 88 tests green).
+> Branch `feat/mcp-server`. Phases P2–P7 below are still proposal.
 
 ## Goal
 
@@ -49,7 +50,9 @@ one runtime instead of the current two (node for the hook, python3 for the card)
 `scripts/suggest-save.js` in the same toolchain.
 
 Consequence: **`skills/load-context/card.py` gets ported to TS**. Its output is a hard contract —
-see the golden-file test in Phase 1.
+see the golden-file test in Phase 1. `server/src/card/cli.ts` is a drop-in replacement with the same
+argv, stdout and exit codes, so the plugin can drop its python3 dependency in P6. The Python script
+stays until then: it is the parity oracle.
 
 ## Repo layout after the change
 
@@ -164,11 +167,11 @@ model treats loosely, mnemo degrades to "correct storage, weaker curation".
 
 Each phase is independently shippable and testable.
 
-**P0 — store library.** Path resolution, frontmatter parse/serialize (round-trip safe), project
+**P0 — store library. ✅ done.** Path resolution, frontmatter parse/serialize (round-trip safe), project
 index, lockfile. Fixture store under `server/test/fixtures/store/`.
 *Done when:* round-trip of every fixture note is byte-identical.
 
-**P1 — read-only tools.** `status`, `list_projects`, `load_project`, `search_memories`,
+**P1 — read-only tools. ✅ done.** `status`, `list_projects`, `load_project`, `search_memories`,
 `read_memory` + the card port.
 *Done when:* the TS card output matches `card.py` **byte-for-byte** on the fixture store, for both
 `en` and `es`, including the `⚠` machine flags. This is the acceptance gate for the port.
@@ -197,9 +200,56 @@ without corrupting it (lockfile under contention).
 
 **P7 — distribution.** `npx @alexparco/mnemo-mcp`, README rewrite, install snippets per client.
 
+## What P0 + P1 landed
+
+```
+server/src/store/    text · frontmatter · paths · pending · memory · project · lock · store
+server/src/card/     render (card.py port) · cli (drop-in replacement)
+server/src/git/      read (status only; mutations are P3)
+server/src/tools/    read (the 5 read-only tools)
+server/src/index.ts  McpServer over stdio
+server/test/         88 tests, incl. 16 byte-for-byte card comparisons
+```
+
+Both gates hold. The card port matches `card.py` byte for byte across
+4 fixture projects × 2 languages × 2 machine identities, and a mutation check
+confirms the gate bites: switching truncation from code points to UTF-16 units
+breaks exactly the four cases whose fixture text contains an emoji.
+
+### Decisions taken while building
+
+- **Tool output is plain text, no `outputSchema`.** Structured output is unevenly
+  supported across clients; a text block works everywhere. Revisit in P5.
+- **The lock lives in `$XDG_STATE_HOME/mnemo/locks/`, not in the store** — keyed by
+  the store's real path. Nothing new appears in `git status`, and it works against a
+  read-only checkout. It reclaims a lock whose holder pid is gone rather than waiting
+  out the 60s staleness window.
+- **Search matches on all terms, not as one substring.** Ids are kebab-case
+  (`orion-rate-limit-invariant`) and queries are spaced ("rate limit"); a literal
+  substring match misses the most common query there is.
+- **The machine rule ships inside the tool response.** `mnemo_load_project` returns
+  the card, the detail, and then the "do not act on another machine's work" rule as
+  its own block. With no SKILL.md outside Claude Code, the response is the only
+  channel that reaches every host — see the behaviour-layer limitation above.
+
+### Divergences from `card.py`, all deliberate
+
+1. **Fixed core-section order.** `card.py` keeps `{"en curso", "in progress"}` in
+   Python `set`s and iterates them. String hashing is randomised per process, so a
+   `pending.md` carrying both language variants renders its pending items in a
+   different order between runs — despite the script's docstring promising
+   determinism. The port uses ordered lists (English first). Verified: five runs of
+   `list({'en curso','in progress'})` gave two different orders.
+2. **Dotfiles are included** in `memories/*.md`, because `pathlib.Path.glob` includes
+   them and the card counts them. Verified rather than assumed.
+3. **Truncation counts code points**, matching Python's `len`, not JS's UTF-16 units.
+
 ## Testing
 
-- **Golden files** for the card (the P1 gate).
+- **Golden files** for the card (the P1 gate) — implemented as a live diff against
+  `card.py`, not a checked-in snapshot, so the oracle cannot drift.
+- **Mutation check**: a deliberate break must fail the parity gate. Run before
+  trusting it.
 - **Git integration** against a local bare repo: two clones, concurrent writes, rebase with a
   `pending.md` conflict, union merge.
 - **Secret-scan corpus** — positives and negatives; a false negative is the worst bug in the repo.
