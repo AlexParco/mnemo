@@ -1,7 +1,7 @@
 # mnemo as an MCP server — implementation plan
 
-> Status: **P0, P1 and P2 landed** (store library, read tools, write tools + bootstrap;
-> 124 tests green). Branch `feat/mcp-server`. Phases P3–P7 below are still proposal.
+> Status: **P0–P3 landed** (store library, read tools, write tools + bootstrap, sync/push
+> + secret scan; 14 tools, 164 tests green). Branch `feat/mcp-server`. P4–P7 still proposal.
 
 ## Goal
 
@@ -132,9 +132,10 @@ instead of prompt-dependent.
 
 Tokens are single-use and invalidated if the store HEAD moves between plan and apply.
 
-**Tool count is ~17.** Some hosts degrade with large tool lists; if that bites, the first
-consolidations are `mnemo_read_memory` into `mnemo_search_memories`, and the three git conflict
-tools into one `mnemo_sync` with a `resolve` argument.
+**Tool count is 14** as built (5 read, 5 write, 4 sync) — `mnemo_rebase` takes a
+`continue`/`abort` argument rather than being two tools. Some hosts degrade with large
+tool lists; if that bites, the next consolidation is `mnemo_read_memory` into
+`mnemo_search_memories`.
 
 ## Invariants that move from prose into code
 
@@ -183,7 +184,7 @@ before writing local templates — the ordering there is load-bearing).
 *Done when:* a fresh `MNEMO_DIR` bootstraps, and a second machine pointed at the same
 `MNEMO_REMOTE` adopts the existing history instead of creating an empty store.
 
-**P3 — git.** `sync`, `resolve_conflict`, `rebase_continue`, `push` + secret scan.
+**P3 — git. ✅ done.** `sync`, `resolve_conflict`, `rebase_continue`, `push` + secret scan.
 *Done when:* integration tests pass against a local bare repo acting as the hub, and the secret
 corpus (private key, `AKIA…`, `ghp_…`, `xox…`, `user:pass@host`) is refused 100% of the time.
 
@@ -282,6 +283,37 @@ Both implementations now use ordered tuples, English first, and the
 `mixed-tongues` fixture project pins the agreement in the parity test — a case
 that could not be tested at all while the oracle was nondeterministic.
 
+### What P3 decided
+
+- **The secret scan has an acknowledgement, not a bypass.** A hard block with no
+  way out bricks syncing on the first false positive; a `force` flag the agent can
+  set is not a guard at all. `mnemo_push` returns the findings plus a value derived
+  from HEAD and the exact findings, and only that value gets past. It is stateless,
+  so it survives a restart, and it stops working the moment either changes. What
+  code can guarantee is that the findings were surfaced; that a human read them is
+  the tool description's job, and the description says so.
+- **Findings are redacted.** They travel through an agent transcript, so echoing
+  the secret verbatim would be its own leak. `file:line`, the rule name, and the
+  match reduced to `AKI…LE` — enough to open the file, not enough to use.
+- **Only added lines are scanned.** With the upstream as the base, those are
+  exactly what the push would publish. Flagging removed or context lines would
+  block every future push over one old leak. On a first push the base is the empty
+  tree, so the whole history is scanned as additions.
+- **One pattern was refined.** The plugin's `(password|secret|token|api_key)…[:=]`
+  matches anything after the colon, which in a store made of engineering prose
+  fires on ordinary notes. Measured against a ten-line prose corpus, one fires:
+  `token: rotate every 15 minutes`. The rule now requires an unbroken 12+ character
+  value. All seven rules are covered by a corpus with positives and negatives.
+
+### The P2 open question, decided
+
+`mnemo_commit` keeps `git add -A`, as the skills do. Writes and commits both take
+the store lock, so a commit is atomic with respect to writes — the hazard is a
+*split batch*, not corruption, and nothing is lost: the other agent's next commit
+picks up the rest. A `paths` parameter that agents would not reach for is worse
+than the documented behaviour. Two agents that genuinely need isolated batches
+need separate worktrees, which is a different design.
+
 ### Divergences from `card.py`, both deliberate
 
 1. **Dotfiles are included** in `memories/*.md`, because `pathlib.Path.glob` includes
@@ -298,7 +330,11 @@ that could not be tested at all while the oracle was nondeterministic.
   each hitting exactly the cases it should and no others.
 - **Git integration** against a local bare repo: two clones, concurrent writes, rebase with a
   `pending.md` conflict, union merge.
-- **Secret-scan corpus** — positives and negatives; a false negative is the worst bug in the repo.
+- **Secret-scan corpus** — positives and negatives; a false negative is the worst bug
+  in the repo. A test asserts the corpus covers every rule, so adding a rule without a
+  sample fails. Sample secrets are assembled at runtime: a literal 40-character
+  `ghp_…` in a committed file is a real token to a scanner, and would trip push
+  protection on mnemo's own repo.
 - **Store compat**: the fixture store is a v0.2-era store; every phase runs against it unmodified.
 - **Hermetic env**: tests scrub `MNEMO_*` before running. Found the hard way — an
   ambient `MNEMO_REMOTE` pointed a throwaway store at the developer's real hub and

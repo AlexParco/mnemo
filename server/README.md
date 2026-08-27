@@ -5,8 +5,8 @@ same memory the Claude Code plugin writes. Same store, same format, same
 environment variables — see [`docs/mcp-plan.md`](../docs/mcp-plan.md) for the
 design and the roadmap.
 
-**Status: P0 + P1 + P2.** Reads, writes and local commits. Git sync/push and the
-destructive operations (rename, forget) are still plugin-only (P3–P4).
+**Status: P0–P3.** Reads, writes, commits, sync and push. The destructive
+operations (rename, forget) are still plugin-only (P4).
 
 ## Run it
 
@@ -46,10 +46,23 @@ same contract the skills use.
 | `mnemo_write_memory` | save one atomic fact |
 | `mnemo_write_pending` | replace a project's pending list |
 | `mnemo_commit` | commit the batch, locally |
+| `mnemo_sync` | pull from the hub; reports conflicts instead of guessing |
+| `mnemo_resolve_conflict` | write a merged file and stage it |
+| `mnemo_rebase` | continue or abort the rebase a sync started |
+| `mnemo_push` | publish, behind a secret scan that cannot be skipped |
 
 Writes are not committed as they happen: write what the session produced, then call
-`mnemo_commit` once, so one session is one commit. Pushing is a separate step and
-does not exist yet — until it does, a commit stays on this machine.
+`mnemo_commit` once, so one session is one commit. Pushing is separate again — until
+it runs, the memory is only on this machine.
+
+### The secret scan
+
+Every push is scanned first, and there is no path to the network that skips it. On a
+hit the push is refused and the findings come back with the matched text redacted —
+`file:line` and `AKI…LE`, enough to open the note, not enough to use. A false positive
+is unblocked by passing back the acknowledgement value the refusal issued, which is
+derived from the commits and the findings and stops working the moment either changes.
+Acknowledge only after the user has looked.
 
 ## Tests
 

@@ -9,6 +9,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { registerReadTools } from "./tools/read.js";
+import { registerSyncTools } from "./tools/sync.js";
 import { registerWriteTools } from "./tools/write.js";
 import { storeDir } from "./store/paths.js";
 
@@ -28,6 +29,7 @@ export function createServer(): McpServer {
   );
   registerReadTools(server);
   registerWriteTools(server);
+  registerSyncTools(server);
   return server;
 }
 

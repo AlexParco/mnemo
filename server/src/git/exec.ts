@@ -4,7 +4,7 @@
  * when git cannot answer. `gitRun` performs actions and throws with git's own
  * stderr attached, because a failed write must never look like a successful one. */
 
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 
 export class GitError extends Error {
   constructor(readonly args: string[], readonly stderr: string) {
@@ -36,6 +36,27 @@ export function gitRun(store: string, args: string[]): string {
     const e = err as { stderr?: Buffer | string };
     throw new GitError(args, typeof e.stderr === "string" ? e.stderr : (e.stderr?.toString() ?? ""));
   }
+}
+
+export interface GitAttempt {
+  ok: boolean;
+  stdout: string;
+  stderr: string;
+}
+
+/** Run a command that is expected to fail sometimes — a rebase hitting a
+ * conflict is a normal outcome, not an exception — and hand back both streams so
+ * the caller can explain what happened. */
+export function gitAttempt(store: string, args: string[]): GitAttempt {
+  const res = spawnSync("git", ["-C", store, ...args], {
+    encoding: "utf8",
+    env: { ...process.env, GIT_EDITOR: "true", GIT_TERMINAL_PROMPT: "0" },
+  });
+  return {
+    ok: res.status === 0,
+    stdout: (res.stdout ?? "").trim(),
+    stderr: (res.stderr ?? "").trim(),
+  };
 }
 
 /** Resolved committer identity, or null when git has none configured. */

@@ -9,6 +9,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { createServer } from "../src/index.js";
 import { gitRun, gitTry } from "../src/git/exec.js";
+import { ensureStore } from "../src/store/bootstrap.js";
 import { cleanupTempDirs, isolateEnv, tempDir } from "./helpers.js";
 
 isolateEnv();
@@ -104,5 +105,49 @@ describe("a full save, end to end", () => {
     const log = gitTry(store, ["log", "--pretty=%B"]) ?? "";
     assert.ok(!log.includes("Co-Authored-By"), "the store never carries coauthor trailers");
     assert.equal((gitTry(store, ["rev-list", "--count", "HEAD"]) ?? "").trim(), "2");
+  });
+});
+
+describe("publishing to a hub", () => {
+  // Assembled at runtime so the literal never sits in a committed file.
+  const LEAK = "AKIA" + "IOSFODNN7EXAMPLE";
+  let hub: string;
+
+  before(() => {
+    hub = tempDir("mnemo-e2e-hub-");
+    gitRun(hub, ["init", "--bare", "-q", "-b", "main"]);
+    const published = path.join(tempDir("mnemo-e2e-pub-"), "store");
+    process.env.MNEMO_DIR = published;
+    process.env.MNEMO_REMOTE = hub;
+    ensureStore(published, process.env);
+    gitRun(published, ["config", "user.name", "E2E Person"]);
+    gitRun(published, ["config", "user.email", "e2e@example.invalid"]);
+  });
+
+  after(() => {
+    delete process.env.MNEMO_REMOTE;
+  });
+
+  test("a leaked credential stops the push, over the wire", async () => {
+    await call("mnemo_upsert_project", { slug: "orion-api", name: "Orion API" });
+    await call("mnemo_write_memory", {
+      id: "orion-deploy-key", projects: ["orion-api"], type: "reference",
+      body: `The deploy key is ${LEAK} — pasted by mistake.`,
+    });
+    await call("mnemo_commit", { message: "save(orion-api): deploy notes" });
+
+    const blocks = texts(await call("mnemo_push"));
+    assert.match(blocks[0]!, /1 possible secret\(s\).*Nothing was pushed/);
+    const findings = JSON.parse(blocks[1]!) as Array<{ rule: string; file: string; excerpt: string }>;
+    assert.equal(findings[0]!.rule, "AWS access key id");
+    assert.equal(findings[0]!.file, "memories/orion-deploy-key.md");
+    assert.ok(!blocks.join("\n").includes(LEAK), "the secret must not reach the transcript");
+    assert.match(blocks[2]!, /only pass the acknowledgement|acknowledge: "[0-9a-f]{12}"/);
+  });
+
+  test("the acknowledgement from that refusal is what lets it through", async () => {
+    const token = /acknowledge: "([0-9a-f]{12})"/.exec(texts(await call("mnemo_push")).join("\n"))![1]!;
+    assert.match(texts(await call("mnemo_push", { acknowledge: token }))[0]!, /Pushed 1 commit\(s\) to the hub/);
+    assert.match(texts(await call("mnemo_push"))[0]!, /already on the hub/);
   });
 });
