@@ -52,7 +52,7 @@ describe("mnemo MCP server", () => {
     const [out] = texts(await client.callTool({ name: "mnemo_list_projects", arguments: {} }));
     assert.match(out!, /\| project \(slug\) \| status \| memories \| services \| updated \|/);
     assert.match(out!, /\| orion-api \| active \| 12 \(1 shared\) \|/);
-    assert.match(out!, /4 projects · 15 memories/);
+    assert.match(out!, /5 projects · 15 memories/);
   });
 
   test("mnemo_load_project puts the card first and the rules last", async () => {
@@ -76,7 +76,7 @@ describe("mnemo MCP server", () => {
     const result = await client.callTool({ name: "mnemo_load_project", arguments: { slug: "not-a-project" } });
     assert.equal((result as { isError?: boolean }).isError, true);
     const [out] = texts(result);
-    assert.match(out!, /Existing slugs: atlas-web, odd-corners, orion-api, quiet-shed/);
+    assert.match(out!, /Existing slugs: atlas-web, mixed-tongues, odd-corners, orion-api, quiet-shed/);
     assert.match(out!, /do not guess or invent a project/);
   });
 
@@ -97,6 +97,6 @@ describe("mnemo MCP server", () => {
   test("mnemo_status reports the store and this machine", async () => {
     const [out] = texts(await client.callTool({ name: "mnemo_status", arguments: {} }));
     assert.match(out!, /machine: fixture-box/);
-    assert.match(out!, /projects: 4 · memories: 15/);
+    assert.match(out!, /projects: 5 · memories: 15/);
   });
 });

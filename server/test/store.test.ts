@@ -62,7 +62,7 @@ describe("overview", () => {
 
   test("active projects sort first", () => {
     assert.equal(o.projects[0]!.slug, "orion-api");
-    assert.deepEqual(o.projects.map((p) => p.status), ["active", "paused", "done", "archived"]);
+    assert.deepEqual(o.projects.map((p) => p.status), ["active", "active", "paused", "done", "archived"]);
   });
 
   test("counts split total from shared", () => {
@@ -116,6 +116,6 @@ describe("loadProjectContext", () => {
     assert.equal(loadProjectContext(FIXTURE_STORE, "nope", "en"), null);
   });
   test("directories are the source of truth for slugs", () => {
-    assert.deepEqual(projectSlugs(FIXTURE_STORE), ["atlas-web", "odd-corners", "orion-api", "quiet-shed"]);
+    assert.deepEqual(projectSlugs(FIXTURE_STORE), ["atlas-web", "mixed-tongues", "odd-corners", "orion-api", "quiet-shed"]);
   });
 });

@@ -20,7 +20,7 @@ export const ROOT = repoRoot();
 export const CARD_PY = path.join(ROOT, "skills", "load-context", "card.py");
 export const FIXTURE_STORE = path.join(ROOT, "server", "test", "fixtures", "store");
 
-export const FIXTURE_PROJECTS = ["orion-api", "atlas-web", "quiet-shed", "odd-corners"] as const;
+export const FIXTURE_PROJECTS = ["orion-api", "atlas-web", "quiet-shed", "odd-corners", "mixed-tongues"] as const;
 
 /** Tests must never inherit the developer's real mnemo setup: an ambient
  * MNEMO_REMOTE would point a temp store at the user's actual memory hub. */

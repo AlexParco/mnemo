@@ -1,7 +1,7 @@
 # mnemo as an MCP server — implementation plan
 
 > Status: **P0, P1 and P2 landed** (store library, read tools, write tools + bootstrap;
-> 118 tests green). Branch `feat/mcp-server`. Phases P3–P7 below are still proposal.
+> 124 tests green). Branch `feat/mcp-server`. Phases P3–P7 below are still proposal.
 
 ## Goal
 
@@ -263,24 +263,39 @@ usable, the remote stays wired, and `adoptionBlocked` explains that the hub and
 this store are two different memories whose merge is the user's call, not a side
 effect of a save.
 
-### Divergences from `card.py`, all deliberate
+### A second bug, fixed on both sides
 
-1. **Fixed core-section order.** `card.py` keeps `{"en curso", "in progress"}` in
-   Python `set`s and iterates them. String hashing is randomised per process, so a
-   `pending.md` carrying both language variants renders its pending items in a
-   different order between runs — despite the script's docstring promising
-   determinism. The port uses ordered lists (English first). Verified: five runs of
-   `list({'en curso','in progress'})` gave two different orders.
-2. **Dotfiles are included** in `memories/*.md`, because `pathlib.Path.glob` includes
+`card.py` kept the core section names in Python `set`s and iterated them.
+String hashing is randomised per process, so a `pending.md` carrying **both**
+language variants of a section rendered differently between runs — despite the
+script's docstring promising determinism. Measured on one file, unchanged, run 40
+times: two distinct outputs, 23 and 17. Past `MAX_PENDING = 5` it decided which
+pending items were visible at all, and the card is the entire response the user
+sees, so a task could simply vanish.
+
+It is reachable through the project's own documented behaviour, not by accident:
+`save-context` prescribes that a `pending.md` conflict is resolved as the **union**
+of both sides, and SCHEMA.md says the old Spanish section names still work. Two
+machines saving in different languages produce exactly the mixed file.
+
+Both implementations now use ordered tuples, English first, and the
+`mixed-tongues` fixture project pins the agreement in the parity test — a case
+that could not be tested at all while the oracle was nondeterministic.
+
+### Divergences from `card.py`, both deliberate
+
+1. **Dotfiles are included** in `memories/*.md`, because `pathlib.Path.glob` includes
    them and the card counts them. Verified rather than assumed.
-3. **Truncation counts code points**, matching Python's `len`, not JS's UTF-16 units.
+2. **Truncation counts code points**, matching Python's `len`, not JS's UTF-16 units.
 
 ## Testing
 
 - **Golden files** for the card (the P1 gate) — implemented as a live diff against
   `card.py`, not a checked-in snapshot, so the oracle cannot drift.
 - **Mutation check**: a deliberate break must fail the parity gate. Run before
-  trusting it.
+  trusting it. Two are on record: UTF-16 truncation breaks the four emoji-bearing
+  cases, and inverting the core-section order breaks the four `mixed-tongues` ones —
+  each hitting exactly the cases it should and no others.
 - **Git integration** against a local bare repo: two clones, concurrent writes, rebase with a
   `pending.md` conflict, union merge.
 - **Secret-scan corpus** — positives and negatives; a false negative is the worst bug in the repo.

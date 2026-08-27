@@ -32,9 +32,15 @@ TYPE_ICON = {
 
 # Core sections feed the numbered "Pending" list and "Resume with". Bilingual so
 # both old (Spanish) and new (English) pending.md files work.
-IN_PROGRESS = {"en curso", "in progress"}
-NEXT = {"siguiente", "next"}
-CORE_SECTIONS = IN_PROGRESS | NEXT
+#
+# Ordered tuples, not sets. A single pending.md can carry both variants — the
+# union merge of two machines saving in different languages produces exactly
+# that — and open_texts() below concatenates the sections in the order it walks
+# them. With sets, Python's per-process string hashing made that order vary
+# between runs, and past MAX_PENDING it changed which items were visible at all.
+IN_PROGRESS = ("in progress", "en curso")
+NEXT = ("next", "siguiente")
+CORE_SECTIONS = frozenset(IN_PROGRESS + NEXT)
 
 # Non-core pending.md sections render as their own blocks (blocked, debt, deployed,
 # etc.). Icons by known name, bilingual; anything else falls back to "▸".
