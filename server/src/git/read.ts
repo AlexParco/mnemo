@@ -5,7 +5,7 @@
  * whether their memory is actually on the hub yet. */
 
 import fs from "node:fs";
-import { execFileSync } from "node:child_process";
+import { gitTry } from "./exec.js";
 
 export interface GitStatus {
   isRepo: boolean;
@@ -19,37 +19,26 @@ export interface GitStatus {
   rebaseInProgress: boolean;
 }
 
-/** Run a git command, returning null instead of throwing. Every caller here
- * treats "git could not answer" as "unknown", never as a failure. */
-function git(store: string, args: string[]): string | null {
-  try {
-    return execFileSync("git", ["-C", store, ...args], {
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-    }).trim();
-  } catch {
-    return null;
-  }
-}
-
 function gitPathExists(store: string, name: string): boolean {
-  const p = git(store, ["rev-parse", "--git-path", name]);
+  const p = gitTry(store, ["rev-parse", "--git-path", name]);
   if (!p) return false;
   // `--git-path` returns a path relative to the store unless it is absolute.
   return fs.existsSync(p.startsWith("/") ? p : `${store}/${p}`);
 }
 
 export function gitStatus(store: string): GitStatus {
-  const isRepo = git(store, ["rev-parse", "--git-dir"]) !== null;
+  const isRepo = gitTry(store, ["rev-parse", "--git-dir"]) !== null;
   if (!isRepo) {
     return { isRepo: false, hasRemote: false, remoteUrl: null, branch: null, dirty: false, unpushed: null, rebaseInProgress: false };
   }
-  const remoteUrl = git(store, ["remote", "get-url", "origin"]);
-  const branch = git(store, ["rev-parse", "--abbrev-ref", "HEAD"]);
-  const porcelain = git(store, ["status", "--porcelain"]);
+  const remoteUrl = gitTry(store, ["remote", "get-url", "origin"]);
+  // On a store with no commits yet HEAD is unborn, and `rev-parse` fails —
+  // which is exactly the state right after bootstrap. `symbolic-ref` answers.
+  const branch = gitTry(store, ["symbolic-ref", "--short", "HEAD"]) ?? gitTry(store, ["rev-parse", "--abbrev-ref", "HEAD"]);
+  const porcelain = gitTry(store, ["status", "--porcelain"]);
   // Prefer the tracked upstream; fall back to origin/main for stores wired by
   // hand, which the README documents as a supported path.
-  const count = git(store, ["rev-list", "--count", "@{u}..HEAD"]) ?? git(store, ["rev-list", "--count", "origin/main..HEAD"]);
+  const count = gitTry(store, ["rev-list", "--count", "@{u}..HEAD"]) ?? gitTry(store, ["rev-list", "--count", "origin/main..HEAD"]);
   const unpushed = count === null ? null : Number.parseInt(count, 10);
 
   return {

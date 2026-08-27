@@ -3,14 +3,14 @@
 
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
-import test, { describe } from "node:test";
+import test, { after, describe } from "node:test";
 import { acquire, lockFileFor, withLock, LockTimeoutError } from "../src/store/lock.js";
+import { cleanupTempDirs, tempDir } from "./helpers.js";
 
-function tmpStore(): string {
-  return fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), "mnemo-lock-"));
-}
+after(cleanupTempDirs);
+
+const tmpStore = () => tempDir("mnemo-lock-");
 
 describe("store lock", () => {
   test("a second holder waits and then times out", async () => {

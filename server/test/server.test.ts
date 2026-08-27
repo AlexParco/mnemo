@@ -8,13 +8,8 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { createServer } from "../src/index.js";
 import { FIXTURE_STORE } from "./helpers.js";
 
-const EXPECTED_TOOLS = [
-  "mnemo_status",
-  "mnemo_list_projects",
-  "mnemo_load_project",
-  "mnemo_search_memories",
-  "mnemo_read_memory",
-];
+const READ_TOOLS = ["mnemo_status", "mnemo_list_projects", "mnemo_load_project", "mnemo_search_memories", "mnemo_read_memory"];
+const WRITE_TOOLS = ["mnemo_bootstrap", "mnemo_upsert_project", "mnemo_write_memory", "mnemo_write_pending", "mnemo_commit"];
 
 let client: Client;
 const savedEnv = { dir: process.env.MNEMO_DIR, machine: process.env.MNEMO_MACHINE };
@@ -39,12 +34,17 @@ after(async () => {
 });
 
 describe("mnemo MCP server", () => {
-  test("exposes exactly the read-only surface, all described", async () => {
+  test("exposes the whole surface, described and correctly annotated", async () => {
     const { tools } = await client.listTools();
-    assert.deepEqual(tools.map((t) => t.name).sort(), [...EXPECTED_TOOLS].sort());
+    assert.deepEqual(tools.map((t) => t.name).sort(), [...READ_TOOLS, ...WRITE_TOOLS].sort());
     for (const tool of tools) {
+      // Outside Claude Code the description is the only place the rules live.
       assert.ok((tool.description ?? "").length > 80, `${tool.name} needs a description agents can act on`);
-      assert.equal(tool.annotations?.readOnlyHint, true, `${tool.name} must be marked read-only`);
+      assert.equal(
+        tool.annotations?.readOnlyHint === true,
+        READ_TOOLS.includes(tool.name),
+        `${tool.name} is annotated with the wrong read-only hint`,
+      );
     }
   });
 

@@ -5,8 +5,8 @@ same memory the Claude Code plugin writes. Same store, same format, same
 environment variables — see [`docs/mcp-plan.md`](../docs/mcp-plan.md) for the
 design and the roadmap.
 
-**Status: P0 + P1.** Read-only: status, list, load, search, read. Writing,
-git sync/push and the destructive operations are still plugin-only (P2–P4).
+**Status: P0 + P1 + P2.** Reads, writes and local commits. Git sync/push and the
+destructive operations (rename, forget) are still plugin-only (P3–P4).
 
 ## Run it
 
@@ -41,6 +41,15 @@ same contract the skills use.
 | `mnemo_load_project` | resume card + full detail + the machine rule |
 | `mnemo_search_memories` | term search across ids, bodies, tags, services |
 | `mnemo_read_memory` | one memory, in full |
+| `mnemo_bootstrap` | create the store, or adopt one from the hub |
+| `mnemo_upsert_project` | create or update a project |
+| `mnemo_write_memory` | save one atomic fact |
+| `mnemo_write_pending` | replace a project's pending list |
+| `mnemo_commit` | commit the batch, locally |
+
+Writes are not committed as they happen: write what the session produced, then call
+`mnemo_commit` once, so one session is one commit. Pushing is a separate step and
+does not exist yet — until it does, a commit stays on this machine.
 
 ## Tests
 

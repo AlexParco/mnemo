@@ -17,14 +17,7 @@ import { projectSlugs } from "../store/project.js";
 import { parseMemory } from "../store/memory.js";
 import { machineFlag } from "../store/pending.js";
 import { resolveLang } from "../card/render.js";
-
-type ToolResult = {
-  content: Array<{ type: "text"; text: string }>;
-  isError?: boolean;
-};
-
-const ok = (...blocks: string[]): ToolResult => ({ content: blocks.map((text) => ({ type: "text", text })) });
-const fail = (text: string): ToolResult => ({ content: [{ type: "text", text }], isError: true });
+import { fail, isToolResult, json, ok, type ToolResult } from "./result.js";
 
 const NO_STORE =
   "There is no mnemo store yet. It is created by the first save (see mnemo's save-context flow). " +
@@ -35,12 +28,6 @@ function requireStore(): { store: string } | ToolResult {
   if (!fs.existsSync(store)) return fail(`${NO_STORE}\nExpected location: ${store}`);
   return { store };
 }
-
-function isToolResult(v: unknown): v is ToolResult {
-  return typeof v === "object" && v !== null && "content" in v;
-}
-
-const json = (value: unknown) => JSON.stringify(value, null, 2);
 
 function unknownProject(store: string, slug: string): ToolResult {
   const slugs = projectSlugs(store);

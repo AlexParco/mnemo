@@ -1,7 +1,7 @@
 # mnemo as an MCP server — implementation plan
 
-> Status: **P0 and P1 landed** (store library + read-only tools, 88 tests green).
-> Branch `feat/mcp-server`. Phases P2–P7 below are still proposal.
+> Status: **P0, P1 and P2 landed** (store library, read tools, write tools + bootstrap;
+> 118 tests green). Branch `feat/mcp-server`. Phases P3–P7 below are still proposal.
 
 ## Goal
 
@@ -177,7 +177,7 @@ index, lockfile. Fixture store under `server/test/fixtures/store/`.
 `en` and `es`, including the `⚠` machine flags. This is the acceptance gate for the port.
 *Shippable:* agents everywhere can already read memory.
 
-**P2 — write tools + bootstrap.** `write_memory`, `write_pending`, `upsert_project`, `commit`,
+**P2 — write tools + bootstrap. ✅ done.** `write_memory`, `write_pending`, `upsert_project`, `commit`,
 plus lazy store creation replicating `save-context`'s bootstrap block (including remote adoption
 before writing local templates — the ordering there is load-bearing).
 *Done when:* a fresh `MNEMO_DIR` bootstraps, and a second machine pointed at the same
@@ -232,6 +232,37 @@ breaks exactly the four cases whose fixture text contains an emoji.
   its own block. With no SKILL.md outside Claude Code, the response is the only
   channel that reaches every host — see the behaviour-layer limitation above.
 
+### What P2 changed about the planned tool surface
+
+- **`mnemo_bootstrap` is a real tool**, not only an implicit step. The write tools
+  still provision on their own, but a user setting up a second machine needs to be
+  able to ask for it and see what happened.
+- **`id` is required on `mnemo_write_memory`**, not optional as sketched above.
+  Deriving an id from the body is a judgement call — "self-explanatory" is the
+  SCHEMA's word — and code that invents slugs produces bad ones. The agent names it.
+- **`overwrite` replaces the silent upsert.** Writing to an existing id refuses and
+  says to read, merge, and retry with the flag. Silently replacing a memory's body
+  is data loss, and the agent that hits this usually meant to create a new note.
+- **`related` ids come back on every create**: memories sharing vocabulary with the
+  new one. It is a nudge, not a block — the SCHEMA's "search for a duplicate first"
+  rule, enforced as far as code can honestly enforce it.
+- **No `mnemo_read_pending`**: `mnemo_load_project` already returns the parsed
+  sections, and a second reader would be a second thing to keep in sync.
+
+### A bug found by building it
+
+The bootstrap sequence throws when a store that already has local content is
+pointed at a hub that already has memory: `git checkout -B main --track origin/main`
+aborts on the untracked `.gitignore` and `shared/SCHEMA.md`, and the whole write
+fails with it. This is a documented user path — the README tells you to create the
+store locally and wire `MNEMO_REMOTE` afterwards — and the shell block in
+`save-context`'s SKILL.md has the same flaw.
+
+Adoption is now best-effort, like the fetch above it: on failure the store stays
+usable, the remote stays wired, and `adoptionBlocked` explains that the hub and
+this store are two different memories whose merge is the user's call, not a side
+effect of a save.
+
 ### Divergences from `card.py`, all deliberate
 
 1. **Fixed core-section order.** `card.py` keeps `{"en curso", "in progress"}` in
@@ -254,13 +285,24 @@ breaks exactly the four cases whose fixture text contains an emoji.
   `pending.md` conflict, union merge.
 - **Secret-scan corpus** — positives and negatives; a false negative is the worst bug in the repo.
 - **Store compat**: the fixture store is a v0.2-era store; every phase runs against it unmodified.
+- **Hermetic env**: tests scrub `MNEMO_*` before running. Found the hard way — an
+  ambient `MNEMO_REMOTE` pointed a throwaway store at the developer's real hub and
+  fetched from it. Nothing was written there, but a test suite must never be able
+  to reach it at all.
 
 ## Risks / open questions
 
 1. **MCP prompt support per client** — unverified. Determines how much of the criterion survives
    outside Claude Code. Check before P5.
 2. **Elicitation support** — unverified; the plan/apply pattern is the hedge.
-3. **Concurrency** was previously impossible and is now real. The lockfile is P0, not an afterthought.
+3. **Concurrency** was previously impossible and is now real. The lockfile is P0, not
+   an afterthought — and P2 showed it is not the whole story. Driving the server with
+   pipelined requests instead of awaited ones reorders them: a commit issued alongside
+   writes lands before them and captures a partial batch. The lock serialises writes
+   but does not order requests, and `mnemo_commit` stages the whole store with
+   `add -A`, exactly as the skills do. A normal agent awaits each call and is fine;
+   two agents sharing one store are not. Before P3 adds push, decide whether commit
+   should stage only the paths the caller wrote.
 4. **Card parity** python→TS: the machine flag regex and the bilingual section-icon matching are
    the fiddly parts.
 5. **No session visibility** is structural, not a bug to fix. It must be stated in the README so

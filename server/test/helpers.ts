@@ -22,6 +22,14 @@ export const FIXTURE_STORE = path.join(ROOT, "server", "test", "fixtures", "stor
 
 export const FIXTURE_PROJECTS = ["orion-api", "atlas-web", "quiet-shed", "odd-corners"] as const;
 
+/** Tests must never inherit the developer's real mnemo setup: an ambient
+ * MNEMO_REMOTE would point a temp store at the user's actual memory hub. */
+export function isolateEnv(): void {
+  for (const key of ["MNEMO_DIR", "MNEMO_REMOTE", "MNEMO_MACHINE", "MNEMO_LANG"]) {
+    delete process.env[key];
+  }
+}
+
 export function hasPython(): boolean {
   return spawnSync("python3", ["-c", ""], { encoding: "utf8" }).status === 0;
 }
@@ -45,9 +53,18 @@ export function runCardPy(store: string, slug: string, lang: string, machine: st
   return { stdout: res.stdout, stderr: res.stderr, status: res.status };
 }
 
-/** A throwaway copy of the fixture store, for tests that mutate. */
-export function tempStore(prefix = "mnemo-test-"): string {
+const created: string[] = [];
+
+/** A throwaway directory, tracked so the suite does not litter /tmp across runs.
+ * Pair it with `after(cleanupTempDirs)`. */
+export function tempDir(prefix: string): string {
   const dir = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), prefix));
-  fs.cpSync(FIXTURE_STORE, dir, { recursive: true });
+  created.push(dir);
   return dir;
+}
+
+export function cleanupTempDirs(): void {
+  for (const dir of created.splice(0)) {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 }
