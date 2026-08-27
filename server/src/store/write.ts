@@ -246,8 +246,13 @@ export interface CommitResult {
   hasRemote: boolean;
 }
 
-export async function commitStore(store: string, message: string): Promise<CommitResult> {
-  return withLock(store, () => {
+/** The commit itself, WITHOUT taking the lock.
+ *
+ * The lock is not reentrant — a nested acquire waits for a holder that is this
+ * very call stack — so an operation that already holds it (a rename, a forget)
+ * commits through here rather than through `commitStore`. */
+export function commitInLock(store: string, message: string): CommitResult {
+  {
     ensureStore(store);
     const identity = gitIdentity(store);
     if (!identity) {
@@ -280,5 +285,9 @@ export async function commitStore(store: string, message: string): Promise<Commi
       unpushed: status.unpushed,
       hasRemote: status.hasRemote,
     };
-  });
+  }
+}
+
+export async function commitStore(store: string, message: string): Promise<CommitResult> {
+  return withLock(store, () => commitInLock(store, message));
 }

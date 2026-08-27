@@ -1,7 +1,8 @@
 # mnemo as an MCP server — implementation plan
 
-> Status: **P0–P3 landed** (store library, read tools, write tools + bootstrap, sync/push
-> + secret scan; 14 tools, 164 tests green). Branch `feat/mcp-server`. P4–P7 still proposal.
+> Status: **P0–P4 landed** — the whole storage layer: read, write, commit, sync, push
+> and the destructive operations. 16 tools, 187 tests green. Branch `feat/mcp-server`.
+> P5–P7 (behaviour layer, plugin rewiring, distribution) still proposal.
 
 ## Goal
 
@@ -121,10 +122,12 @@ Conflict *resolution* stays with the model (it is semantic), but the git mechani
 
 | Tool | Params | Returns |
 |---|---|---|
-| `mnemo_rename_plan` | `old`, `new` | impact (dir, INDEX, affected memories) + `token` |
-| `mnemo_rename_apply` | `token` | applies; refuses without a valid, fresh token |
-| `mnemo_forget_plan` | `kind: project\|memory`, `id` | for a project: **exclusive** (delete) vs **shared** (untag) split + `token` |
-| `mnemo_forget_apply` | `token` | applies |
+| `mnemo_rename` | `from`, `to`, `confirm?` | without `confirm`: the impact + a confirmation value. With it: applies |
+| `mnemo_forget` | `kind: project\|memory`, `target`, `confirm?` | without `confirm`: for a project, the **exclusive** (delete) vs **shared** (untag) split + a value. With it: applies |
+
+Two tools rather than the four sketched here: the phase is the presence of
+`confirm`, which is the shape `mnemo_push` already uses for its secret-scan
+acknowledgement. One pattern for every operation that must not act unasked.
 
 MCP *elicitation* exists in the spec but client support is uneven — **verify per client before
 relying on it**. The plan/apply token pair is client-agnostic and makes the confirmation structural
@@ -188,7 +191,7 @@ before writing local templates — the ordering there is load-bearing).
 *Done when:* integration tests pass against a local bare repo acting as the hub, and the secret
 corpus (private key, `AKIA…`, `ghp_…`, `xox…`, `user:pass@host`) is refused 100% of the time.
 
-**P4 — destructive.** `rename_plan/apply`, `forget_plan/apply`.
+**P4 — destructive. ✅ done.** `rename_plan/apply`, `forget_plan/apply`.
 *Done when:* deleting a project leaves every shared memory alive and correctly untagged, verified
 by reading `projects:` fields, not by grepping the slug.
 
@@ -314,6 +317,27 @@ picks up the rest. A `paths` parameter that agents would not reach for is worse
 than the documented behaviour. Two agents that genuinely need isolated batches
 need separate worktrees, which is a different design.
 
+### What P4 decided
+
+- **The confirmation is a digest of the recomputed plan.** `apply` rebuilds the
+  plan from the store and compares; any drift that matters — a memory that started
+  tagging the slug after the plan, an edited `projects` field, the target already
+  gone — changes the value and stops the operation. No server state, so it survives
+  a restart, and it is single-use by construction: applying the plan changes the
+  plan. Git state is deliberately excluded — a push between plan and apply changes
+  nothing about what would be deleted.
+- **Rename and forget make their own commit,** unlike the write tools. A structural
+  change is one atomic thing, and its message (`forget(project x): 2 deleted, 1
+  untagged`) is what keeps the history readable — which matters because git is the
+  only undo. For the same reason they refuse to run on a dirty worktree rather than
+  folding unrelated work into that commit.
+- **Untag before delete.** If anything throws mid-operation, the shared memories —
+  the side that must survive — are already safe.
+- **Post-conditions are checked, not assumed.** After applying, no memory may still
+  list the slug and the directory must be gone, read from parsed frontmatter. The
+  skills ask the model to verify this and warn it not to grep the bare slug; here it
+  is a check that throws.
+
 ### Divergences from `card.py`, both deliberate
 
 1. **Dotfiles are included** in `memories/*.md`, because `pathlib.Path.glob` includes
@@ -336,6 +360,10 @@ need separate worktrees, which is a different design.
   `ghp_…` in a committed file is a real token to a scanner, and would trip push
   protection on mnemo's own repo.
 - **Store compat**: the fixture store is a v0.2-era store; every phase runs against it unmodified.
+- **Decoys, not just happy paths**: the destructive suite carries a memory whose body
+  writes `projects: [orion-api]` as prose and a project called `orion-api-v2`. Both
+  must survive deleting `orion-api`. They are the two failures the skills work around
+  with warnings, and the only way to know the parser really replaced the grep.
 - **Hermetic env**: tests scrub `MNEMO_*` before running. Found the hard way — an
   ambient `MNEMO_REMOTE` pointed a throwaway store at the developer's real hub and
   fetched from it. Nothing was written there, but a test suite must never be able

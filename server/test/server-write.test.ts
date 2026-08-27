@@ -151,3 +151,47 @@ describe("publishing to a hub", () => {
     assert.match(texts(await call("mnemo_push"))[0]!, /already on the hub/);
   });
 });
+
+describe("deleting a project, end to end", () => {
+  before(async () => {
+    const store = path.join(tempDir("mnemo-e2e-del-"), "store");
+    process.env.MNEMO_DIR = store;
+    ensureStore(store, {});
+    gitRun(store, ["config", "user.name", "E2E Person"]);
+    gitRun(store, ["config", "user.email", "e2e@example.invalid"]);
+    await call("mnemo_upsert_project", { slug: "orion-api", name: "Orion API" });
+    await call("mnemo_upsert_project", { slug: "atlas-web", name: "Atlas Web" });
+    await call("mnemo_write_memory", { id: "orion-only", projects: ["orion-api"], type: "decision", body: "Only orion." });
+    await call("mnemo_write_memory", { id: "shared-fact", projects: ["orion-api", "atlas-web"], type: "gotcha", body: "Shared." });
+    await call("mnemo_commit", { message: "save: seed" });
+  });
+
+  test("without a confirmation it reports and deletes nothing", async () => {
+    const blocks = texts(await call("mnemo_forget", { kind: "project", target: "orion-api" }));
+    assert.match(blocks[0]!, /deletes 1 memories tagged with it alone, and untags 1 shared/);
+    const plan = JSON.parse(blocks[1]!) as { deletes: string[]; untags: Array<{ id: string }>; confirm: string };
+    assert.deepEqual(plan.deletes, ["orion-only"]);
+    assert.deepEqual(plan.untags, [{ id: "shared-fact", remaining: ["atlas-web"] }]);
+    assert.match(blocks[2]!, /wait for an explicit yes/);
+    assert.match(texts(await call("mnemo_list_projects"))[0]!, /orion-api/, "still there");
+  });
+
+  test("a wrong confirmation is an error, not a deletion", async () => {
+    const result = await call("mnemo_forget", { kind: "project", target: "orion-api", confirm: "deadbeefcafe" });
+    assert.equal((result as { isError?: boolean }).isError, true);
+    assert.match(texts(result)[0]!, /Nothing was deleted/);
+  });
+
+  test("with the confirmation it deletes, and the shared memory survives", async () => {
+    const plan = JSON.parse(texts(await call("mnemo_forget", { kind: "project", target: "orion-api" }))[1]!) as { confirm: string };
+    const [out] = texts(await call("mnemo_forget", { kind: "project", target: "orion-api", confirm: plan.confirm }));
+    assert.match(out!, /Deleted project 'orion-api': 1 memories removed, 1 untagged and kept/);
+    assert.match(out!, /Kept: shared-fact → atlas-web/);
+
+    assert.ok(!texts(await call("mnemo_list_projects"))[0]!.includes("orion-api"));
+    const survivor = texts(await call("mnemo_read_memory", { id: "shared-fact" }))[0]!;
+    assert.match(survivor, /projects: \[atlas-web\]/);
+    const gone = await call("mnemo_read_memory", { id: "orion-only" });
+    assert.equal((gone as { isError?: boolean }).isError, true);
+  });
+});

@@ -55,6 +55,17 @@ describe("store lock", () => {
     b();
   });
 
+  test("it is not reentrant, and fails loudly rather than quietly", async () => {
+    // Worth pinning: an operation that already holds the lock must reach the
+    // unlocked half of a helper (commitInLock) rather than call the locking one,
+    // or it waits on itself. This is the failure it would get.
+    const store = tmpStore();
+    await assert.rejects(
+      () => withLock(store, () => withLock(store, () => "never", 150)),
+      LockTimeoutError,
+    );
+  });
+
   test("the lock file lives outside the store", async () => {
     const store = tmpStore();
     const release = await acquire(store);

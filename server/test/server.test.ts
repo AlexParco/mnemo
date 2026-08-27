@@ -11,6 +11,7 @@ import { FIXTURE_STORE } from "./helpers.js";
 const READ_TOOLS = ["mnemo_status", "mnemo_list_projects", "mnemo_load_project", "mnemo_search_memories", "mnemo_read_memory"];
 const WRITE_TOOLS = ["mnemo_bootstrap", "mnemo_upsert_project", "mnemo_write_memory", "mnemo_write_pending", "mnemo_commit"];
 const SYNC_TOOLS = ["mnemo_sync", "mnemo_resolve_conflict", "mnemo_rebase", "mnemo_push"];
+const DESTRUCTIVE_TOOLS = ["mnemo_rename", "mnemo_forget"];
 
 let client: Client;
 const savedEnv = { dir: process.env.MNEMO_DIR, machine: process.env.MNEMO_MACHINE };
@@ -37,7 +38,7 @@ after(async () => {
 describe("mnemo MCP server", () => {
   test("exposes the whole surface, described and correctly annotated", async () => {
     const { tools } = await client.listTools();
-    assert.deepEqual(tools.map((t) => t.name).sort(), [...READ_TOOLS, ...WRITE_TOOLS, ...SYNC_TOOLS].sort());
+    assert.deepEqual(tools.map((t) => t.name).sort(), [...READ_TOOLS, ...WRITE_TOOLS, ...SYNC_TOOLS, ...DESTRUCTIVE_TOOLS].sort());
     for (const tool of tools) {
       // Outside Claude Code the description is the only place the rules live.
       assert.ok((tool.description ?? "").length > 80, `${tool.name} needs a description agents can act on`);

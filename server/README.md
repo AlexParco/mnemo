@@ -5,8 +5,9 @@ same memory the Claude Code plugin writes. Same store, same format, same
 environment variables — see [`docs/mcp-plan.md`](../docs/mcp-plan.md) for the
 design and the roadmap.
 
-**Status: P0–P3.** Reads, writes, commits, sync and push. The destructive
-operations (rename, forget) are still plugin-only (P4).
+**Status: P0–P4.** The whole storage layer: reads, writes, commits, sync, push,
+rename and forget. What is left is the behaviour layer (P5), rewiring the Claude
+Code plugin onto this (P6) and distribution (P7).
 
 ## Run it
 
@@ -50,10 +51,21 @@ same contract the skills use.
 | `mnemo_resolve_conflict` | write a merged file and stage it |
 | `mnemo_rebase` | continue or abort the rebase a sync started |
 | `mnemo_push` | publish, behind a secret scan that cannot be skipped |
+| `mnemo_rename` | change a project's slug across the store |
+| `mnemo_forget` | delete a project or a memory, overlap-safe |
 
 Writes are not committed as they happen: write what the session produced, then call
 `mnemo_commit` once, so one session is one commit. Pushing is separate again — until
 it runs, the memory is only on this machine.
+
+### Two-phase operations
+
+`mnemo_push`, `mnemo_rename` and `mnemo_forget` never act on the first call. They
+report what would happen and hand back a value; passing it back is what acts. The
+value is derived from the state they just described, so it stops working the moment
+that state changes — a stale plan cannot be applied. Deleting a project deletes only
+the memories tagged with it *alone*; anything shared with another project is untagged
+and survives, and the report says which.
 
 ### The secret scan
 
