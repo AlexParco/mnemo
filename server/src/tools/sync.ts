@@ -9,6 +9,7 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { pushStore, rebaseAction, resolveConflict, syncStore } from "../git/sync.js";
+import { CONFLICT_RULE } from "../prompts/criterion.js";
 import { storeDir } from "../store/paths.js";
 import { guarded, json, ok } from "./result.js";
 
@@ -29,15 +30,11 @@ export function registerSyncTools(server: McpServer): void {
       guarded(async () => {
         const result = await syncStore(storeDir());
         if (result.conflicts.length === 0) return ok(result.detail);
-        const rules =
-          "Merge each file keeping the information from BOTH sides — losing a memory is worse than a redundant note. " +
-          "For pending.md the right merge is almost always the union of the tasks, minus duplicates, respecting " +
-          "anything already marked done on either side. If the two sides assert contradictory things, STOP and ask " +
-          "the user which one holds; do not decide that yourself.";
+
         return ok(
           `${result.detail}\n\n${result.conflicts.length} conflicted file(s): ${result.conflicts.map((c) => c.file).join(", ")}`,
           json(result.conflicts),
-          rules,
+          CONFLICT_RULE,
         );
       }),
   );

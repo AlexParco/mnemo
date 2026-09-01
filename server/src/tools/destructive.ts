@@ -11,12 +11,9 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { applyForget, applyRename, planForget, planRename } from "../store/destructive.js";
+import { CONFIRM_NOTE } from "../prompts/criterion.js";
 import { storeDir } from "../store/paths.js";
 import { guarded, json, ok } from "./result.js";
-
-const CONFIRM_NOTE =
-  "Show the user exactly what this would change and wait for an explicit yes. Only then call this again with " +
-  "`confirm` set to the value above. Never confirm on your own judgement — git is the only undo there is.";
 
 export function registerDestructiveTools(server: McpServer): void {
   server.registerTool(

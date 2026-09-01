@@ -5,9 +5,11 @@ same memory the Claude Code plugin writes. Same store, same format, same
 environment variables — see [`docs/mcp-plan.md`](../docs/mcp-plan.md) for the
 design and the roadmap.
 
-**Status: P0–P4.** The whole storage layer: reads, writes, commits, sync, push,
-rename and forget. What is left is the behaviour layer (P5), rewiring the Claude
-Code plugin onto this (P6) and distribution (P7).
+**Status: P0–P5.** The storage layer and the behaviour layer. What is left is
+rewiring the Claude Code plugin onto this (P6) and distribution (P7).
+
+Per-client setup and what each one actually supports:
+[`docs/mcp-clients.md`](../docs/mcp-clients.md).
 
 ## Run it
 
@@ -53,6 +55,15 @@ same contract the skills use.
 | `mnemo_push` | publish, behind a secret scan that cannot be skipped |
 | `mnemo_rename` | change a project's slug across the store |
 | `mnemo_forget` | delete a project or a memory, overlap-safe |
+| `mnemo_guide` | the usage criterion, to paste into a rules file |
+
+## Prompts
+
+`save_context`, `load_context`, `mem` and `sync_memory` carry the flows and the
+judgement the tools cannot enforce. Claude Code, Cursor and VS Code surface them;
+Codex does not implement prompts, and reads the server's `instructions` instead.
+Both, plus `mnemo_guide`, are generated from `src/prompts/criterion.ts` — one
+source, three channels, with a test that stops them drifting apart.
 
 Writes are not committed as they happen: write what the session produced, then call
 `mnemo_commit` once, so one session is one commit. Pushing is separate again — until

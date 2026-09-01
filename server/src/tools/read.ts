@@ -17,6 +17,7 @@ import { projectSlugs } from "../store/project.js";
 import { parseMemory } from "../store/memory.js";
 import { machineFlag } from "../store/pending.js";
 import { resolveLang } from "../card/render.js";
+import { MACHINE_RULE } from "../prompts/criterion.js";
 import { fail, isToolResult, json, ok, type ToolResult } from "./result.js";
 
 const NO_STORE =
@@ -156,10 +157,8 @@ export function registerReadTools(server: McpServer): void {
       const stamped = ctx.project.pending.flatMap((s) => s.items).filter((i) => /\[@([^\]]+)\]/.test(i.text));
       const foreign = stamped.filter((i) => machineFlag(i.text, ctx.machine) !== "");
       const rule =
-        `This machine is '${ctx.machine}'. Memory is shared across machines, but items stamped [@<machine>] belong to ` +
-        `one machine only. ${foreign.length} pending item(s) belong elsewhere and are marked ⚠ in the card. Do not act ` +
-        `on them here: do not look for their repo, do not commit or push them. Say the work belongs to that machine ` +
-        `instead. Before any git or build action on a code repo, check it exists on this machine.`;
+        `This machine is '${ctx.machine}'. ${foreign.length} pending item(s) belong to another machine and are ` +
+        `marked ⚠ in the card.\n\n${MACHINE_RULE}`;
 
       return ok(ctx.card, `Detail (do not print unless asked):\n${detail}`, rule);
     },

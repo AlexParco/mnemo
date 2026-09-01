@@ -1,8 +1,8 @@
 # mnemo as an MCP server — implementation plan
 
-> Status: **P0–P4 landed** — the whole storage layer: read, write, commit, sync, push
-> and the destructive operations. 16 tools, 187 tests green. Branch `feat/mcp-server`.
-> P5–P7 (behaviour layer, plugin rewiring, distribution) still proposal.
+> Status: **P0–P5 landed** — the storage layer and the behaviour layer. 17 tools,
+> 4 prompts, 198 tests green. Branch `feat/mcp-server`. P6 (plugin rewiring) and
+> P7 (distribution) still proposal.
 
 ## Goal
 
@@ -195,7 +195,8 @@ corpus (private key, `AKIA…`, `ghp_…`, `xox…`, `user:pass@host`) is refuse
 *Done when:* deleting a project leaves every shared memory alive and correctly untagged, verified
 by reading `projects:` fields, not by grepping the slug.
 
-**P5 — behavior layer.** MCP prompts + `mnemo_guide` + per-client `mcp.json` examples.
+**P5 — behaviour layer. ✅ done.** MCP prompts + `mnemo_guide` + per-client config, in
+[`docs/mcp-clients.md`](./mcp-clients.md).
 
 **P6 — Claude Code rewiring.** Skills delegate mechanics to the tools; drop `${CLAUDE_SKILL_DIR}`
 and `${CLAUDE_PLUGIN_ROOT}` couplings; `card.py` removed once P1 parity holds; hook untouched.
@@ -338,6 +339,31 @@ need separate worktrees, which is a different design.
   skills ask the model to verify this and warn it not to grep the bare slug; here it
   is a check that throws.
 
+### What P5 found, and what it changed
+
+The unknown this plan flagged from the start is now measured — see
+[`docs/mcp-clients.md`](./mcp-clients.md) for the matrix and the sources. Two
+findings changed the design:
+
+**Codex documents neither prompts nor resources, but it does read the server's
+`instructions` field.** That inverts the priority the plan assumed. `instructions`
+is not a courtesy header, it is the broadest channel mnemo has and the only one
+documented for Codex, so it now carries the core criterion rather than a greeting
+— short, because it is paid for on every connection. Prompts remain the richer
+channel for the three clients that surface them.
+
+**Codex's `default_tools_approval_mode = "writes"` prompts for tools not marked
+read-only.** The `readOnlyHint` annotations turn out to be load-bearing: they are
+what lets a user run in that mode and be asked about writes and pushes while loads
+and searches pass unattended. A test asserts every tool carries the right hint.
+
+The three channels — `instructions`, prompts, and the `mnemo_guide` snippet — are
+all generated from `server/src/prompts/criterion.ts`, and a test asserts the rule
+a tool returns is the same constant the guide contains. That test earned itself
+immediately: it caught two different texts saying the same thing about
+confirmation, one in the tools' responses and one in the guide. The long rule is
+now composed from the short one.
+
 ### Divergences from `card.py`, both deliberate
 
 1. **Dotfiles are included** in `memories/*.md`, because `pathlib.Path.glob` includes
@@ -371,9 +397,12 @@ need separate worktrees, which is a different design.
 
 ## Risks / open questions
 
-1. **MCP prompt support per client** — unverified. Determines how much of the criterion survives
-   outside Claude Code. Check before P5.
-2. **Elicitation support** — unverified; the plan/apply pattern is the hedge.
+1. ~~**MCP prompt support per client**~~ — measured, see above and
+   [`docs/mcp-clients.md`](./mcp-clients.md). Claude Code, Cursor and VS Code surface
+   prompts; Codex does not, and is reached through `instructions` instead.
+2. **Elicitation** — Cursor documents it; Claude Code, VS Code and Codex do not.
+   The plan/apply pattern was the right hedge and stays: it is the only confirmation
+   mechanism that works on all four.
 3. **Concurrency** was previously impossible and is now real. The lockfile is P0, not
    an afterthought — and P2 showed it is not the whole story. Driving the server with
    pipelined requests instead of awaited ones reorders them: a commit issued alongside
