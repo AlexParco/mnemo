@@ -1,7 +1,7 @@
 # mnemo as an MCP server — implementation plan
 
-> Status: **P0–P5 landed** — the storage layer and the behaviour layer. 17 tools,
-> 4 prompts, 198 tests green. Branch `feat/mcp-server`. P6 (plugin rewiring) and
+> Status: **P0–P6 landed** — storage, behaviour, and the Claude Code plugin rewired
+> onto the server. 17 tools, 4 prompts, 209 tests green. Branch `feat/mcp-server`.
 > P7 (distribution) still proposal.
 
 ## Goal
@@ -198,10 +198,11 @@ by reading `projects:` fields, not by grepping the slug.
 **P5 — behaviour layer. ✅ done.** MCP prompts + `mnemo_guide` + per-client config, in
 [`docs/mcp-clients.md`](./mcp-clients.md).
 
-**P6 — Claude Code rewiring.** Skills delegate mechanics to the tools; drop `${CLAUDE_SKILL_DIR}`
-and `${CLAUDE_PLUGIN_ROOT}` couplings; `card.py` removed once P1 parity holds; hook untouched.
-*Done when:* the plugin and the server can be used against the same store on the same machine
-without corrupting it (lockfile under contention).
+**P6 — Claude Code rewiring. ✅ done.** Skills delegate mechanics to the tools; the
+`${CLAUDE_SKILL_DIR}` and `${CLAUDE_PLUGIN_ROOT}` couplings are gone; `card.py` no longer
+ships; the hook is untouched. The plugin bundles the server through `.mcp.json` and a
+launcher that prefers a local build and falls back to npx.
+*Done:* proven by a cross-process contention test — and it failed first, see below.
 
 **P7 — distribution.** `npx @alexparco/mnemo-mcp`, README rewrite, install snippets per client.
 
@@ -364,6 +365,56 @@ immediately: it caught two different texts saying the same thing about
 confirmation, one in the tools' responses and one in the guide. The long rule is
 now composed from the short one.
 
+### The bug P6 found, and the test that nearly missed it
+
+The contention test — six processes writing and committing to one store — is the
+phase's acceptance criterion. Written the obvious way it passed, and it was worth
+almost nothing:
+
+1. **It ran the workers serially.** `execFileSync` inside a `Promise` executor
+   blocks, so `Promise.all` over six of them is six sequential runs. There was no
+   contention to survive. Fixed with `spawn`.
+2. **One write per worker still staggered**, on node's own startup cost. Each
+   worker now loops several write+commit cycles so they genuinely overlap.
+
+With both fixed the test failed **with the lock in place**, six times out of six,
+on two different git errors: `cannot lock ref 'HEAD': is at X but expected Y`, and
+`Unable to create '.git/index.lock': File exists`. Both mean two processes were
+inside the store's git at once.
+
+The cause was in the lock itself. `open(path, "wx")` creates an **empty** file and
+only then writes the pid into it. A second process arriving inside that window
+read no pid, concluded the holder was dead, and took the lock. The window is
+microseconds; forty-eight acquisitions across six processes hit it reliably.
+
+Publication is now atomic: the content is written to a temp name and `link()`ed
+into place, so the lock file never exists without its pid. An unreadable lock is
+also no longer assumed free — it is held until plainly abandoned. Six runs pass,
+and six runs fail with the lock disabled, which is the part that makes the test
+worth having.
+
+The general lesson is the one the parity gate taught in P1: **a passing test for a
+concurrency property is evidence of nothing until you have watched it fail.**
+
+### What P6 changed about the plugin
+
+- **The skills lost their mechanics.** No `git -C`, no `grep -rl`, no `mkdir -p`;
+  they orchestrate `mnemo_*` tools and carry the judgement. A test asserts those
+  shell patterns are gone, along with `CLAUDE_SKILL_DIR` and `CLAUDE_PLUGIN_ROOT`.
+- **The skills are a fourth channel for the criterion, not a fourth copy.** Rule
+  blocks are marked in the markdown and filled from `criterion.ts` by
+  `server/scripts/sync-skill-rules.mjs`; a test asserts each block still equals its
+  constant, so editing a rule in one place fails the build until the skills follow.
+- **`card.py` moved to `server/test/oracle/`.** It no longer ships — python is not
+  a runtime dependency any more — but deleting it would have thrown away the P1
+  gate, which is the only reason the port is trustworthy. It stays as the oracle,
+  with a header saying so.
+- **The plugin bundles the server** via `.mcp.json` and `scripts/mnemo-mcp.sh`,
+  which prefers `$MNEMO_MCP_COMMAND`, then a local `server/dist`, then npx. A
+  plugin installed from git has no build step, so until P7 publishes the package
+  the local build is the working path — and the launcher says exactly that when it
+  finds neither, rather than leaving the skills calling tools that are not there.
+
 ### Divergences from `card.py`, both deliberate
 
 1. **Dotfiles are included** in `memories/*.md`, because `pathlib.Path.glob` includes
@@ -404,7 +455,8 @@ now composed from the short one.
    The plan/apply pattern was the right hedge and stays: it is the only confirmation
    mechanism that works on all four.
 3. **Concurrency** was previously impossible and is now real. The lockfile is P0, not
-   an afterthought — and P2 showed it is not the whole story. Driving the server with
+   an afterthought — P2 showed it is not the whole story, and P6 found it was outright
+   broken under real contention (see above). Driving the server with
    pipelined requests instead of awaited ones reorders them: a commit issued alongside
    writes lands before them and captures a partial batch. The lock serialises writes
    but does not order requests, and `mnemo_commit` stages the whole store with

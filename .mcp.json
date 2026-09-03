@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "mnemo": {
+      "command": "${CLAUDE_PLUGIN_ROOT}/scripts/mnemo-mcp.sh"
+    }
+  }
+}

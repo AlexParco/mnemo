@@ -1,12 +1,18 @@
 {
   "name": "mnemo",
-  "description": "Memoria persistente por proyecto para Claude Code: notas en texto plano versionadas en git, sincronizables entre tus máquinas. Comandos /mnemo:load-context, /mnemo:save-context, /mnemo:mem, /mnemo:list-context, /mnemo:forget.",
-  "version": "0.2.0",
+  "description": "Per-project persistent memory: plain-text notes versioned in git, syncable across your machines. Ships an MCP server, so the same memory is reachable from any MCP-capable agent. Commands: /mnemo:load-context, /mnemo:save-context, /mnemo:mem, /mnemo:list-context, /mnemo:rename, /mnemo:forget.",
+  "version": "0.3.0",
   "author": {
     "name": "Alexander Parco"
   },
   "homepage": "https://github.com/AlexParco/mnemo",
   "repository": "https://github.com/AlexParco/mnemo",
   "license": "MIT",
-  "keywords": ["memory", "context", "persistence", "notes", "git"]
+  "keywords": [
+    "memory",
+    "context",
+    "persistence",
+    "notes",
+    "git"
+  ]
 }

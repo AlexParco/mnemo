@@ -14,6 +14,8 @@ import { setTimeout as sleep } from "node:timers/promises";
 import type { Env } from "./paths.js";
 
 const STALE_MS = 60_000;
+/** How long an unreadable lock file is still treated as held. */
+const GRACE_MS = 5_000;
 const POLL_MS = 50;
 const DEFAULT_TIMEOUT_MS = 10_000;
 
@@ -53,7 +55,11 @@ function holderIsGone(file: string): boolean {
   }
   if (Date.now() - stat.mtimeMs > STALE_MS) return true;
   const pid = Number.parseInt(raw.split(/\s/)[0] ?? "", 10);
-  if (!Number.isFinite(pid) || pid <= 0) return true;
+  if (!Number.isFinite(pid) || pid <= 0) {
+    // Publication is atomic, so an unreadable lock should not occur. Treating it
+    // as free would be the dangerous guess: hold off until it is plainly abandoned.
+    return Date.now() - stat.mtimeMs > GRACE_MS;
+  }
   if (pid === process.pid) return false;
   try {
     process.kill(pid, 0); // signal 0 only probes for existence
@@ -64,15 +70,38 @@ function holderIsGone(file: string): boolean {
   }
 }
 
+let sequence = 0;
+
+/** Take the lock, content and all, in one atomic step.
+ *
+ * `open(…, "wx")` creates an EMPTY file and only then writes the pid into it.
+ * Another process that reads the file inside that window finds no pid, concludes
+ * the holder is dead, and takes the lock — two writers, which git then reports as
+ * `cannot lock ref 'HEAD'` or a clash on `index.lock`. `link()` publishes a file
+ * that already has its content, so the window does not exist.
+ *
+ * Throws EEXIST when the lock is held, which is the caller's signal to wait. */
+function publish(file: string): void {
+  const tmp = `${file}.${process.pid}.${sequence++}`;
+  fs.writeFileSync(tmp, `${process.pid} ${new Date().toISOString()}\n`);
+  try {
+    fs.linkSync(tmp, file);
+  } finally {
+    try {
+      fs.unlinkSync(tmp);
+    } catch {
+      // the link succeeded or never happened; either way the temp name is spent
+    }
+  }
+}
+
 export async function acquire(store: string, timeoutMs = DEFAULT_TIMEOUT_MS, env: Env = process.env): Promise<() => void> {
   const file = lockFileFor(store, env);
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const deadline = Date.now() + timeoutMs;
   for (;;) {
     try {
-      const fd = fs.openSync(file, "wx"); // atomic create-or-fail
-      fs.writeFileSync(fd, `${process.pid} ${new Date().toISOString()}\n`);
-      fs.closeSync(fd);
+      publish(file);
       let released = false;
       return () => {
         if (released) return;

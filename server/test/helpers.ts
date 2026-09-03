@@ -8,7 +8,7 @@ import { spawnSync } from "node:child_process";
 export function repoRoot(): string {
   let dir = import.meta.dirname;
   for (let i = 0; i < 10; i++) {
-    if (fs.existsSync(path.join(dir, "skills", "load-context", "card.py"))) return dir;
+    if (fs.existsSync(path.join(dir, "templates", "SCHEMA.md"))) return dir;
     const up = path.dirname(dir);
     if (up === dir) break;
     dir = up;
@@ -17,7 +17,7 @@ export function repoRoot(): string {
 }
 
 export const ROOT = repoRoot();
-export const CARD_PY = path.join(ROOT, "skills", "load-context", "card.py");
+export const CARD_PY = path.join(ROOT, "server", "test", "oracle", "card.py");
 export const FIXTURE_STORE = path.join(ROOT, "server", "test", "fixtures", "store");
 
 export const FIXTURE_PROJECTS = ["orion-api", "atlas-web", "quiet-shed", "odd-corners", "mixed-tongues"] as const;

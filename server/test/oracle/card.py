@@ -1,6 +1,14 @@
 #!/usr/bin/env python3
 """Render a project's strict "resume card" for mnemo.
 
+NOT SHIPPED. This is the original Python implementation, kept only as the oracle
+for the card parity test: `server/test/card-parity.test.ts` runs it and asserts
+the TypeScript render matches it byte for byte. The plugin now gets its card from
+the `mnemo_load_project` tool, so nothing at runtime depends on python3.
+
+Do not "fix" this file to match the port. It is the reference; if the two differ,
+one of them is wrong and the test is how you find out which.
+
 Usage:  python3 card.py <slug> [lang]
   lang: output language, "en" (default) or "es". Also read from $MNEMO_LANG.
 Reads the store from $MNEMO_DIR (or ~/.local/share/mnemo). Deterministic: same

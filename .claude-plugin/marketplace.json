@@ -7,7 +7,7 @@
     {
       "name": "mnemo",
       "source": "./",
-      "description": "Memoria persistente por proyecto para Claude Code, en texto plano versionado en git."
+      "description": "Per-project persistent memory for coding agents: plain text versioned in git, with an MCP server."
     }
   ]
 }

@@ -72,6 +72,11 @@ export function registerReadTools(server: McpServer): void {
         if (git.rebaseInProgress) lines.push("⚠ a rebase is in progress — the store is mid-merge and needs resolving");
       }
       if (o) lines.push(`projects: ${o.totals.projects} · memories: ${o.totals.memories}`);
+      lines.push(
+        process.env.MNEMO_AUTOPUSH
+          ? "autopush: on — the user has opted into pushing without being asked each time"
+          : "autopush: off — confirm with the user before calling mnemo_push",
+      );
       if (!exists) lines.push("", NO_STORE);
       return ok(lines.join("\n"));
     },

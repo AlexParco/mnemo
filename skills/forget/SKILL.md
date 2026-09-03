@@ -5,70 +5,39 @@ description: Delete a whole project or a single loose memory from persistent mem
 
 # forget
 
-Delete entries from the `mnemo` store. **Destructive** operation → mandatory
-confirmation protocol. Never delete without first showing what will go and without explicit confirmation.
+Delete entries from the store. **Destructive** — the `mnemo_forget` tool enforces the two phases,
+but only you can make sure a human agreed in between.
 
-**Output language:** write all user-facing output in the language the user is writing in (Spanish or English).
+If the `mnemo_*` tools are not available, the MCP server is not running — say so and stop.
 
-## Store
+**Output language:** write all user-facing output in the language the user is writing in (Spanish
+or English).
 
-`$MEM = $MNEMO_DIR` or `~/.local/share/mnemo`.
+## Steps
 
-**If `$MEM` does not exist or is not a git repo:** with `MNEMO_REMOTE` set, clone it from the hub
-(`git clone "$MNEMO_REMOTE" "$MEM"`) to delete against the real shared memory; without
-`MNEMO_REMOTE`, there is nothing to delete: warn and stop.
+1. **Sync** with `mnemo_sync`, so you are not deleting against an old copy: a memory another
+   machine just wrote should be in front of you before you decide.
 
-## Sync first
+2. **Ask for the plan.** Call `mnemo_forget` with `kind` (`project` or `memory`) and `target`, and
+   **no `confirm`**. Nothing is deleted; you get back exactly what would go.
 
-If there is a remote, `git -C $MEM pull --rebase --autostash` before touching anything: deleting against an
-old copy can wipe a memory another machine just wrote. If the pull conflicts,
-resolve it (or stop and ask) **before** classifying anything, and continue with
-`GIT_EDITOR=true git -C $MEM rebase --continue` — without `GIT_EDITOR` the shell hangs in the editor.
+3. **Show the user that plan in full**: the project directory, the memories that would be deleted,
+   the shared ones that would be untagged and which projects they keep, and any `[[id]]` links that
+   would be left dangling.
 
-## Mode A — delete a project: `/mnemo:forget project <slug>`
+4. **Wait for an explicit yes.** Then call `mnemo_forget` again with the same arguments plus
+   `confirm` set to the value the plan returned.
 
-1. **Verify** that `$MEM/projects/<slug>/` exists. If not, say so and list the projects that do
-   exist. Do not assume.
-
-2. **Classify the impact** BEFORE deleting. Walk `$MEM/memories/` and split the memories whose
-   frontmatter `projects` includes `<slug>` into two groups:
-   - **Exclusive** (`projects` == `[<slug>]`, only that one) → will be DELETED.
-   - **Shared** (`projects` has `<slug>` + others) → will be UNTAGGED (remove `<slug>`
-     from the list, the memory survives for the other projects).
-
-3. **Show the exact plan** to the user and ask for confirmation:
-   - `projects/<slug>/` (INDEX.md, pending.md) → deleted.
-   - List of exclusive memories to delete (by `id`).
-   - List of shared memories to untag, indicating which other projects they stay with.
-   - **Wait for an explicit "yes".** Without confirmation, delete nothing.
-
-4. **Execute:**
-   - Remove `<slug>` from the `projects` of each shared memory (leave the rest intact) and update
-     its `updated`.
-   - Delete the files of the exclusive memories.
-   - Delete the `projects/<slug>/` directory.
-
-5. **Verify afterward:** confirm that no frontmatter still lists `<slug>` as a project, and
-   that the shared memories still exist with their other projects. To verify, **read the
-   `projects` field of the memories you grepped in step 2**; do not grep the bare slug against
-   the whole store: it appears in note prose and will give you false positives (and a short slug like
-   `mnemo` matches inside `mnemo-web`). Report the result.
-
-6. **Commit** `git -C $MEM add -A && git -C $MEM commit -m "forget(project <slug>): <summary>"`.
-   No `Co-Authored-By`. **Push only with separate confirmation** (show what will be uploaded). Remind
-   the user that until they push, the other machines keep what was deleted.
-
-## Mode B — delete a memory: `/mnemo:forget memory <id>`
-
-1. Verify that `$MEM/memories/<id>.md` exists. If not, say so (offer to search by topic).
-2. Show its content and which projects it is tagged with; ask for explicit confirmation.
-3. On confirmation, delete the file. If any `pending.md` or memory linked to it with `[[id]]`,
-   warn about those broken links (do not fix them silently).
-4. Verify it no longer exists. Commit with message `forget(memory <id>)`. Push only confirmed.
+5. Report what happened, and that the other machines keep what was deleted until it is pushed.
 
 ## Rules
 
-- On ambiguity (slug does not exist, dubious id, "delete X" without saying whether it is a project or a memory),
-  **ask**; do not guess what to delete.
-- A shared memory is NEVER deleted when deleting just one of its projects: it is untagged.
-- Respect the global rule: no push without explicit confirmation from the user.
+<!-- mnemo:rule CONFIRM_NOTE -->
+Show the user exactly what this would change and wait for an explicit yes. Only then call this again with `confirm` set to the value above. Never confirm on your own judgement — git is the only undo there is.
+<!-- /mnemo:rule -->
+
+- **A shared memory is never deleted** when one of its projects goes: it is untagged and survives.
+  The tool guarantees this; the plan tells the user it will happen.
+- **On ambiguity, ask.** "Delete X" without saying whether X is a project or a memory is not enough
+  to act on. A slug that does not exist, or a dubious id, is not either.
+- Dangling `[[id]]` links are reported, never repaired silently. Mention them; let the user decide.

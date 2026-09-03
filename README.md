@@ -1,17 +1,20 @@
 # mnemo
 
-Persistent, **per-project** memory for Claude Code: it stores your work context as **plain text**
+Persistent, **per-project** memory for coding agents: it stores your work context as **plain text**
 in a git repo and keeps it **synced across your machines**. Simple, domain-agnostic, your data is
 yours.
 
-> **Status: early (WIP).** The commands and the hook run locally as a Claude Code plugin.
-> The multi-machine flow is designed but lightly tested.
+It ships as a Claude Code plugin **and** as an MCP server, so the same memory is reachable from
+Cursor, Codex, VS Code or anything else that speaks MCP.
+
+> **Status: early (WIP).** The multi-machine flow is designed and covered by integration tests
+> against a local hub, but lightly used in anger.
 
 ## Two separate pieces
 
 | | What it is | Where it lives |
 |---|---|---|
-| **Plugin** (this repo) | The tool: the `/mnemo:*` slash-commands + the hook | GitHub — **shareable**. Anyone installs it and uses it for their own stuff |
+| **Plugin + server** (this repo) | The tool: the MCP server, plus Claude Code's `/mnemo:*` commands and reminder hook | GitHub — **shareable**. Anyone installs it and uses it for their own stuff |
 | **Store** | *Your* memory: your projects and notes | Wherever you decide: a git repo on your server, or only on your machine |
 
 Everyone installs the same plugin and has **their own private store**. Your context doesn't mix
@@ -35,8 +38,8 @@ the store stays on this machine.
 
 ## Installation
 
-**Requirements:** [Claude Code](https://claude.com/claude-code), `git`, `node` (the reminder hook)
-and `python3` (the `load-context` card render). node and python3 usually come with the environment.
+**Requirements:** [Claude Code](https://claude.com/claude-code), `git` and `node`. Python is no
+longer needed: the card render moved into the MCP server.
 
 It's a Claude Code plugin. From Claude Code:
 
@@ -45,8 +48,21 @@ It's a Claude Code plugin. From Claude Code:
 /plugin install mnemo@mnemo
 ```
 
-Restart Claude Code (or run `/reload-plugins`) so it registers the commands. Verify with
-`/mnemo:list-context` — the first time it will tell you there's no memory yet, and that's correct.
+Then build the bundled MCP server, which is where the store, git and the card render now live.
+From the plugin's own directory (`/plugin` shows where it was installed; or clone this repo and use
+`claude --plugin-dir ./mnemo` for development):
+
+```bash
+cd <plugin-dir>/server && npm install && npm run build
+```
+
+Restart Claude Code (or run `/reload-plugins`) so it registers the commands and starts the server.
+Verify with `/mnemo:list-context` — the first time it will tell you there's no memory yet, and
+that's correct.
+
+> The build step goes away once the server is published to npm; the launcher already falls back to
+> `npx @alexparco/mnemo-mcp`. Until then, an unbuilt server makes the `/mnemo:*` commands report
+> that their tools are missing rather than failing quietly.
 
 There's no installer or store setup step: **the store creates itself** the first time you run
 `/mnemo:save-context <slug>` (git init + structure, in `~/.local/share/mnemo`). You don't need to
@@ -185,21 +201,34 @@ It comes active with the plugin. Tune or turn it off via env:
 
 Full frontmatter contract: `templates/SCHEMA.md` (copied into the store on the first save).
 
+## Works with your other agents too
+
+The store, git and the card render live in an **MCP server** that ships with the plugin, so the same
+memory is reachable from any MCP-capable agent — Cursor, Codex, VS Code — not only Claude Code. One
+store, several frontends. What each client supports, and how to point it at the server:
+[`docs/mcp-clients.md`](docs/mcp-clients.md).
+
+Claude Code keeps two things the protocol has no place for: the `/mnemo:*` commands, and the save
+reminder hook.
+
 ## Plugin structure
 
 ```
 mnemo/
-  .claude-plugin/plugin.json        # manifest (name, version, hook reference)
+  .claude-plugin/plugin.json        # manifest
   .claude-plugin/marketplace.json   # catalog to install from GitHub
-  skills/<command>/SKILL.md         # the /mnemo:* slash-commands
-  skills/load-context/card.py       # strict render of the resume card (python3)
+  .mcp.json                         # registers the bundled MCP server
+  scripts/mnemo-mcp.sh              # starts it: local build, else npx
+  skills/<command>/SKILL.md         # the /mnemo:* commands — criterion, not mechanics
   hooks/hooks.json                  # registers the reminder hook
   scripts/suggest-save.js           # the hook (node, no dependencies)
   templates/SCHEMA.md               # frontmatter contract (copied into the store)
+  server/                           # the MCP server: store, git, card, tools, prompts
+  docs/mcp-plan.md                  # design and roadmap
 ```
 
 ## Future
 
 The store is files. If someday you have thousands of notes and `grep` falls short, a search index
-gets mounted on top (SQLite/MCP) **without changing your files**. Starting with text+git is on
-purpose: zero infra, zero lock-in, your data always readable.
+gets mounted on top **without changing your files**. Starting with text+git is on purpose: zero
+infra, zero lock-in, your data always readable.
