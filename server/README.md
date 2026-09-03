@@ -15,7 +15,7 @@ Per-client setup and what each one actually supports:
 
 ```bash
 npm install && npm run build
-MNEMO_DIR=/path/to/store node dist/src/index.js   # speaks MCP over stdio
+MNEMO_DIR=/path/to/store node dist/src/bin.js   # speaks MCP over stdio
 ```
 
 Wire it into a client (the shape is the same everywhere; the file differs):
@@ -25,7 +25,7 @@ Wire it into a client (the shape is the same everywhere; the file differs):
   "mcpServers": {
     "mnemo": {
       "command": "node",
-      "args": ["/absolute/path/to/mnemo/server/dist/src/index.js"],
+      "args": ["/absolute/path/to/mnemo/server/dist/src/bin.js"],
       "env": { "MNEMO_MACHINE": "laptop" }
     }
   }

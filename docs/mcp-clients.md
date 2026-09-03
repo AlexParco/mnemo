@@ -57,7 +57,7 @@ Build first: `cd server && npm install && npm run build`.
   "mcpServers": {
     "mnemo": {
       "command": "node",
-      "args": ["/absolute/path/to/mnemo/server/dist/src/index.js"],
+      "args": ["/absolute/path/to/mnemo/server/dist/src/bin.js"],
       "env": { "MNEMO_MACHINE": "laptop" }
     }
   }
@@ -71,7 +71,7 @@ Build first: `cd server && npm install && npm run build`.
 ```toml
 [mcp_servers.mnemo]
 command = "node"
-args = ["/absolute/path/to/mnemo/server/dist/src/index.js"]
+args = ["/absolute/path/to/mnemo/server/dist/src/bin.js"]
 
 [mcp_servers.mnemo.env]
 MNEMO_MACHINE = "laptop"

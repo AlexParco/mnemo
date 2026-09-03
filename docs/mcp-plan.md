@@ -1,8 +1,8 @@
 # mnemo as an MCP server — implementation plan
 
 > Status: **P0–P6 landed** — storage, behaviour, and the Claude Code plugin rewired
-> onto the server. 17 tools, 4 prompts, 209 tests green. Branch `feat/mcp-server`.
-> P7 (distribution) still proposal.
+> onto the server. 17 tools, 4 prompts, 215 tests green. Branch `feat/mcp-server`.
+> P7 (distribution) still proposal; its blocking bug is fixed, the publish is not done.
 
 ## Goal
 
@@ -204,7 +204,21 @@ ships; the hook is untouched. The plugin bundles the server through `.mcp.json` 
 launcher that prefers a local build and falls back to npx.
 *Done:* proven by a cross-process contention test — and it failed first, see below.
 
-**P7 — distribution.** `npx @alexparco/mnemo-mcp`, README rewrite, install snippets per client.
+**P7 — distribution.** `npx @alexparco/mnemo-mcp`. The README rewrite and the per-client
+install snippets landed in P6 and P5, so what remains is packaging: a `prepack` that
+builds (publishing from a clean checkout would otherwise ship an empty `dist`), the
+missing npm metadata (`repository`, `homepage`, `bugs`, `publishConfig`, `keywords`),
+aligning the package version with the plugin's, deciding whether source maps ship, and
+the publish itself — which needs the author's npm account.
+
+Publishing is not urgent: the launcher prefers a local build, so the plugin works today
+without npm. It buys one thing, removing a manual build step per machine. A beta
+`dist-tag` is the right shape when it happens, with one catch: `npx <pkg>` with no
+version resolves `latest`, which `--tag beta` never sets, so the launcher has to name
+the tag.
+
+**Its blocking bug is already fixed** — see below. A package that installs cleanly and
+does nothing is worse than no package.
 
 ## What P0 + P1 landed
 
@@ -364,6 +378,29 @@ a tool returns is the same constant the guide contains. That test earned itself
 immediately: it caught two different texts saying the same thing about
 confirmation, one in the tools' responses and one in the guide. The long rule is
 now composed from the short one.
+
+### The bug that would have made P7 pointless
+
+The entry point guarded startup with
+``import.meta.url === `file://${process.argv[1]}` `` so that tests could import
+`createServer` without launching a server. Node resolves a main module through
+symlinks but leaves `argv[1]` as given, so the two differ whenever the file is
+reached through a link — which is exactly how npm runs a `bin`. The published
+package would have installed cleanly and then exited without a word. The same
+comparison also broke on paths containing spaces.
+
+The fix is to delete the question rather than answer it: `index.ts` builds a server
+and has no side effects, `bin.ts` always runs one. No condition, no class of bug.
+
+Four spawned tests cover it — real path, symlink, a directory with spaces, and that
+importing the module still starts nothing. Restoring the old guard fails exactly the
+two symlink cases and leaves the direct-path one passing, which is the bug's own
+signature.
+
+That control also had to be redone: the first attempt used `python3 -c "…"`, the shell
+ate the escapes, `str.replace` matched nothing, and the suite reported all green for a
+mutation that was never applied. A negative control that silently does not mutate is
+indistinguishable from a test that does not discriminate.
 
 ### The bug P6 found, and the test that nearly missed it
 

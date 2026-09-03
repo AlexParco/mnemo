@@ -5,7 +5,7 @@
   "license": "MIT",
   "type": "module",
   "bin": {
-    "mnemo-mcp": "dist/src/index.js"
+    "mnemo-mcp": "dist/src/bin.js"
   },
   "files": [
     "dist/src",
@@ -18,7 +18,7 @@
     "assets": "node scripts/copy-assets.mjs",
     "build": "npm run assets && tsc",
     "test": "npm run build && node --test dist/test/*.test.js",
-    "start": "node dist/src/index.js"
+    "start": "node dist/src/bin.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",

@@ -16,7 +16,7 @@ if [ -n "${MNEMO_MCP_COMMAND:-}" ]; then
 fi
 
 ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
-LOCAL="$ROOT/server/dist/src/index.js"
+LOCAL="$ROOT/server/dist/src/bin.js"
 if [ -f "$LOCAL" ]; then
   exec node "$LOCAL"
 fi
