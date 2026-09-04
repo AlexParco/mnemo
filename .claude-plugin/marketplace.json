@@ -3,6 +3,7 @@
   "owner": {
     "name": "Alexander Parco"
   },
+  "description": "Alexander Parco's plugins. Currently mnemo: per-project persistent memory for coding agents, stored as plain text in a git repo you control and reachable over MCP.",
   "plugins": [
     {
       "name": "mnemo",
