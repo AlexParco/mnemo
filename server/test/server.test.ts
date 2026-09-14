@@ -98,6 +98,41 @@ describe("mnemo MCP server", () => {
     assert.equal((result as { isError?: boolean }).isError, true);
   });
 
+  test("mnemo_status with a slug adds where that project stands, cheaply", async () => {
+    const [out, hint] = texts(await client.callTool({ name: "mnemo_status", arguments: { slug: "orion-api" } }));
+    assert.match(out!, /^store: /m, "the store block is still there");
+    assert.match(out!, /project: orion-api · active/);
+    assert.match(out!, /memories: 12 \(1 shared with other projects\)/);
+    assert.match(out!, /pending: 6 open — 2 in progress, 4 next · 1 belongs to another machine/);
+    assert.match(out!, /next: Finish the token rotation rollout/);
+    assert.match(hint!, /mnemo_load_project/, "it should point at the full picture");
+
+    // The point of the slug form: a re-check must not cost what a reload costs.
+    const full = texts(await client.callTool({ name: "mnemo_load_project", arguments: { slug: "orion-api" } })).join("");
+    assert.ok(out!.length * 5 < full.length, `status ${out!.length} vs load ${full.length}`);
+  });
+
+  test("mnemo_status without a slug stays store-only", async () => {
+    const [out] = texts(await client.callTool({ name: "mnemo_status", arguments: {} }));
+    assert.ok(!out!.includes("project: "), "no project block without a slug");
+  });
+
+  test("mnemo_status with an unknown slug says so and lists the real ones", async () => {
+    const blocks = texts(await client.callTool({ name: "mnemo_status", arguments: { slug: "ghost" } }));
+    assert.match(blocks[0]!, /^store: /m, "the store status still comes back");
+    assert.match(blocks[1]!, /No project 'ghost'[\s\S]*Existing slugs: atlas-web/);
+  });
+
+  test("load_project detail:card drops the detail block, keeps the rule", async () => {
+    const card = texts(await client.callTool({ name: "mnemo_load_project", arguments: { slug: "orion-api", detail: "card" } }));
+    assert.equal(card.length, 2);
+    assert.ok(card[0]!.startsWith("📁 orion-api"));
+    assert.match(card[1]!, /This machine is 'fixture-box'/);
+    assert.ok(!card.join("").includes("Detail (do not print unless asked)"));
+    const full = texts(await client.callTool({ name: "mnemo_load_project", arguments: { slug: "orion-api" } }));
+    assert.equal(full.length, 3, "full is still the default");
+  });
+
   test("mnemo_status reports the store and this machine", async () => {
     const [out] = texts(await client.callTool({ name: "mnemo_status", arguments: {} }));
     assert.match(out!, /machine: fixture-box/);

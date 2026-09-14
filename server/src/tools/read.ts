@@ -13,9 +13,10 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { gitStatus } from "../git/read.js";
 import { machineLabel, memoryPath, storeDir } from "../store/paths.js";
 import { loadProjectContext, overview, searchMemories } from "../store/store.js";
+import { loadMemories, memoriesForProject, parseMemory } from "../store/memory.js";
+import { IN_PROGRESS, NEXT, machineFlag, openItems } from "../store/pending.js";
+import { readProject } from "../store/project.js";
 import { projectSlugs } from "../store/project.js";
-import { parseMemory } from "../store/memory.js";
-import { machineFlag } from "../store/pending.js";
 import { resolveLang } from "../card/render.js";
 import { MACHINE_RULE } from "../prompts/criterion.js";
 import { fail, isToolResult, json, ok, type ToolResult } from "./result.js";
@@ -30,14 +31,18 @@ function requireStore(): { store: string } | ToolResult {
   return { store };
 }
 
-function unknownProject(store: string, slug: string): ToolResult {
+function unknownProjectText(store: string, slug: string): string {
   const slugs = projectSlugs(store);
-  return fail(
+  return (
     `No project '${slug}' in the store.\n` +
-      (slugs.length > 0
-        ? `Existing slugs: ${slugs.join(", ")}\nPick one; do not guess or invent a project.`
-        : "The store has no projects yet."),
+    (slugs.length > 0
+      ? `Existing slugs: ${slugs.join(", ")}\nPick one; do not guess or invent a project.`
+      : "The store has no projects yet.")
   );
+}
+
+function unknownProject(store: string, slug: string): ToolResult {
+  return fail(unknownProjectText(store, slug));
 }
 
 export function registerReadTools(server: McpServer): void {
@@ -46,13 +51,19 @@ export function registerReadTools(server: McpServer): void {
     {
       title: "mnemo: store status",
       description:
-        "Where the mnemo memory store stands: its path, whether it is wired to a hub (git remote), how many commits " +
-        "are waiting to be pushed, and this machine's label. Use it when the user asks about their memory setup, or " +
-        "before telling them whether something is synced to their other machines.",
-      inputSchema: {},
+        "Where things stand. With no arguments: the memory store itself — its path, whether it is wired to a hub (git " +
+        "remote), how many commits are waiting to be pushed, and this machine's label. With a `slug`, it also reports " +
+        "where that project stands: status, services, how many memories and pending items it has, and what comes next. " +
+        "Use the slug form to re-check a project mid-session — it is a fraction of the size of loading it again.",
+      inputSchema: {
+        slug: z
+          .string()
+          .optional()
+          .describe("Project slug. Adds a compact summary of that project; omit it for the store alone."),
+      },
       annotations: { readOnlyHint: true },
     },
-    async () => {
+    async ({ slug }) => {
       const store = storeDir();
       const exists = fs.existsSync(store);
       const git = exists ? gitStatus(store) : null;
@@ -78,7 +89,30 @@ export function registerReadTools(server: McpServer): void {
           : "autopush: off — confirm with the user before calling mnemo_push",
       );
       if (!exists) lines.push("", NO_STORE);
-      return ok(lines.join("\n"));
+      if (!slug) return ok(lines.join("\n"));
+
+      const project = exists ? readProject(store, slug) : null;
+      if (!project) return ok(lines.join("\n"), unknownProjectText(store, slug));
+
+      const tagged = memoriesForProject(loadMemories(store), slug);
+      const inProgress = openItems(project.pending, IN_PROGRESS);
+      const next = openItems(project.pending, NEXT);
+      const here = machineLabel();
+      const elsewhere = [...inProgress, ...next].filter((i) => machineFlag(i, here) !== "").length;
+      const resume = inProgress[0] ?? next[0];
+
+      lines.push(
+        "",
+        `project: ${project.slug} · ${project.status}`,
+        `name: ${project.name}`,
+        ...(project.services.length > 0 ? [`services: ${project.services.join(", ")}`] : []),
+        ...(project.updated ? [`updated: ${project.updated}`] : []),
+        `memories: ${tagged.length}${tagged.filter((m) => m.projects.length > 1).length > 0 ? ` (${tagged.filter((m) => m.projects.length > 1).length} shared with other projects)` : ""}`,
+        `pending: ${inProgress.length + next.length} open — ${inProgress.length} in progress, ${next.length} next` +
+          (elsewhere > 0 ? ` · ${elsewhere} ${elsewhere === 1 ? "belongs" : "belong"} to another machine` : ""),
+        `next: ${resume ?? "—"}`,
+      );
+      return ok(lines.join("\n"), "For the full picture — every memory, the conventions, the printable card — use mnemo_load_project.");
     },
   );
 
@@ -128,16 +162,24 @@ export function registerReadTools(server: McpServer): void {
       inputSchema: {
         slug: z.string().describe("Exact project slug, as listed by mnemo_list_projects."),
         lang: z.enum(["en", "es"]).optional().describe("Language for the card. Defaults to $MNEMO_LANG, else English."),
+        detail: z
+          .enum(["full", "card"])
+          .optional()
+          .describe(
+            '"full" (the default) returns the card plus every memory and the shared conventions — what you want the ' +
+              'first time. "card" returns only the card, for re-showing where a project stands without re-sending ' +
+              "detail that is already in your context.",
+          ),
       },
       annotations: { readOnlyHint: true },
     },
-    async ({ slug, lang }) => {
+    async ({ slug, lang, detail }) => {
       const guard = requireStore();
       if (isToolResult(guard)) return guard;
       const ctx = loadProjectContext(guard.store, slug, resolveLang(lang));
       if (!ctx) return unknownProject(guard.store, slug);
 
-      const detail = json({
+      const detailJson = json({
         project: {
           slug: ctx.project.slug,
           name: ctx.project.name,
@@ -165,7 +207,9 @@ export function registerReadTools(server: McpServer): void {
         `This machine is '${ctx.machine}'. ${foreign.length} pending item(s) belong to another machine and are ` +
         `marked ⚠ in the card.\n\n${MACHINE_RULE}`;
 
-      return ok(ctx.card, `Detail (do not print unless asked):\n${detail}`, rule);
+      return detail === "card"
+        ? ok(ctx.card, rule)
+        : ok(ctx.card, `Detail (do not print unless asked):\n${detailJson}`, rule);
     },
   );
 

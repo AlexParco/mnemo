@@ -39,9 +39,9 @@ same contract the skills use.
 
 | Tool | What it does |
 |---|---|
-| `mnemo_status` | store path, remote, unpushed commits, this machine's label |
+| `mnemo_status` | store path, remote, unpushed commits, this machine's label — and, with a `slug`, where that project stands |
 | `mnemo_list_projects` | the overview table: slug, status, memories, services |
-| `mnemo_load_project` | resume card + full detail + the machine rule |
+| `mnemo_load_project` | resume card + full detail + the machine rule; `detail: "card"` for just the card |
 | `mnemo_search_memories` | term search across ids, bodies, tags, services |
 | `mnemo_read_memory` | one memory, in full |
 | `mnemo_bootstrap` | create the store, or adopt one from the hub |
