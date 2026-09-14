@@ -48,21 +48,18 @@ It's a Claude Code plugin. From Claude Code:
 /plugin install mnemo@mnemo
 ```
 
-Then build the bundled MCP server, which is where the store, git and the card render now live.
-From the plugin's own directory (`/plugin` shows where it was installed; or clone this repo and use
-`claude --plugin-dir ./mnemo` for development):
+Restart Claude Code (or run `/reload-plugins`). On the next session start the plugin builds its
+bundled MCP server — where the store, git and the card render live — and says so. That happens once
+per version, takes seconds, and needs nothing from you. If the `/mnemo:*` commands report missing
+tools right after the build, run `/reload-plugins` once.
 
-```bash
-cd <plugin-dir>/server && npm install && npm run build
-```
-
-Restart Claude Code (or run `/reload-plugins`) so it registers the commands and starts the server.
 Verify with `/mnemo:list-context` — the first time it will tell you there's no memory yet, and
 that's correct.
 
-> The build step goes away once the server is published to npm; the launcher already falls back to
-> `npx @alexparco/mnemo-mcp`. Until then, an unbuilt server makes the `/mnemo:*` commands report
-> that their tools are missing rather than failing quietly.
+> The build lands in the plugin's persistent data directory, so updating the plugin never leaves a
+> stale copy behind, and never rebuilds when nothing changed. To build it by hand instead — for
+> development, or to use the server from another agent — see
+> [`docs/mcp-clients.md`](docs/mcp-clients.md).
 
 There's no installer or store setup step: **the store creates itself** the first time you run
 `/mnemo:save-context <slug>` (git init + structure, in `~/.local/share/mnemo`). You don't need to
