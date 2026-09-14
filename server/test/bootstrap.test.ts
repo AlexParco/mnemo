@@ -59,6 +59,30 @@ describe("ensureStore", () => {
     assert.equal(fs.readFileSync(path.join(store, ".gitignore"), "utf8"), "custom\n");
   });
 
+  test("a store inside another repo gets its own, and never commits into the outer one", async () => {
+    // `rev-parse --git-dir` succeeds anywhere inside a repo, so the naive check
+    // said "already initialised" and every save landed in the enclosing project —
+    // with `add -A` sweeping up whatever the user had uncommitted there.
+    const outer = tempDir("mnemo-outer-");
+    gitRun(outer, ["init", "-q", "-b", "main"]);
+    withIdentity(outer);
+    fs.writeFileSync(path.join(outer, "their-work.txt"), "uncommitted work\n");
+    gitRun(outer, ["add", "-A"]);
+    gitRun(outer, ["commit", "-q", "-m", "the user's own commit"]);
+
+    const store = path.join(outer, "memory");
+    const report = ensureStore(store, {});
+    assert.equal(report.initialisedRepo, true, "it must create a repo of its own");
+    assert.ok(fs.existsSync(path.join(store, ".git")));
+
+    withIdentity(store);
+    await upsertProject(store, { slug: "demo", name: "Demo" });
+    await commitStore(store, "save(demo): a fact");
+
+    assert.equal(gitTry(outer, ["log", "--oneline"]), gitTry(outer, ["log", "-1", "--oneline"]), "the outer repo gained no commits");
+    assert.match(gitTry(store, ["log", "-1", "--pretty=%s"]) ?? "", /save\(demo\)/);
+  });
+
   test("wires a remote without adopting when the hub is empty", () => {
     const hub = tempDir("mnemo-hub-");
     gitRun(hub, ["init", "--bare", "-q", "-b", "main"]);

@@ -26,8 +26,25 @@ function gitPathExists(store: string, name: string): boolean {
   return fs.existsSync(p.startsWith("/") ? p : `${store}/${p}`);
 }
 
+/** Is this directory a git repository *of its own*?
+ *
+ * `rev-parse --git-dir` succeeds for any path INSIDE a repo, so a store created
+ * under one — `MNEMO_DIR=./memory` inside a project, say — would look already
+ * initialised while actually belonging to the enclosing repo. Every commit would
+ * then land there, and `add -A` would sweep up whatever the user had uncommitted
+ * in their own project. Comparing the toplevel is what tells the two apart. */
+export function isOwnRepo(store: string): boolean {
+  const top = gitTry(store, ["rev-parse", "--show-toplevel"]);
+  if (top === null) return false;
+  try {
+    return fs.realpathSync(top) === fs.realpathSync(store);
+  } catch {
+    return false;
+  }
+}
+
 export function gitStatus(store: string): GitStatus {
-  const isRepo = gitTry(store, ["rev-parse", "--git-dir"]) !== null;
+  const isRepo = isOwnRepo(store);
   if (!isRepo) {
     return { isRepo: false, hasRemote: false, remoteUrl: null, branch: null, dirty: false, unpushed: null, rebaseInProgress: false };
   }

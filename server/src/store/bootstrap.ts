@@ -10,6 +10,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { gitIdentity, gitTry, gitRun } from "../git/exec.js";
+import { isOwnRepo } from "../git/read.js";
 import { sharedDir, type Env } from "./paths.js";
 
 export interface BootstrapReport {
@@ -44,17 +45,13 @@ function schemaTemplate(): string | null {
   return null;
 }
 
-function isRepo(store: string): boolean {
-  return gitTry(store, ["rev-parse", "--git-dir"]) !== null;
-}
-
 export function ensureStore(store: string, env: Env = process.env): BootstrapReport {
   const createdStore = !fs.existsSync(store);
   for (const sub of ["projects", "memories", "shared"]) {
     fs.mkdirSync(path.join(store, sub), { recursive: true });
   }
 
-  const initialisedRepo = !isRepo(store);
+  const initialisedRepo = !isOwnRepo(store);
   if (initialisedRepo) gitRun(store, ["init", "-q", "-b", "main"]);
 
   let wiredRemote: string | null = null;
