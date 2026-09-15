@@ -20,7 +20,7 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import { createServer } from "./index.js";
 import { httpSessionKey } from "./mailbox/identity.js";
-import { HTTP_IDLE_MS, releaseSession } from "./mailbox/store.js";
+import { HTTP_IDLE_MS, NAME_RE, peekUnread, releaseSession } from "./mailbox/store.js";
 import { mailboxDir } from "./store/paths.js";
 
 export const DEFAULT_PORT = 7433;
@@ -112,11 +112,26 @@ export async function startHttpServer(options: HttpOptions): Promise<RunningHttp
 
   async function handle(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
     const url = new URL(req.url ?? "/", "http://mnemo.invalid");
-    if (url.pathname !== "/mcp") return sendJson(res, 404, { error: "not found" });
+    if (url.pathname !== "/mcp" && url.pathname !== "/mailbox/unread") return sendJson(res, 404, { error: "not found" });
     // Before anything else, including reading the body: an unauthenticated request
     // must not be able to create a session or touch the store.
     if (!authorized(req.headers.authorization, token)) {
       return sendJson(res, 401, { error: "unauthorized" }, { "www-authenticate": 'Bearer realm="mnemo"' });
+    }
+
+    // For `mnemo-mcp watch`: what is waiting for a name, read-only. Not an MCP tool on
+    // purpose — a watcher must not become a session, claim the name, or mark anything read.
+    if (url.pathname === "/mailbox/unread") {
+      if (req.method !== "GET") {
+        res.writeHead(405, { allow: "GET" });
+        res.end();
+        return;
+      }
+      const name = (url.searchParams.get("name") ?? "").trim();
+      if (!NAME_RE.test(name)) return sendJson(res, 400, { error: "a valid name is required" });
+      const after = Number(url.searchParams.get("after") ?? "0");
+      const product = (url.searchParams.get("product") ?? "").trim() || undefined;
+      return sendJson(res, 200, peekUnread(mailboxDir(), name, Number.isFinite(after) ? after : 0, product));
     }
 
     const header = req.headers["mcp-session-id"];

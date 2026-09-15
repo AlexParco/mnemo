@@ -391,6 +391,30 @@ async function transact<T>(dir: string, caller: Caller, fn: (ctx: Ctx) => T): Pr
   });
 }
 
+/** Messages waiting for `name` beyond `after`, without marking anything read and
+ * without registering a session. This is for watchers: they announce, and the chat
+ * that holds the name still reads everything itself with `inbox`.
+ *
+ * No lock: `state.json` is replaced atomically and the log is append-only, and a
+ * torn last line is skipped by `readMessages`. */
+export function peekUnread(dir: string, name: string, after = 0, product?: string): { lastSeq: number; messages: Message[] } {
+  const messages = readMessages(dir);
+  const state = readState(dir);
+  const entry = state.names[name];
+  const cursor = Math.max(after, entry?.cursor ?? 0);
+  // Group messages only reach a name that exists, and only from when it existed.
+  const groupFloor = entry ? Math.max(cursor, entry.firstSeq) : Number.POSITIVE_INFINITY;
+  const groups = new Set(["@all", ...(product ? [`@${product}`] : [])]);
+  const lastSeq = messages.reduce((top, m) => Math.max(top, m.seq), 0);
+  const waiting = messages.filter((m) => {
+    if (m.from === name) return false;
+    if (m.to === name) return m.seq > cursor;
+    if (groups.has(m.to)) return m.seq > groupFloor;
+    return false;
+  });
+  return { lastSeq, messages: waiting };
+}
+
 // ------------------------------------------------------------------ operations
 
 /** Forget a session whose connection closed, freeing any name it held. */

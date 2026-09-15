@@ -1,0 +1,7 @@
+[
+  {
+    "name": "mailbox",
+    "command": "\"${CLAUDE_PLUGIN_ROOT}\"/scripts/mnemo-watch.sh",
+    "description": "mnemo mailbox: messages sent to this chat"
+  }
+]

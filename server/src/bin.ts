@@ -15,6 +15,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { createServer, VERSION } from "./index.js";
 import { DEFAULT_BIND, DEFAULT_PORT, HttpConfigError, isLoopback, startHttpServer } from "./http.js";
 import { mailboxDir, storeDir } from "./store/paths.js";
+import { WATCH_INTERVAL_MS, watch } from "./watch.js";
 
 const USAGE = `mnemo-mcp ${VERSION}
 
@@ -23,6 +24,11 @@ const USAGE = `mnemo-mcp ${VERSION}
                                  MCP over HTTP at /mcp, for agents on other machines.
                                  Needs MNEMO_TOKEN. Binds ${DEFAULT_BIND}:${DEFAULT_PORT} by default;
                                  reach it from another machine through an SSH tunnel.
+  mnemo-mcp watch [--name N] [--url U] [--product P] [--server S] [--interval MS]
+                                 Print one line per new mailbox message for a name, without
+                                 marking anything read. Meant to run as a Claude Code monitor.
+                                 Defaults: --name $MNEMO_AGENT, --url $MNEMO_URL (token from
+                                 $MNEMO_TOKEN); without a URL it reads this machine's mailbox.
 `;
 
 interface Args {
@@ -52,12 +58,54 @@ export function parseArgs(argv: string[]): Args {
   return args;
 }
 
+function flagValues(argv: string[], known: string[]): Record<string, string> {
+  const values: Record<string, string> = {};
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i]!;
+    const eq = arg.indexOf("=");
+    const flag = eq === -1 ? arg : arg.slice(0, eq);
+    if (!known.includes(flag)) throw new HttpConfigError(`unknown argument: ${arg}\n\n${USAGE}`);
+    const value = eq === -1 ? argv[++i] : arg.slice(eq + 1);
+    if (value === undefined || value === "") throw new HttpConfigError(`${flag} needs a value.`);
+    values[flag] = value;
+  }
+  return values;
+}
+
+async function runWatch(argv: string[]): Promise<void> {
+  const flags = flagValues(argv, ["--name", "--url", "--product", "--server", "--interval"]);
+  const name = (flags["--name"] ?? process.env.MNEMO_AGENT ?? "").trim();
+  if (!name) {
+    // A monitor in a chat with no mailbox name has nothing to announce: leave quietly.
+    process.stderr.write("mnemo watch: no name to watch; set MNEMO_AGENT or pass --name.\n");
+    return;
+  }
+  const url = (flags["--url"] ?? process.env.MNEMO_URL ?? "").trim() || undefined;
+  const token = process.env.MNEMO_TOKEN ?? "";
+  if (url && !token) throw new HttpConfigError("watching a remote server needs MNEMO_TOKEN.");
+  const interval = flags["--interval"] !== undefined ? Number(flags["--interval"]) : WATCH_INTERVAL_MS;
+  if (!Number.isInteger(interval) || interval < 100) throw new HttpConfigError("--interval must be an integer of at least 100 ms.");
+
+  const controller = new AbortController();
+  process.once("SIGINT", () => controller.abort());
+  process.once("SIGTERM", () => controller.abort());
+  await watch({
+    name,
+    ...(url ? { url, token } : {}),
+    ...(flags["--product"] ? { product: flags["--product"] } : {}),
+    ...(flags["--server"] ? { server: flags["--server"] } : {}),
+    intervalMs: interval,
+    signal: controller.signal,
+  });
+}
+
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
   if (argv.includes("--help") || argv.includes("-h")) {
     process.stdout.write(USAGE);
     return;
   }
+  if (argv[0] === "watch") return runWatch(argv.slice(1));
   const args = parseArgs(argv);
 
   if (!args.http) {
