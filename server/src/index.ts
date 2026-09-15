@@ -15,6 +15,7 @@ import { SERVER_INSTRUCTIONS } from "./prompts/criterion.js";
 import { registerPrompts } from "./prompts/register.js";
 import { registerDestructiveTools } from "./tools/destructive.js";
 import { registerGuideTool } from "./tools/guide.js";
+import { registerMailboxTools } from "./tools/mailbox.js";
 import { registerSyncTools } from "./tools/sync.js";
 import { registerWriteTools } from "./tools/write.js";
 
@@ -32,6 +33,7 @@ export function createServer(): McpServer {
   registerSyncTools(server);
   registerDestructiveTools(server);
   registerGuideTool(server);
+  registerMailboxTools(server);
   registerPrompts(server);
   return server;
 }

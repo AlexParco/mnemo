@@ -22,6 +22,15 @@ export function machineLabel(env: Env = process.env): string {
   return (os.hostname().split(".")[0] ?? "").trim();
 }
 
+/** Mailbox state: `$MNEMO_MAILBOX_DIR`, else `$XDG_STATE_HOME/mnemo/mailbox`.
+ * Deliberately outside the store — messages are ephemeral, memory is not. Resolved
+ * to an absolute path, so the location never depends on the process's cwd. */
+export function mailboxDir(env: Env = process.env): string {
+  if (env.MNEMO_MAILBOX_DIR) return path.resolve(env.MNEMO_MAILBOX_DIR);
+  const base = env.XDG_STATE_HOME || path.join(os.homedir(), ".local", "state");
+  return path.join(base, "mnemo", "mailbox");
+}
+
 export const projectsDir = (store: string) => path.join(store, "projects");
 export const projectDir = (store: string, slug: string) => path.join(store, "projects", slug);
 export const indexPath = (store: string, slug: string) => path.join(store, "projects", slug, "INDEX.md");

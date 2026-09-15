@@ -2,8 +2,8 @@
 
 > Status: **P0–P6 landed** — storage, behaviour, and the Claude Code plugin rewired
 > onto the server. 17 tools, 4 prompts, 227 tests green, merged to `main`.
-> P7 (distribution) is proposal with its blocking bug fixed. **P8 (the mailbox) is
-> designed below and is the stated end goal of the project.**
+> P7 (distribution) is proposal with its blocking bug fixed. **P8 (the mailbox) is the
+> stated end goal: steps 1–2 landed (mailbox over stdio, 23 tools, 247 tests); HTTP next.**
 
 ## Goal
 
@@ -514,7 +514,10 @@ with zero agent cooperation; (2) `mailbox_register(name)`, for clients without
 configurable headers or to rename mid-session; (3) the MCP `sessionId`, which
 `RequestHandlerExtra` exposes to every tool handler and which is unique per connection
 by construction. Layer 3 means a chat that never registered is still addressable; it
-is ephemeral, so durable delivery keys on names, not ids.
+is ephemeral, so durable delivery keys on names, not ids. Over stdio there is no transport
+session — `extra.sessionId` is undefined — but every stdio client spawns its own server
+process, so there layer 3 is a per-process key and layer 1 is `MNEMO_AGENT` from the
+client's `env` block, which stdio does honour.
 
 **Name collisions are refused**, with the taken names listed, rather than "latest
 wins". A stolen address sends messages to the wrong chat silently; a refusal is noticed.
@@ -534,10 +537,14 @@ line, not the full brief: the receiver shares the server and loads with
 This is where the earlier ideas — `detail: "card"`, a `service` filter, incremental
 load — earn their place: several workers loading one project.
 
-**Cursors per reader**, borrowed from Orca's wire protocol ("resuming from the held
-cursor replays only what it missed"). Each `sessionId` keeps its own cursor over a
-name's queue. Two chats holding the same name both see everything; neither consumes
-the other's messages. It also survives a server restart.
+**Cursors belong to addresses, not connections**, borrowed from Orca's wire protocol
+("resuming from the held cursor replays only what it missed"). Collisions are refused,
+so a name has at most one live holder; a chat that restarts and reclaims its name
+resumes from the name's cursor. That is what makes delivery survive a restart — a
+per-connection cursor would not, because a stdio server is one process per chat and
+dies with it. An unnamed chat reads with its session address's own cursor, which is
+ephemeral like the address. (An earlier draft said two chats holding one name would
+both see everything; that contradicts refusing the collision, and was dropped.)
 
 **Retention.** Undelivered: forever. Delivered: 30 days, then pruned.
 
@@ -567,14 +574,47 @@ server then fails with ENOENT on the literal path.
 
 ### Order of work
 
-1. Prerequisite above.
+1. Prerequisite above. **✅ done.**
 2. Mailbox state and the six tools over **stdio** — testable locally today, no new
-   transport, and it settles the data model.
+   transport, and it settles the data model. **✅ done** — see below.
 3. `--http` with the token; identity layers 1 and 3; `mailbox_wait`.
 4. Empirical checks that only a real client can answer: whether each of the four keeps
    one MCP session for the life of a chat (layer 3 depends on it; layers 1–2 do not),
    and Codex's `env_http_headers` end to end.
 5. Prompts and a `/mnemo:send` skill; client docs for the tunnel and the token.
+
+### What steps 1–2 landed
+
+`server/src/mailbox/store.ts` holds the state machine; `identity.ts` builds the caller
+from the MCP request; `tools/mailbox.ts` is the surface. 20 new tests: 14 on the state
+directly, and 6 end to end with **two real `bin.js` processes** driven by real MCP
+clients over stdio — a task from a `claude-code` client reaches a `codex` client, the
+`done` comes back bound to its id, and the product in `mailbox_peers` is read from
+each client's handshake rather than assumed.
+
+Four negative controls, each in its own copy of the tree, each failing exactly where it
+should: removing the lock breaks the two-process burst (3 of 3 runs); not persisting
+the name cursor breaks restart resumption; ignoring the group floor delivers old
+broadcasts to late names; dropping the reply-type check lets a `done` close a
+`question`.
+
+Decisions settled by writing it:
+
+- **The inbox tools are annotated read-only.** Reading advances a cursor, the way
+  opening mail marks it read — the server's own bookkeeping, nothing the user owns.
+  Annotating them as writes would make Codex's `writes` approval mode prompt on every
+  inbox check, which defeats the habit the design depends on.
+- **`seq` is taken from the log, not only from `state.json`.** A lost or stale state
+  file must never hand out a seq again: a reused seq would let a reply bind to the
+  wrong message. `nextSeq` is the maximum of both.
+- **A torn last line is survivable.** A crash mid-append can leave a partial line; the
+  next append starts on a fresh line so it does not corrupt the new message too, and
+  the reader skips what it cannot parse.
+- **Sending to a name nobody has registered is allowed, with a warning.** Refusing it
+  would break the core case — leaving a task for a chat that is not open yet — but a
+  typo would otherwise wait forever in silence.
+- **`send` refuses `done` and `answer`.** Those only exist through `mailbox_reply`,
+  where they must name the message they close.
 
 ### What is deliberately not in P8
 

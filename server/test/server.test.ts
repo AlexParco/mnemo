@@ -14,6 +14,9 @@ const SYNC_TOOLS = ["mnemo_sync", "mnemo_resolve_conflict", "mnemo_rebase", "mne
 const DESTRUCTIVE_TOOLS = ["mnemo_rename", "mnemo_forget"];
 // Read-only, but it reads the criterion rather than the store.
 const META_TOOLS = ["mnemo_guide"];
+const MAILBOX_TOOLS = ["mailbox_register", "mailbox_send", "mailbox_reply", "mailbox_inbox", "mailbox_wait", "mailbox_peers"];
+// Reading advances a cursor — the server's own bookkeeping, like marking mail read.
+const MAILBOX_READING = ["mailbox_inbox", "mailbox_wait", "mailbox_peers"];
 
 let client: Client;
 const savedEnv = { dir: process.env.MNEMO_DIR, machine: process.env.MNEMO_MACHINE };
@@ -40,13 +43,13 @@ after(async () => {
 describe("mnemo MCP server", () => {
   test("exposes the whole surface, described and correctly annotated", async () => {
     const { tools } = await client.listTools();
-    assert.deepEqual(tools.map((t) => t.name).sort(), [...READ_TOOLS, ...WRITE_TOOLS, ...SYNC_TOOLS, ...DESTRUCTIVE_TOOLS, ...META_TOOLS].sort());
+    assert.deepEqual(tools.map((t) => t.name).sort(), [...READ_TOOLS, ...WRITE_TOOLS, ...SYNC_TOOLS, ...DESTRUCTIVE_TOOLS, ...META_TOOLS, ...MAILBOX_TOOLS].sort());
     for (const tool of tools) {
       // Outside Claude Code the description is the only place the rules live.
       assert.ok((tool.description ?? "").length > 80, `${tool.name} needs a description agents can act on`);
       assert.equal(
         tool.annotations?.readOnlyHint === true,
-        [...READ_TOOLS, ...META_TOOLS].includes(tool.name),
+        [...READ_TOOLS, ...META_TOOLS, ...MAILBOX_READING].includes(tool.name),
         `${tool.name} is annotated with the wrong read-only hint`,
       );
     }

@@ -57,6 +57,30 @@ same contract the skills use.
 | `mnemo_forget` | delete a project or a memory, overlap-safe |
 | `mnemo_guide` | the usage criterion, to paste into a rules file |
 
+## Mailbox
+
+Messages between agents — on this machine or another, in any MCP client. Six tools on
+the same server:
+
+| Tool | What it does |
+|---|---|
+| `mailbox_register` | claim a durable name, e.g. `laptop-front` |
+| `mailbox_send` | leave a `task`, `question` or `note` for a name, `@all`, `@<product>`, or a `session:` address |
+| `mailbox_reply` | close a task with `done` or answer a question with `answer`, bound to its id |
+| `mailbox_inbox` | read what is waiting for you |
+| `mailbox_wait` | block until something arrives (30 s default, 55 s max) |
+| `mailbox_peers` | who you can reach, their client, live or offline, unread |
+
+A message to a **name** waits until whoever holds that name reads it, even if that chat
+is closed now. Nothing interrupts an agent when a message arrives, so agents check the
+inbox when they start and between tasks. Set `MNEMO_AGENT` in a client's `env` block to
+give that client a name from the start; two chats that ask for the same name get it
+refused and stay reachable at their session address.
+
+State lives in `$MNEMO_MAILBOX_DIR` (default `$XDG_STATE_HOME/mnemo/mailbox`), never in
+the memory store. Over stdio this already works between chats on one machine; reaching
+another machine needs the HTTP mode, which is the next step of P8.
+
 ## Prompts
 
 `save_context`, `load_context`, `mem` and `sync_memory` carry the flows and the

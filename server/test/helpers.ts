@@ -25,7 +25,7 @@ export const FIXTURE_PROJECTS = ["orion-api", "atlas-web", "quiet-shed", "odd-co
 /** Tests must never inherit the developer's real mnemo setup: an ambient
  * MNEMO_REMOTE would point a temp store at the user's actual memory hub. */
 export function isolateEnv(): void {
-  for (const key of ["MNEMO_DIR", "MNEMO_REMOTE", "MNEMO_MACHINE", "MNEMO_LANG"]) {
+  for (const key of ["MNEMO_DIR", "MNEMO_REMOTE", "MNEMO_MACHINE", "MNEMO_LANG", "MNEMO_MAILBOX_DIR", "MNEMO_AGENT"]) {
     delete process.env[key];
   }
 }
