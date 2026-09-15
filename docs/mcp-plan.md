@@ -1,8 +1,9 @@
 # mnemo as an MCP server — implementation plan
 
 > Status: **P0–P6 landed** — storage, behaviour, and the Claude Code plugin rewired
-> onto the server. 17 tools, 4 prompts, 215 tests green. Branch `feat/mcp-server`.
-> P7 (distribution) still proposal; its blocking bug is fixed, the publish is not done.
+> onto the server. 17 tools, 4 prompts, 227 tests green, merged to `main`.
+> P7 (distribution) is proposal with its blocking bug fixed. **P8 (the mailbox) is
+> designed below and is the stated end goal of the project.**
 
 ## Goal
 
@@ -219,6 +220,16 @@ the tag.
 
 **Its blocking bug is already fixed** — see below. A package that installs cleanly and
 does nothing is worse than no package.
+
+**P8 — the mailbox: agent-to-agent messages across machines and vendors.** The end
+goal. Claude Code's own `SendMessage` reaches only Claude Code sessions; nothing reaches
+a Codex or opencode chat, and nothing crosses machines without Remote Control. MCP is
+the one protocol all four speak, so the mailbox is a set of tools on the same server,
+served remotely over Streamable HTTP. Full design in [P8 — the mailbox](#p8--the-mailbox).
+*Done when:* a Claude Code chat on one machine leaves a `task` for a named Codex chat on
+another, that chat receives it with `mailbox_wait`, replies `done`, and the reply lands
+back — over an SSH tunnel, with the token enforced, and with two chats of the same
+product on one machine addressed separately.
 
 ## What P0 + P1 landed
 
@@ -458,6 +469,119 @@ concurrency property is evidence of nothing until you have watched it fail.**
    them and the card counts them. Verified rather than assumed.
 2. **Truncation counts code points**, matching Python's `len`, not JS's UTF-16 units.
 
+## P8 — the mailbox
+
+### Why it is tools on the same server, over HTTP
+
+The requirement is a message from any of the four agents to any other, on any
+machine. The only thing the four have in common is MCP, and MCP's transports are
+stdio and Streamable HTTP — there is no MCP-over-TCP or gRPC that any of them can
+dial, and a protocol of our own would be one no client connects to. So: the mailbox is
+six tools on the existing server, and the server grows an `--http` mode so a remote
+machine can reach it. HTTP is not the mailbox's design choice; it is the only way a
+remote MCP server exists.
+
+The reference point is [Orca](https://www.onorca.dev/docs/cli/orchestration), which has
+a working coordinator/worker orchestration across the same agents and hosts. What is
+borrowed from it is listed per decision below; what is left out on purpose is the
+product around it — runs, task DAGs, decision gates, worker heartbeats, worktrees,
+terminals. mnemo is the memory the agents share plus a mailbox, with no UI.
+
+### Surface
+
+```
+mailbox_register(name)                     claim a durable name for this session
+mailbox_send(to, type, body, project?)     → id ; enqueues whether or not `to` is connected
+mailbox_reply(id, type, body)              done / answer, bound to the original id
+mailbox_inbox()                            what is waiting for me; advances my cursor
+mailbox_wait(timeout_ms?)                  block server-side until a message or the timeout
+mailbox_peers()                            names, product, connected/offline, unread
+```
+
+### Decisions
+
+**Transport and exposure.** `--http` binds `127.0.0.1` by default; the laptop reaches
+the VPS through `ssh -L`. An explicit `--bind` exists for Tailscale-style private
+networks. Orca's rule, adopted verbatim in spirit: never forward the port to the public
+internet. A bearer token (`MNEMO_TOKEN`, `Authorization: Bearer`) is **always** required
+in HTTP mode, loopback included — it is cheap, and "add it later" is how it never gets
+added.
+
+**Identity, in three layers, first match wins.** (1) a request header
+`X-Mnemo-Agent`, which Codex can source from an environment variable at launch
+(`env_http_headers`) — two Codex chats with one config file get different identities
+with zero agent cooperation; (2) `mailbox_register(name)`, for clients without
+configurable headers or to rename mid-session; (3) the MCP `sessionId`, which
+`RequestHandlerExtra` exposes to every tool handler and which is unique per connection
+by construction. Layer 3 means a chat that never registered is still addressable; it
+is ephemeral, so durable delivery keys on names, not ids.
+
+**Name collisions are refused**, with the taken names listed, rather than "latest
+wins". A stolen address sends messages to the wrong chat silently; a refusal is noticed.
+
+**Groups**: `@all` and `@<product>` (`@codex`, `@claude-code`, `@opencode`), derived
+from the `clientInfo` the handshake already carries. No `@idle`: there is no busy/idle
+state and it will not be faked.
+
+**Message types are a closed set**: `task | done | question | answer | note`.
+`mailbox_reply` requires the originating `id` and only accepts `done` or `answer` —
+Orca's lesson, that a completion must name the exact dispatch it closes so a stale
+retry cannot close the wrong one.
+
+**The brief is a pointer.** `mailbox_send(..., project: slug)` attaches the slug and one
+line, not the full brief: the receiver shares the server and loads with
+`mnemo_load_project`. Attaching everything would duplicate what it can already read.
+This is where the earlier ideas — `detail: "card"`, a `service` filter, incremental
+load — earn their place: several workers loading one project.
+
+**Cursors per reader**, borrowed from Orca's wire protocol ("resuming from the held
+cursor replays only what it missed"). Each `sessionId` keeps its own cursor over a
+name's queue. Two chats holding the same name both see everything; neither consumes
+the other's messages. It also survives a server restart.
+
+**Retention.** Undelivered: forever. Delivered: 30 days, then pruned.
+
+**`mailbox_wait`**: default 30 s, hard maximum 55 s. Codex's `tool_timeout_sec`
+defaults to 60; Orca's 15-minute waits are possible only because Orca does not go
+through MCP. The client docs say how to raise both if longer waits are wanted.
+
+**State lives outside the store**: an append-only JSONL log plus a cursors file under
+`$XDG_STATE_HOME/mnemo/mailbox/`, next to the locks. Never in `memories/` — messages
+are ephemeral, memory is not. JSONL rather than SQLite: no native dependency, and
+consistent with "plain text". Writes go through the existing store lock pattern.
+
+**It also works over stdio, locally.** With file-backed state and the lock, two chats
+on one machine message each other with no HTTP at all — each stdio client spawns its
+own server process and they meet in the file. HTTP is only for crossing machines.
+
+**Presence is reported with provenance.** `mailbox_peers` distinguishes a connection
+seen live from a name restored from disk; Orca's `restoredUnconfirmed` rule — never
+let hydrated state read as live truth.
+
+### Prerequisite
+
+Move the plugin's MCP declaration from the root `.mcp.json` into `mcpServers` in
+`plugin.json`. Opening the mnemo repo itself as a project makes Claude Code read the
+root file as project config, where `${CLAUDE_PLUGIN_ROOT}` is not substituted; the
+server then fails with ENOENT on the literal path.
+
+### Order of work
+
+1. Prerequisite above.
+2. Mailbox state and the six tools over **stdio** — testable locally today, no new
+   transport, and it settles the data model.
+3. `--http` with the token; identity layers 1 and 3; `mailbox_wait`.
+4. Empirical checks that only a real client can answer: whether each of the four keeps
+   one MCP session for the life of a chat (layer 3 depends on it; layers 1–2 do not),
+   and Codex's `env_http_headers` end to end.
+5. Prompts and a `/mnemo:send` skill; client docs for the tunnel and the token.
+
+### What is deliberately not in P8
+
+Runs, task DAGs, decision gates, worker heartbeats, dispatch authority, worktrees,
+terminal capture, version negotiation beyond what `tools/list` already gives. If a need
+for any of them appears in use, it is a P9 conversation, not a P8 addition.
+
 ## Testing
 
 - **Golden files** for the card (the P1 gate) — implemented as a live diff against
@@ -504,3 +628,12 @@ concurrency property is evidence of nothing until you have watched it fail.**
    the fiddly parts.
 5. **No session visibility** is structural, not a bug to fix. It must be stated in the README so
    nobody expects `save-context` to work as a bare tool call.
+6. **Session stability per client (P8).** Whether Claude Code, Codex, Cursor and
+   opencode hold one MCP session for the life of a chat is not documented by any of
+   them. The identity design does not depend on it — headers and registration cover
+   the case — but the `sessionId` address does. Verified only against real clients.
+7. **`mailbox_wait` vs client tool timeouts (P8).** Codex defaults to 60 s; the others
+   are undocumented. The 55 s cap is a guess at the tightest; measure each.
+8. **The mailbox changes what mnemo is.** The README promises "zero infra". An HTTP
+   mode with a token is infra, however small. The README has to say so the day P8
+   lands, not after.
