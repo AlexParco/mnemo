@@ -201,7 +201,7 @@ by reading `projects:` fields, not by grepping the slug.
 
 **P6 — Claude Code rewiring. ✅ done.** Skills delegate mechanics to the tools; the
 `${CLAUDE_SKILL_DIR}` and `${CLAUDE_PLUGIN_ROOT}` couplings are gone; `card.py` no longer
-ships; the hook is untouched. The plugin bundles the server through `.mcp.json` and a
+ships; the hook is untouched. The plugin bundles the server through `mcpServers` in `plugin.json` and a
 launcher that prefers a local build and falls back to npx.
 *Done:* proven by a cross-process contention test — and it failed first, see below.
 
@@ -457,7 +457,7 @@ concurrency property is evidence of nothing until you have watched it fail.**
   a runtime dependency any more — but deleting it would have thrown away the P1
   gate, which is the only reason the port is trustworthy. It stays as the oracle,
   with a header saying so.
-- **The plugin bundles the server** via `.mcp.json` and `scripts/mnemo-mcp.sh`,
+- **The plugin bundles the server** via `plugin.json` (`mcpServers`) and `scripts/mnemo-mcp.sh`,
   which prefers `$MNEMO_MCP_COMMAND`, then a local `server/dist`, then npx. A
   plugin installed from git has no build step, so until P7 publishes the package
   the local build is the working path — and the launcher says exactly that when it

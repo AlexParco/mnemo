@@ -101,11 +101,14 @@ describe("the mechanics moved to the server", () => {
 });
 
 describe("the plugin wiring", () => {
-  test("it ships the MCP server through a launcher, not a hardcoded path", () => {
-    const mcp = JSON.parse(fs.readFileSync(path.join(ROOT, ".mcp.json"), "utf8")) as {
+  test("it ships the MCP server through a launcher, declared in the manifest", () => {
+    const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, ".claude-plugin", "plugin.json"), "utf8")) as {
       mcpServers: Record<string, { command: string }>;
     };
-    assert.equal(mcp.mcpServers["mnemo"]!.command, "${CLAUDE_PLUGIN_ROOT}/scripts/mnemo-mcp.sh");
+    assert.equal(manifest.mcpServers["mnemo"]!.command, "${CLAUDE_PLUGIN_ROOT}/scripts/mnemo-mcp.sh");
+    // Not a root .mcp.json: opening this repo as a project would read that file as
+    // project config, where ${CLAUDE_PLUGIN_ROOT} is never substituted.
+    assert.equal(fs.existsSync(path.join(ROOT, ".mcp.json")), false);
     const launcher = path.join(ROOT, "scripts", "mnemo-mcp.sh");
     assert.ok(fs.existsSync(launcher));
     assert.ok((fs.statSync(launcher).mode & 0o111) !== 0, "the launcher must be executable");

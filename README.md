@@ -212,9 +212,8 @@ reminder hook.
 
 ```
 mnemo/
-  .claude-plugin/plugin.json        # manifest
+  .claude-plugin/plugin.json        # manifest, including the bundled MCP server
   .claude-plugin/marketplace.json   # catalog to install from GitHub
-  .mcp.json                         # registers the bundled MCP server
   scripts/mnemo-mcp.sh              # starts it: local build, else npx
   skills/<command>/SKILL.md         # the /mnemo:* commands — criterion, not mechanics
   hooks/hooks.json                  # registers the reminder hook
