@@ -35,6 +35,24 @@ Wire it into a client (the shape is the same everywhere; the file differs):
 Environment: `MNEMO_DIR`, `MNEMO_REMOTE`, `MNEMO_MACHINE`, `MNEMO_LANG` — the
 same contract the skills use.
 
+### Over HTTP, for agents on other machines
+
+```bash
+MNEMO_TOKEN=<long random string> node dist/src/bin.js --http   # 127.0.0.1:7433/mcp
+```
+
+It binds `127.0.0.1` unless you pass `--bind`, and every request needs
+`Authorization: Bearer $MNEMO_TOKEN`, loopback included. From another machine, reach
+it through an SSH tunnel rather than opening the port:
+
+```bash
+ssh -N -L 7433:127.0.0.1:7433 you@your-vps     # then use http://127.0.0.1:7433/mcp locally
+```
+
+Send `X-Mnemo-Agent: <name>` to give an HTTP session a mailbox name from the start.
+Chats reached over HTTP and chats started locally over stdio share the same mailbox
+when they share `MNEMO_MAILBOX_DIR`.
+
 ## Tools
 
 | Tool | What it does |

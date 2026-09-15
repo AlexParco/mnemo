@@ -5,7 +5,7 @@
  * chat registered, then its session address — which always exists, so a chat that
  * never did anything is still reachable. */
 
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Env } from "../store/paths.js";
 import type { Caller } from "./store.js";
@@ -13,6 +13,13 @@ import type { Caller } from "./store.js";
 /** Over stdio there is no transport session (`sessionId` is undefined), but every
  * stdio client spawns its own server process, so the process is the session. */
 const PROCESS_KEY = `${process.pid.toString(36)}${randomBytes(2).toString("hex")}`;
+
+/** Over HTTP the transport's session id is a UUID. Its digest is a shorter address,
+ * stable for the life of the session and unique enough to tell chats apart. The HTTP
+ * server uses the same function to release the session when it closes. */
+export function httpSessionKey(sessionId: string): string {
+  return createHash("sha256").update(sessionId).digest("hex").slice(0, 12);
+}
 
 export interface RequestContext {
   sessionId?: string;
@@ -32,7 +39,7 @@ export function callerFor(server: McpServer, request: RequestContext, env: Env =
   const configured = overHttp ? (Array.isArray(header) ? header[0] : header) : env.MNEMO_AGENT;
   const name = configured?.trim();
   return {
-    sessionKey: overHttp ? request.sessionId! : PROCESS_KEY,
+    sessionKey: overHttp ? httpSessionKey(request.sessionId!) : PROCESS_KEY,
     product: productOf(server),
     transport: overHttp ? "http" : "stdio",
     ...(name ? { configuredName: name } : {}),

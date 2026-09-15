@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import test, { after, describe } from "node:test";
-import { inbox, peers, readMessages, register, reply, send, wait, whoami, RETENTION_MS, type Caller } from "../src/mailbox/store.js";
+import { HTTP_IDLE_MS, inbox, peers, readMessages, register, releaseSession, reply, send, wait, whoami, RETENTION_MS, type Caller } from "../src/mailbox/store.js";
 import { cleanupTempDirs, isolateEnv, tempDir } from "./helpers.js";
 
 isolateEnv();
@@ -99,6 +99,44 @@ describe("durable names", () => {
     assert.equal(me.address, "session:anon");
     await send(dir, caller("s", { configuredName: "s" }), { to: "session:anon", type: "note", body: "hi" });
     assert.deepEqual(bodies(await inbox(dir, anon)), ["hi"]);
+  });
+});
+
+describe("HTTP sessions", () => {
+  // Over HTTP every session shares the server's pid, so liveness cannot come from
+  // the process. These are the two ways an HTTP session lets go of its name.
+
+  test("closing one releases its name at once", async () => {
+    const dir = box();
+    await register(dir, caller("remote", { transport: "http" }), "vps-backend");
+    await rejects(() => register(dir, caller("other"), "vps-backend"), /held by another open chat/);
+    await releaseSession(dir, "remote");
+    assert.equal((await register(dir, caller("other"), "vps-backend")).name, "vps-backend");
+  });
+
+  test("one idle past the limit lets its name go, while messages to the name still wait", async () => {
+    const dir = box();
+    await register(dir, caller("remote", { transport: "http" }), "vps-backend");
+    await send(dir, caller("s", { configuredName: "sender" }), { to: "vps-backend", type: "note", body: "still here" });
+
+    const statePath = path.join(dir, "state.json");
+    const state = JSON.parse(fs.readFileSync(statePath, "utf8")) as { sessions: Record<string, { lastSeen: string }> };
+    state.sessions["remote"]!.lastSeen = new Date(Date.now() - HTTP_IDLE_MS - 60_000).toISOString();
+    fs.writeFileSync(statePath, JSON.stringify(state));
+
+    const successor = caller("successor", { configuredName: "vps-backend" });
+    assert.equal((await whoami(dir, successor)).name, "vps-backend");
+    assert.deepEqual(bodies(await inbox(dir, successor)), ["still here"]);
+  });
+
+  test("an idle stdio session is not expired: its process is the evidence", async () => {
+    const dir = box();
+    await register(dir, caller("local"), "front");
+    const statePath = path.join(dir, "state.json");
+    const state = JSON.parse(fs.readFileSync(statePath, "utf8")) as { sessions: Record<string, { lastSeen: string }> };
+    state.sessions["local"]!.lastSeen = new Date(Date.now() - HTTP_IDLE_MS - 60_000).toISOString();
+    fs.writeFileSync(statePath, JSON.stringify(state));
+    await rejects(() => register(dir, caller("other"), "front"), /held by another open chat/);
   });
 });
 

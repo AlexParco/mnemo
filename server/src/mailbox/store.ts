@@ -37,6 +37,12 @@ export type ReplyType = (typeof REPLY_TYPES)[number];
 const CLOSES: Record<ReplyType, MessageType> = { done: "task", answer: "question" };
 
 export const RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+/** An HTTP session that makes no call for this long is treated as gone. Over HTTP
+ * many sessions share one process, so the pid says nothing, and a client that
+ * vanishes without closing its session would otherwise hold its name forever. A chat
+ * that is merely idle loses only the hold: messages to its name keep waiting, and a
+ * configured name is reclaimed on its next call. */
+export const HTTP_IDLE_MS = 30 * 60 * 1000;
 const PRUNE_EVERY_MS = 24 * 60 * 60 * 1000;
 export const WAIT_DEFAULT_MS = 30_000;
 /** Codex cuts a tool call at 60 s by default (`tool_timeout_sec`). */
@@ -224,11 +230,14 @@ function pidAlive(pid: number): boolean {
   }
 }
 
-/** Drop sessions whose process is gone and free the names they held. Over stdio a
- * session is its process, so the pid is the whole liveness story. */
-function reap(state: State): void {
+/** Drop sessions that are gone and free the names they held. Over stdio a session is
+ * its process, so the pid is the whole story. Over HTTP the process is shared: those
+ * sessions are released when their transport closes (`releaseSession`), and expire
+ * after `HTTP_IDLE_MS` without a call in case the client never closed them. */
+function reap(state: State, nowMs: number): void {
   for (const [key, session] of Object.entries(state.sessions)) {
-    if (!pidAlive(session.pid)) delete state.sessions[key];
+    const idleHttp = session.transport === "http" && nowMs - Date.parse(session.lastSeen) > HTTP_IDLE_MS;
+    if (!pidAlive(session.pid) || idleHttp) delete state.sessions[key];
   }
   for (const entry of Object.values(state.names)) {
     if (entry.holder && !state.sessions[entry.holder]) entry.holder = null;
@@ -373,7 +382,7 @@ async function transact<T>(dir: string, caller: Caller, fn: (ctx: Ctx) => T): Pr
     // and a reused seq would let a reply bind to the wrong message.
     const maxSeq = messages.reduce((top, m) => Math.max(top, m.seq), 0);
     state.nextSeq = Math.max(state.nextSeq, maxSeq + 1);
-    reap(state);
+    reap(state, nowMs);
     messages = pruneIfDue(dir, state, messages, nowMs);
     const { session, conflict } = touch(state, caller, now);
     const result = fn({ dir, state, messages, now, session, me: resolve(state, session, conflict) });
@@ -383,6 +392,20 @@ async function transact<T>(dir: string, caller: Caller, fn: (ctx: Ctx) => T): Pr
 }
 
 // ------------------------------------------------------------------ operations
+
+/** Forget a session whose connection closed, freeing any name it held. */
+export async function releaseSession(dir: string, sessionKey: string): Promise<void> {
+  if (!fs.existsSync(stateFile(dir))) return;
+  await withLock(dir, () => {
+    const state = readState(dir);
+    if (!state.sessions[sessionKey]) return;
+    delete state.sessions[sessionKey];
+    for (const entry of Object.values(state.names)) {
+      if (entry.holder === sessionKey) entry.holder = null;
+    }
+    writeState(dir, state);
+  });
+}
 
 export async function whoami(dir: string, caller: Caller): Promise<Me> {
   return transact(dir, caller, ({ me }) => publicMe(me));
