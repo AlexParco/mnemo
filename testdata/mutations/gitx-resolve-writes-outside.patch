@@ -1,0 +1,16 @@
+Breaks: a resolved path may climb out of the store, so a merge can overwrite a file anywhere on the machine.
+Must fail: go test ./internal/gitx -run '^TestResolveRefusesWhatWouldMakeThingsWorse$'
+
+diff --git a/internal/gitx/sync.go b/internal/gitx/sync.go
+index 248daec..101bbf6 100644
+--- a/internal/gitx/sync.go
++++ b/internal/gitx/sync.go
+@@ -100,7 +100,7 @@ var markerLine = regexp.MustCompile(`(?m)^(<<<<<<<|=======|>>>>>>>)`)
+ func (r *Repo) ResolveConflict(file, content string) ([]string, error) {
+ 	target := filepath.Join(r.Dir, filepath.Clean(file))
+ 	rel, err := filepath.Rel(r.Dir, target)
+-	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
++	if err != nil {
+ 		return nil, fmt.Errorf("%w: %s", ErrOutsideRepo, file)
+ 	}
+ 	if markerLine.MatchString(content) {

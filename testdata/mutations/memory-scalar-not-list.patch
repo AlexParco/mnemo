@@ -1,0 +1,16 @@
+Breaks: a scalar frontmatter value no longer reads as a one-element list, so a memory with `projects: solo` belongs to no project.
+Must fail: go test ./internal/memory -run '^(TestParseFields|TestFieldAccessors)$'
+
+diff --git a/internal/memory/frontmatter.go b/internal/memory/frontmatter.go
+index 91b02a7..bea5b01 100644
+--- a/internal/memory/frontmatter.go
++++ b/internal/memory/frontmatter.go
+@@ -34,7 +34,7 @@ func (v Value) AsList() []string {
+ 	if v.isList {
+ 		return v.list
+ 	}
+-	return []string{v.scalar}
++	return nil
+ }
+ 
+ // Render writes the value back as it appears in a file.

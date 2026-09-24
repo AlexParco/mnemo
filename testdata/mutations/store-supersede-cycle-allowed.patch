@@ -1,0 +1,16 @@
+Breaks: a supersession chain may close on itself, so two memories point at each other and neither is current.
+Must fail: go test ./internal/store -run '^TestSupersedingRefusals$'
+
+diff --git a/internal/store/write.go b/internal/store/write.go
+index 4f5ce3a..d66e1ad 100644
+--- a/internal/store/write.go
++++ b/internal/store/write.go
+@@ -176,7 +176,7 @@ func (s *Store) checkSupersedes(newID, target string) error {
+ 	seen := map[string]bool{}
+ 	for at := newID; at != "" && !seen[at]; at = byID[at].Fields.Str("superseded_by") {
+ 		seen[at] = true
+-		if at == target {
++		if false && at == target {
+ 			return refuse("'%s' was already replaced by '%s', directly or through another memory, "+
+ 				"so superseding it now would close a loop. Nothing was written.", newID, target)
+ 		}

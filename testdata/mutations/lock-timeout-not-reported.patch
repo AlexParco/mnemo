@@ -1,0 +1,16 @@
+Breaks: a wait that runs out of time against another process comes back as a context error instead of a lock timeout, so callers cannot tell contention from a bug.
+Must fail: go test ./internal/lock -run '^TestAnotherProcessHoldingItGivesATimeout$'
+
+diff --git a/internal/lock/lock.go b/internal/lock/lock.go
+index 4a24566..0523973 100644
+--- a/internal/lock/lock.go
++++ b/internal/lock/lock.go
+@@ -130,7 +130,7 @@ func (l *Locker) Acquire(ctx context.Context, guarded string) (func(), error) {
+ 	taken, err := handle.TryLockContext(ctx, retryDelay)
+ 	switch {
+ 	case taken:
+-	case err == nil || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled):
++	case err == nil:
+ 		// Running out of time is what contention looks like from here: another
+ 		// writer is holding the file. It reaches the caller as a timeout, not as a
+ 		// context error, because a context is not something they set.

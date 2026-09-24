@@ -1,0 +1,18 @@
+Breaks: a destructive operation commits on top of a dirty worktree, folding unrelated work into the one commit that is the only undo.
+Must fail: go test ./internal/store -run '^TestUncommittedWorkIsNotFoldedIn$'
+
+diff --git a/internal/store/destructive.go b/internal/store/destructive.go
+index 259b7d7..7d7d172 100644
+--- a/internal/store/destructive.go
++++ b/internal/store/destructive.go
+@@ -51,10 +51,6 @@ func requireFresh(expected, given, what string) error {
+ // commit this operation is about to make. Git is the only undo there is, so its
+ // history has to stay readable.
+ func (s *Store) requireCleanTree() error {
+-	if s.repo.Status().Dirty {
+-		return refuse("The store has uncommitted changes. Commit them first with mnemo_commit: this operation makes " +
+-			"its own commit, and would otherwise fold unrelated work into it.")
+-	}
+ 	return nil
+ }
+ 

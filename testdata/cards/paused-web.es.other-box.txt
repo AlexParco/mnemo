@@ -1,0 +1,8 @@
+paused-web — Paused Web
+pausado · actualizado 2026-07-02
+
+PENDIENTES  4 abiertas
+  1  Migrar los tokens de color al nuevo sistema
+  2  Reemplazar el date picker
+  3  Subir la build a staging — falta el runner  bloqueado
+  4  Quedan dos componentes sin tipar  deuda técnica

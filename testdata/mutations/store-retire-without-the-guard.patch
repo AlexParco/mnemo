@@ -1,0 +1,16 @@
+Breaks: retiring goes ahead while this copy is the only one, so memory that never reached the hub is thrown away without a word.
+Must fail: go test ./internal/store -run '^TestRetireRefusesWhileThisIsTheOnlyCopy$'
+
+diff --git a/internal/store/retire.go b/internal/store/retire.go
+index 93cfa74..18d233a 100644
+--- a/internal/store/retire.go
++++ b/internal/store/retire.go
+@@ -159,7 +159,7 @@ func (s *Store) ApplyRetire(ctx context.Context, confirm string, opts RetireOpti
+ 
+ // requireSafeToRetire refuses while this copy is the only one.
+ func requireSafeToRetire(plan RetirePlan, force bool) error {
+-	if force || !plan.AtRisk() {
++	if true || force || !plan.AtRisk() {
+ 		return nil
+ 	}
+ 	switch {

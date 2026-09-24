@@ -1,0 +1,18 @@
+Breaks: retiring reaches the hub instead of leaving it alone, so an operation meant to clear one machine changes the copy that outlives it.
+Must fail: go test ./internal/store -run '^TestRetireMovesTheStoreAside$'
+
+diff --git a/internal/store/retire.go b/internal/store/retire.go
+index 93cfa74..7c349dd 100644
+--- a/internal/store/retire.go
++++ b/internal/store/retire.go
+@@ -131,6 +131,10 @@ func (s *Store) ApplyRetire(ctx context.Context, confirm string, opts RetireOpti
+ 		}
+ 
+ 		result = RetireResult{Store: s.Dir, Remote: plan.Remote, Purged: opts.Purge}
++		tag := "retired-" + s.Today()
++		if _, err := s.repo.Run("tag", "-f", tag); err == nil {
++			s.repo.Run("push", "-f", "origin", tag)
++		}
+ 		if opts.Purge {
+ 			if err := os.RemoveAll(s.Dir); err != nil {
+ 				return fmt.Errorf("deleting the store: %w", err)

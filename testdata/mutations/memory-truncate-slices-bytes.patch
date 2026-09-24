@@ -1,0 +1,17 @@
+Breaks: Truncate keeps counting code points but slices the string by bytes, so a cut lands in the middle of a character.
+Must fail: go test ./internal/memory -run '^(TestTruncate|TestCard)$'
+
+diff --git a/internal/memory/text.go b/internal/memory/text.go
+index 155b19e..0022059 100644
+--- a/internal/memory/text.go
++++ b/internal/memory/text.go
+@@ -67,8 +67,7 @@ func Truncate(s string, limit int) string {
+ 	if utf8.RuneCountInString(t) <= limit {
+ 		return t
+ 	}
+-	runes := []rune(t)
+-	return string(runes[:limit-1]) + "…"
++	return t[:limit-1] + "…"
+ }
+ 
+ var notLabel = regexp.MustCompile(`[^a-z0-9-]+`)

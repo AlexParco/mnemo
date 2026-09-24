@@ -1,0 +1,16 @@
+Breaks: applying accepts any confirmation, so a plan the user never saw, or one that no longer describes the store, still goes through.
+Must fail: go test ./internal/store -run '^TestAConfirmationGoesStale$|^TestAWrongConfirmationChangesNothing$|^TestApplyingTwiceIsRefused$|^TestRetireNeedsTheConfirmationFromItsOwnPlan$'
+
+diff --git a/internal/store/destructive.go b/internal/store/destructive.go
+index 259b7d7..cccb741 100644
+--- a/internal/store/destructive.go
++++ b/internal/store/destructive.go
+@@ -39,7 +39,7 @@ func confirmFor(plan any) (string, error) {
+ }
+ 
+ func requireFresh(expected, given, what string) error {
+-	if expected == given {
++	if expected == given || true {
+ 		return nil
+ 	}
+ 	return refuse("That confirmation does not match the current state of the store — something changed since the "+

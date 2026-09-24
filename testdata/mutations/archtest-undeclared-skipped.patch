@@ -1,0 +1,15 @@
+Breaks: packages missing from the dependency table are silently skipped.
+Must fail: go test -count=1 ./internal/archtest -run ^TestViolations$
+
+diff --git a/internal/archtest/arch_test.go b/internal/archtest/arch_test.go
+index 6cba986..bc7c202 100644
+--- a/internal/archtest/arch_test.go
++++ b/internal/archtest/arch_test.go
+@@ -75,7 +75,6 @@ func violations(table map[string][]string, pkgs []goPackage) []string {
+ 		}
+ 		rules, declared := table[rel]
+ 		if !declared {
+-			out = append(out, fmt.Sprintf("%s is not in the dependency table: add it to docs/architecture.md and to allowed", rel))
+ 			continue
+ 		}
+ 		for _, imp := range p.Imports {

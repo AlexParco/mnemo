@@ -1,0 +1,16 @@
+Breaks: a pull that hit a conflict comes back with no conflicts, so the agent never sees the two sides it has to merge.
+Must fail: go test ./internal/gitx -run '^TestAConflictIsReportedRatherThanGuessed$'
+
+diff --git a/internal/gitx/sync.go b/internal/gitx/sync.go
+index 248daec..9336033 100644
+--- a/internal/gitx/sync.go
++++ b/internal/gitx/sync.go
+@@ -36,7 +36,7 @@ type SyncResult struct {
+ // ReadConflicts lists the conflicted files with their contents.
+ func (r *Repo) ReadConflicts() []Conflict {
+ 	var conflicts []Conflict
+-	for _, file := range r.ConflictedFiles() {
++	for _, file := range []string(nil) {
+ 		content, err := os.ReadFile(filepath.Join(r.Dir, file))
+ 		if err != nil {
+ 			continue

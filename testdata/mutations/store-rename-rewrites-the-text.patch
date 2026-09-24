@@ -1,0 +1,26 @@
+Breaks: renaming replaces the old slug everywhere in a memory's text instead of only in its projects field, so prose and longer slugs that merely contain it are rewritten too.
+Must fail: go test ./internal/store -run '^TestRenameMovesTheProjectAndRetagsNothingElse$'
+
+diff --git a/internal/store/destructive.go b/internal/store/destructive.go
+index 259b7d7..82ec599 100644
+--- a/internal/store/destructive.go
++++ b/internal/store/destructive.go
+@@ -165,16 +165,8 @@ func (s *Store) ApplyRename(ctx context.Context, from, to, confirm string) (Rena
+ 			}
+ 			// Only the projects field moves: overlap and order survive, and prose
+ 			// in the body that happens to mention the old slug is left alone.
+-			doc := memory.ParseDoc(string(raw))
+-			projects := doc.Fields.List("projects")
+-			renamed := make([]string, len(projects))
+-			for i, p := range projects {
+-				if p == from {
+-					p = to
+-				}
+-				renamed[i] = p
+-			}
+-			doc = doc.SetField("projects", memory.ListValue(renamed)).SetField("updated", memory.Scalar(updated))
++			doc := memory.ParseDoc(strings.ReplaceAll(string(raw), from, to))
++			doc = doc.SetField("updated", memory.Scalar(updated))
+ 			if err := writeFile(path, doc.Render()); err != nil {
+ 				return err
+ 			}

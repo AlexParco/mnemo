@@ -1,0 +1,16 @@
+Breaks: adopting the hub forces the checkout, so memory a machine already had is overwritten by another machine's.
+Must fail: go test ./internal/store -run '^TestAHubNeverOverwritesAStoreThatHasContent$'
+
+diff --git a/internal/store/bootstrap.go b/internal/store/bootstrap.go
+index 134d009..87a0485 100644
+--- a/internal/store/bootstrap.go
++++ b/internal/store/bootstrap.go
+@@ -111,7 +111,7 @@ func (s *Store) wireRemote(report *Report) error {
+ 		return nil
+ 	}
+ 
+-	if _, err := s.repo.Run("checkout", "-q", "-B", "main", "--track", "origin/main"); err != nil {
++	if _, err := s.repo.Run("checkout", "-q", "-B", "main", "--track", "origin/main", "--force"); err != nil {
+ 		// Adoption is for a store with nothing in it. This one has local files
+ 		// that the hub's history would overwrite, and choosing which memory
+ 		// survives is the user's decision, not a side effect of a save. Wiring

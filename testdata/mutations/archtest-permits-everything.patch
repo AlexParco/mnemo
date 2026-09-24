@@ -1,0 +1,16 @@
+Breaks: permits allows every import.
+Must fail: go test -count=1 ./internal/archtest -run ^TestViolations$
+
+diff --git a/internal/archtest/arch_test.go b/internal/archtest/arch_test.go
+index 6cba986..36e98e1 100644
+--- a/internal/archtest/arch_test.go
++++ b/internal/archtest/arch_test.go
+@@ -100,7 +100,7 @@ func relative(path string) (string, bool) {
+ }
+ 
+ func permits(rules []string, imp string) bool {
+-	if isStandard(imp) {
++	if isStandard(imp) || len(rules) >= 0 {
+ 		return true
+ 	}
+ 	rel, internal := relative(imp)

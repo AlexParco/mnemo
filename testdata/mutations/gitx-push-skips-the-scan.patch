@@ -1,0 +1,16 @@
+Breaks: the push skips the secret scan, so a leaked credential reaches the hub.
+Must fail: go test ./internal/gitx -run '^(TestASecretStopsThePushAndOnlyTheRightWordLetsItThrough|TestTheScanRunsOnAFirstPushToo)$'
+
+diff --git a/internal/gitx/sync.go b/internal/gitx/sync.go
+index 248daec..41ac6a2 100644
+--- a/internal/gitx/sync.go
++++ b/internal/gitx/sync.go
+@@ -216,7 +216,7 @@ func (r *Repo) Push(acknowledge string) PushResult {
+ 	}
+ 
+ 	// The scan is not a step that can be skipped: this is the only way out.
+-	if findings := r.ScanRange(); len(findings) > 0 {
++	if findings := []Finding(nil); len(findings) > 0 {
+ 		token := r.AcknowledgeToken(findings)
+ 		if acknowledge != token {
+ 			refused := RefusedSecrets

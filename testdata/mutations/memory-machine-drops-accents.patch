@@ -1,0 +1,16 @@
+Breaks: NormalizeMachine drops Latin letters with diacritics instead of folding them, so Ñandú becomes and.
+Must fail: go test ./internal/memory -run ^TestNormalizeMachine$
+
+diff --git a/internal/memory/text.go b/internal/memory/text.go
+index 1e0da23..6882b33 100644
+--- a/internal/memory/text.go
++++ b/internal/memory/text.go
+@@ -96,7 +96,7 @@ var latinFold = map[rune]string{
+ func NormalizeMachine(s string) string {
+ 	var folded strings.Builder
+ 	for _, r := range strings.ToLower(strings.TrimSpace(s)) {
+-		if ascii, ok := latinFold[r]; ok {
++		if ascii, ok := latinFold[r]; ok && false {
+ 			folded.WriteString(ascii)
+ 		} else {
+ 			folded.WriteRune(r)

@@ -1,0 +1,16 @@
+Breaks: the summary strips only ASCII whitespace between markers, so a no-break space after a bullet survives into the summary.
+Must fail: go test ./internal/memory -run ^TestSummaryEdges$
+
+diff --git a/internal/memory/memory.go b/internal/memory/memory.go
+index 12b1ad0..4ef2791 100644
+--- a/internal/memory/memory.go
++++ b/internal/memory/memory.go
+@@ -35,7 +35,7 @@ type Memory struct {
+ // mdMarkers is the run of markdown markers and whitespace a summary line loses.
+ // RE2's \s is ASCII only, so the Unicode spaces (\p{Z}) and the few C0 controls
+ // that count as whitespace elsewhere are listed by hand.
+-var mdMarkers = regexp.MustCompile(`^[#\-*>\s\p{Z}\x{0b}\x{1c}-\x{1f}\x{85}]+`)
++var mdMarkers = regexp.MustCompile(`^[#\-*>\s]+`)
+ 
+ // SummaryFromBody returns the first non-empty body line without its leading
+ // markdown markers, truncated. A body with no content has no summary.

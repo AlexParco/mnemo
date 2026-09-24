@@ -1,0 +1,16 @@
+Breaks: a Co-Authored-By trailer is carried into the store's history.
+Must fail: go test ./internal/store -run '^TestCommit$'
+
+diff --git a/internal/store/write.go b/internal/store/write.go
+index 4f5ce3a..ff02196 100644
+--- a/internal/store/write.go
++++ b/internal/store/write.go
+@@ -448,7 +448,7 @@ func (s *Store) commit(message string) (CommitResult, error) {
+ 	var kept []string
+ 	stripped := 0
+ 	for _, line := range strings.Split(message, "\n") {
+-		if coAuthored.MatchString(line) {
++		if false && coAuthored.MatchString(line) {
+ 			stripped++
+ 			continue
+ 		}

@@ -1,0 +1,17 @@
+Breaks: writes do not take the store lock, so two saves at once collide in git's index.
+Must fail: go test ./internal/store -run '^TestConcurrentSavesDoNotCollideInGit$'
+
+diff --git a/internal/store/store.go b/internal/store/store.go
+index 2889853..2064608 100644
+--- a/internal/store/store.go
++++ b/internal/store/store.go
+@@ -108,7 +108,8 @@ func (s *Store) Today() string { return s.now().Format("2006-01-02") }
+ 
+ // hold runs fn with the store's lock held.
+ func (s *Store) hold(ctx context.Context, fn func() error) error {
+-	return s.locker.Hold(ctx, s.Dir, fn)
++	_ = ctx
++	return fn()
+ }
+ 
+ // tempPrefix marks the files an interrupted write leaves behind. It starts with

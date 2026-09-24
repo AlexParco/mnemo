@@ -1,0 +1,16 @@
+Breaks: any directory inside a repository counts as its own store, so its commits land in the enclosing project.
+Must fail: go test ./internal/gitx -run '^TestIsOwnRepo$'
+
+diff --git a/internal/gitx/gitx.go b/internal/gitx/gitx.go
+index 7543b36..770485d 100644
+--- a/internal/gitx/gitx.go
++++ b/internal/gitx/gitx.go
+@@ -123,7 +123,7 @@ func (r *Repo) IsOwnRepo() bool {
+ 	if !ok {
+ 		return false
+ 	}
+-	return sameDir(top, r.Dir)
++	return top != ""
+ }
+ 
+ func sameDir(a, b string) bool {

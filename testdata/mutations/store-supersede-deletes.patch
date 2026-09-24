@@ -1,0 +1,16 @@
+Breaks: superseding deletes the memory it replaces, so why something changed is lost.
+Must fail: go test ./internal/store -run '^TestSupersedingKeepsBothAndPointsForward$'
+
+diff --git a/internal/store/write.go b/internal/store/write.go
+index 4f5ce3a..49d39fd 100644
+--- a/internal/store/write.go
++++ b/internal/store/write.go
+@@ -196,7 +196,7 @@ func (s *Store) markSuperseded(target, by, updated string) error {
+ 	doc := memory.ParseDoc(string(raw))
+ 	doc = doc.SetField("superseded_by", memory.Scalar(by))
+ 	doc = doc.SetField("updated", memory.Scalar(updated))
+-	return writeFile(path, doc.Render())
++	return os.Remove(path)
+ }
+ 
+ // relatedIDs finds memories whose id shares words with a new one.

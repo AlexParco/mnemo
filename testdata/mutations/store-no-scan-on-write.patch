@@ -1,0 +1,16 @@
+Breaks: content is written without being scanned, so a credential reaches the disk and the commit.
+Must fail: go test ./internal/store -run '^TestASecret'
+
+diff --git a/internal/store/store.go b/internal/store/store.go
+index 2889853..cb7b97c 100644
+--- a/internal/store/store.go
++++ b/internal/store/store.go
+@@ -161,7 +161,7 @@ func cleanTemporaries(dir string, now time.Time) {
+ // credential. The push scan is the second line; this is the first, and it runs
+ // before anything reaches the disk.
+ func refuseSecrets(what, content string) error {
+-	findings := gitx.ScanContent(what, content)
++	findings := []gitx.Finding(nil)
+ 	if len(findings) == 0 {
+ 		return nil
+ 	}

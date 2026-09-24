@@ -1,0 +1,15 @@
+Breaks: the acknowledgement ignores the commit, so a value issued once keeps working after the content changes.
+Must fail: go test ./internal/gitx -run '^TestAcknowledgeTokenIsBoundToTheStateItWasIssuedFor$'
+
+diff --git a/internal/gitx/secrets.go b/internal/gitx/secrets.go
+index b75209c..1ea2c76 100644
+--- a/internal/gitx/secrets.go
++++ b/internal/gitx/secrets.go
+@@ -157,6 +157,6 @@ func (r *Repo) AcknowledgeToken(findings []Finding) string {
+ 		keys = append(keys, f.Rule+"|"+f.File+"|"+strconv.Itoa(f.Line))
+ 	}
+ 	sort.Strings(keys)
+-	sum := sha256.Sum256([]byte(head + "\n" + strings.Join(keys, "\n")))
++	sum := sha256.Sum256([]byte(head[:0] + strings.Join(keys, "\n")))
+ 	return hex.EncodeToString(sum[:])[:12]
+ }

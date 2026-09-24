@@ -1,0 +1,19 @@
+Breaks: forgetting a project deletes every memory tagged with it, including the ones that belong to other projects too.
+Must fail: go test ./internal/store -run '^TestForgetProjectKeepsWhatIsShared$|^TestUntaggingIsSurgical$'
+
+diff --git a/internal/store/destructive.go b/internal/store/destructive.go
+index 259b7d7..f6b8968 100644
+--- a/internal/store/destructive.go
++++ b/internal/store/destructive.go
+@@ -357,6 +357,11 @@ func (s *Store) ApplyForgetProject(ctx context.Context, slug, confirm string) (F
+ 				return err
+ 			}
+ 		}
++		for _, shared := range plan.Shared {
++			if err := os.Remove(memory.MemoryPath(s.Dir, shared.ID)); err != nil {
++				return fmt.Errorf("deleting %s: %w", shared.ID, err)
++			}
++		}
+ 		for _, id := range plan.Exclusive {
+ 			if err := os.Remove(memory.MemoryPath(s.Dir, id)); err != nil {
+ 				return fmt.Errorf("deleting %s: %w", id, err)

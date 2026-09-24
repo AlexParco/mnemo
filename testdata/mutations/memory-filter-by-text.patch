@@ -1,0 +1,16 @@
+Breaks: the project filter searches the raw text for the slug, so a slug inside a longer slug or mentioned in a body counts as a tag.
+Must fail: go test ./internal/memory -run '^TestMemoriesForProject(Order)?$'
+
+diff --git a/internal/memory/memory.go b/internal/memory/memory.go
+index 12b1ad0..4c46f64 100644
+--- a/internal/memory/memory.go
++++ b/internal/memory/memory.go
+@@ -123,7 +123,7 @@ func TypeRank(t string) int {
+ func MemoriesForProject(memories []Memory, slug string) []Memory {
+ 	var tagged []Memory
+ 	for _, m := range memories {
+-		if slices.Contains(m.Projects, slug) {
++		if strings.Contains(m.Raw, slug) {
+ 			tagged = append(tagged, m)
+ 		}
+ 	}

@@ -1,0 +1,16 @@
+Breaks: the scan always starts from the empty tree, so everything ever committed is rescanned and an old leak blocks new pushes forever.
+Must fail: go test ./internal/gitx -run '^TestScanRangeAfterAPushOnlyLooksAtWhatIsNew$'
+
+diff --git a/internal/gitx/secrets.go b/internal/gitx/secrets.go
+index b75209c..1e395db 100644
+--- a/internal/gitx/secrets.go
++++ b/internal/gitx/secrets.go
+@@ -122,7 +122,7 @@ func (r *Repo) PushBase() (string, bool) {
+ 	}
+ 	if upstream, ok := r.Upstream(); ok {
+ 		if _, exists := r.Try("rev-parse", "-q", "--verify", upstream); exists {
+-			return upstream, true
++			return emptyTree, true
+ 		}
+ 	}
+ 	if _, exists := r.Try("rev-parse", "-q", "--verify", "origin/main"); exists {

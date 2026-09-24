@@ -1,0 +1,18 @@
+Breaks: the core sections put the Spanish variant first, so a bilingual pending list renders in another order.
+Must fail: go test ./internal/memory -run '^(TestCoreSections|TestCard)$'
+
+diff --git a/internal/memory/pending.go b/internal/memory/pending.go
+index 0c880ab..454722d 100644
+--- a/internal/memory/pending.go
++++ b/internal/memory/pending.go
+@@ -25,8 +25,8 @@ type Section struct {
+ // which is what the union merge of two machines saving in different languages
+ // produces, and the render must not depend on map order.
+ var (
+-	InProgress = []string{"in progress", "en curso"}
+-	NextUp     = []string{"next", "siguiente"}
++	InProgress = []string{"en curso", "in progress"}
++	NextUp     = []string{"siguiente", "next"}
+ )
+ 
+ // IsCoreSection reports whether a section key feeds the numbered list, in which

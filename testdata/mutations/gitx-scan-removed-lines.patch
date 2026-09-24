@@ -1,0 +1,16 @@
+Breaks: removed lines are scanned too, so one old leak already on the hub blocks every future push.
+Must fail: go test ./internal/gitx -run '^(TestOnlyAddedLinesAreScanned|TestScanRangeAfterAPushOnlyLooksAtWhatIsNew)$'
+
+diff --git a/internal/gitx/secrets.go b/internal/gitx/secrets.go
+index b75209c..b553ba3 100644
+--- a/internal/gitx/secrets.go
++++ b/internal/gitx/secrets.go
+@@ -92,7 +92,7 @@ func ScanDiff(diff string) []Finding {
+ 			continue
+ 		}
+ 		switch {
+-		case strings.HasPrefix(raw, "+"):
++		case strings.HasPrefix(raw, "+") || strings.HasPrefix(raw, "-"):
+ 			content := raw[1:]
+ 			for _, rule := range Rules {
+ 				if m := rule.Pattern.FindString(content); m != "" {

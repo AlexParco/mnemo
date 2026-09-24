@@ -1,0 +1,8 @@
+two-machines — Two Machines
+active · updated 2026-09-10
+
+TODO  4 open · 3 elsewhere
+  1  Restart the queue worker  box-one
+  2  Rotate the staging certificate  box-two
+  3  Check the nightly backup  box-one
+  4  Write the incident note

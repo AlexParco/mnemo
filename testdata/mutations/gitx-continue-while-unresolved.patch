@@ -1,0 +1,16 @@
+Breaks: continuing a rebase with files still conflicted is left to git, so the caller gets git's wall of text instead of a line naming what to resolve.
+Must fail: go test ./internal/gitx -run '^TestContinueIsRefusedWhileAnythingIsUnresolved$'
+
+diff --git a/internal/gitx/sync.go b/internal/gitx/sync.go
+index 248daec..5f0a7f3 100644
+--- a/internal/gitx/sync.go
++++ b/internal/gitx/sync.go
+@@ -141,7 +141,7 @@ func (r *Repo) Rebase(action RebaseAction) RebaseResult {
+ 	if !r.Status().Rebasing {
+ 		return RebaseResult{Action: action, Detail: "No rebase is in progress."}
+ 	}
+-	if remaining := r.ConflictedFiles(); action == Continue && len(remaining) > 0 {
++	if remaining := r.ConflictedFiles(); action == Abort && len(remaining) > 0 {
+ 		return RebaseResult{
+ 			Action:    action,
+ 			Rebasing:  true,

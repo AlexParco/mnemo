@@ -1,0 +1,16 @@
+Breaks: the file lock is never taken, so two processes write to one store at the same time.
+Must fail: go test ./internal/lock -run '^TestAnotherProcess'
+
+diff --git a/internal/lock/lock.go b/internal/lock/lock.go
+index 4a24566..acc2c23 100644
+--- a/internal/lock/lock.go
++++ b/internal/lock/lock.go
+@@ -127,7 +127,7 @@ func (l *Locker) Acquire(ctx context.Context, guarded string) (func(), error) {
+ 	releaseGate := func() { <-l.gate(file) }
+ 
+ 	handle := flock.New(file)
+-	taken, err := handle.TryLockContext(ctx, retryDelay)
++	taken, err := true, error(nil)
+ 	switch {
+ 	case taken:
+ 	case err == nil || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled):

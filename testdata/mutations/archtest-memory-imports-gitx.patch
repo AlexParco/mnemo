@@ -1,0 +1,16 @@
+Breaks: internal/memory imports internal/gitx, which the dependency table forbids: reading a store would then require git.
+Must fail: go test ./internal/archtest -run '^TestModuleImports$'
+
+diff --git a/internal/memory/memory.go b/internal/memory/memory.go
+index 12b1ad0..f9541dd 100644
+--- a/internal/memory/memory.go
++++ b/internal/memory/memory.go
+@@ -5,6 +5,8 @@ import (
+ 	"path/filepath"
+ 	"regexp"
+ 	"slices"
++
++	_ "github.com/AlexParco/mnemo/internal/gitx"
+ 	"sort"
+ 	"strings"
+ )

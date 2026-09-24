@@ -1,0 +1,23 @@
+Breaks: a file is written in place instead of atomically, so a reader holding no lock can catch it half-written.
+Must fail: go test ./internal/store -run '^TestAReaderNeverSeesHalfAFile$'
+
+diff --git a/internal/store/store.go b/internal/store/store.go
+index 2889853..64453da 100644
+--- a/internal/store/store.go
++++ b/internal/store/store.go
+@@ -128,13 +128,10 @@ func writeFile(path, content string) error {
+ 	}
+ 	temp := filepath.Join(dir, "."+base+tempPrefix+hex.EncodeToString(suffix))
+ 
+-	if err := os.WriteFile(temp, []byte(content), 0o644); err != nil {
++	_ = temp
++	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+ 		return fmt.Errorf("writing %s: %w", path, err)
+ 	}
+-	if err := os.Rename(temp, path); err != nil {
+-		os.Remove(temp)
+-		return fmt.Errorf("replacing %s: %w", path, err)
+-	}
+ 	return nil
+ }
+ 
