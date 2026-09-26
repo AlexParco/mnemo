@@ -1,0 +1,16 @@
+Breaks: the config file is written 0644 although it can hold the server token.
+Must fail: go test ./internal/config -run '^TestTheFileIsWrittenPrivatelyAndWithoutLitter$'
+
+diff --git a/internal/config/file.go b/internal/config/file.go
+index 37928ff..2d99063 100644
+--- a/internal/config/file.go
++++ b/internal/config/file.go
+@@ -183,7 +183,7 @@ func (f *File) Save() error {
+ 	suffix := make([]byte, 4)
+ 	rand.Read(suffix)
+ 	temp := filepath.Join(dir, ".config.toml."+hex.EncodeToString(suffix))
+-	if err := os.WriteFile(temp, body.Bytes(), 0o600); err != nil {
++	if err := os.WriteFile(temp, body.Bytes(), 0o644); err != nil {
+ 		return fmt.Errorf("writing %s: %w", temp, err)
+ 	}
+ 	if err := os.Rename(temp, f.path); err != nil {

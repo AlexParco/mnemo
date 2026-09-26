@@ -1,0 +1,21 @@
+Breaks: a language mnemo cannot render is accepted, so the card comes back in a language nobody asked for and nothing says why.
+Must fail: go test ./internal/config -run '^TestALanguageMnemoCannotRenderIsReported$'
+
+diff --git a/internal/config/settings.go b/internal/config/settings.go
+index c875867..5ce4493 100644
+--- a/internal/config/settings.go
++++ b/internal/config/settings.go
+@@ -163,12 +163,7 @@ func resolveLang(file *File, flags Overrides, s *Settings) (string, Source) {
+ 		if c.value == "" {
+ 			continue
+ 		}
+-		lang := strings.ToLower(strings.TrimSpace(c.value))
+-		for _, known := range languages {
+-			if lang == known {
+-				return lang, c.source
+-			}
+-		}
++		return strings.ToLower(strings.TrimSpace(c.value)), c.source
+ 		// A language mnemo cannot render is reported, not obeyed and not hidden.
+ 		s.Ignored = append(s.Ignored, fmt.Sprintf("%s is %q, which is not one of %s; using en",
+ 			c.source, c.value, strings.Join(languages, ", ")))

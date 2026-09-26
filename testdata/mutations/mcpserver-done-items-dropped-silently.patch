@@ -1,0 +1,20 @@
+Breaks: older ticked items are left out of a load with nothing saying so, which is how a task that was already finished gets proposed again.
+Must fail: go test ./internal/mcpserver -run '^TestTheAnswerIsBoundedAndTheFileIsNot$'
+
+diff --git a/internal/mcpserver/read.go b/internal/mcpserver/read.go
+index e7abe27..a3e90ce 100644
+--- a/internal/mcpserver/read.go
++++ b/internal/mcpserver/read.go
+@@ -353,11 +353,7 @@ func buildDetail(loaded memory.ProjectContext) (detail, string) {
+ 			"%d of %d memories came back without their body, and %d shared file(s) were cut. "+
+ 				"Read any of them in full with mnemo_read_memory.", withoutBody, len(out.Memories), cut))
+ 	}
+-	if dropped > 0 {
+-		left = append(left, fmt.Sprintf(
+-			"%d older ticked item(s) are not in the pending sections above; the %d most recent are. "+
+-				"Nothing was deleted — the file has them all.", dropped, doneBudget))
+-	}
++
+ 	return out, strings.Join(left, "\n")
+ }
+ 

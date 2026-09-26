@@ -1,0 +1,16 @@
+Breaks: rewriting the config file deletes every key mnemo does not know, including a key a person typed and one from a newer version.
+Must fail: go test ./internal/config -run '^TestARewriteKeepsWhatItDoesNotUnderstand$'
+
+diff --git a/internal/config/file.go b/internal/config/file.go
+index 7736819..9e72cf8 100644
+--- a/internal/config/file.go
++++ b/internal/config/file.go
+@@ -181,7 +181,7 @@ func (f *File) Save() error {
+ 	// writing a known key into the copy would then write it into extra too. The
+ 	// file on disk would still be right, and the next `mnemo config` would report
+ 	// mnemo's own settings as keys it does not recognise.
+-	out := clone(f.extra)
++	out := map[string]any{}
+ 	put(out, "machine", f.Machine != "", f.Machine)
+ 	put(out, "lang", f.Lang != "", f.Lang)
+ 	put(out, "store.dir", f.Store.Dir != "", f.Store.Dir)

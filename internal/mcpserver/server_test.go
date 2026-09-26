@@ -1,0 +1,202 @@
+package mcpserver
+
+import (
+	"context"
+	"strings"
+	"testing"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+)
+
+// connect runs a real server and a real client over an in-memory transport.
+//
+// The handlers are not called directly here on purpose. Everything between a
+// handler and an agent — the schema, the validation, the block order, the error
+// flag — is the SDK's, and testing underneath it would prove that mnemo's
+// functions work while an agent gets something else.
+func connect(t *testing.T, call *Call) *mcp.ClientSession {
+	t.Helper()
+	serverSide, clientSide := mcp.NewInMemoryTransports()
+
+	// Servers connect first; the transport documents it.
+	session, err := New("v0.0.0-test", call).Connect(t.Context(), serverSide, nil)
+	if err != nil {
+		t.Fatalf("starting the server: %v", err)
+	}
+	t.Cleanup(func() { _ = session.Wait() })
+
+	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "v0"}, nil)
+	connected, err := client.Connect(t.Context(), clientSide, nil)
+	if err != nil {
+		t.Fatalf("connecting: %v", err)
+	}
+	t.Cleanup(func() { _ = connected.Close() })
+	return connected
+}
+
+func call(t *testing.T, session *mcp.ClientSession, name string, args map[string]any) *mcp.CallToolResult {
+	t.Helper()
+	result, err := session.CallTool(t.Context(), &mcp.CallToolParams{Name: name, Arguments: args})
+	if err != nil {
+		t.Fatalf("%s: %v", name, err)
+	}
+	return result
+}
+
+func TestAClientSeesTheToolsAndTheirShape(t *testing.T) {
+	session := connect(t, project(t, ""))
+
+	listed, err := session.ListTools(t.Context(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	offered := map[string]*mcp.Tool{}
+	for _, tool := range listed.Tools {
+		offered[tool.Name] = tool
+	}
+	for _, definition := range memoryTools() {
+		tool, ok := offered[definition.Tool.Name]
+		if !ok {
+			t.Errorf("%s was defined but is not offered", definition.Tool.Name)
+			continue
+		}
+		if tool.Description != definition.Tool.Description {
+			t.Errorf("%s reaches the client with a different description", tool.Name)
+		}
+		// Read-only is a promise a client acts on when it decides what to ask
+		// the user about.
+		if tool.Annotations == nil || !tool.Annotations.ReadOnlyHint {
+			t.Errorf("%s does not reach the client as read-only", tool.Name)
+		}
+	}
+	if len(listed.Tools) != len(memoryTools()) {
+		t.Errorf("%d tools offered, %d defined", len(listed.Tools), len(memoryTools()))
+	}
+}
+
+// The schema is not decoration: a client's argument is checked before any
+// handler runs, so a handler never has to defend itself against a wrong type.
+func TestTheSchemaIsEnforcedBeforeAnyHandlerRuns(t *testing.T) {
+	session := connect(t, project(t, "## In progress\n\n- [ ] work\n"))
+
+	t.Run("a missing required argument", func(t *testing.T) {
+		result := call(t, session, "mnemo_load_project", map[string]any{})
+		if !result.IsError {
+			t.Fatal("a load with no slug was accepted")
+		}
+	})
+
+	t.Run("a value outside the enum", func(t *testing.T) {
+		result := call(t, session, "mnemo_load_project", map[string]any{"slug": "shop", "lang": "fr"})
+		if !result.IsError {
+			t.Fatal("an unsupported language was accepted")
+		}
+	})
+
+	t.Run("a limit outside its bounds", func(t *testing.T) {
+		result := call(t, session, "mnemo_search_memories", map[string]any{"limit": 500})
+		if !result.IsError {
+			t.Fatal("a limit above the maximum was accepted")
+		}
+	})
+
+	t.Run("an argument that is not in the schema", func(t *testing.T) {
+		result := call(t, session, "mnemo_status", map[string]any{"slugg": "shop"})
+		if !result.IsError {
+			t.Fatal("a misspelt argument was accepted, so the call did something other than what was asked")
+		}
+	})
+
+	t.Run("what the schema allows gets through", func(t *testing.T) {
+		result := call(t, session, "mnemo_load_project", map[string]any{"slug": "shop", "lang": "es", "detail": "card"})
+		if result.IsError {
+			t.Fatalf("a valid call was refused: %q", textOf(t, result))
+		}
+	})
+}
+
+// The order of the blocks is part of the contract, and it has to survive the
+// trip through the protocol.
+func TestTheBlocksArriveInOrder(t *testing.T) {
+	session := connect(t, project(t, "## In progress\n\n- [ ] work\n", "A decision."))
+
+	result := call(t, session, "mnemo_load_project", map[string]any{"slug": "shop"})
+	if result.IsError {
+		t.Fatalf("refused: %q", textOf(t, result))
+	}
+	got := textOf(t, result)
+	if len(got) != 3 {
+		t.Fatalf("got %d blocks: %q", len(got), got)
+	}
+	if !strings.HasPrefix(got[0], "shop — Shop") {
+		t.Errorf("the first block is not the card:\n%s", got[0])
+	}
+	if !strings.HasPrefix(got[1], "Detail (do not print unless asked):") {
+		t.Errorf("the second block is:\n%s", got[1])
+	}
+	if !strings.Contains(got[2], "This machine is 'here'") {
+		t.Errorf("the third block is:\n%s", got[2])
+	}
+}
+
+// A refusal is a result an agent can read and act on, not a protocol error that
+// its client reports as a broken server.
+func TestARefusalIsAResultNotAnError(t *testing.T) {
+	session := connect(t, project(t, ""))
+
+	result, err := session.CallTool(t.Context(),
+		&mcp.CallToolParams{Name: "mnemo_read_memory", Arguments: map[string]any{"id": "not-there"}})
+	if err != nil {
+		t.Fatalf("a refusal came back as a protocol error: %v", err)
+	}
+	if !result.IsError {
+		t.Fatal("a missing memory was not reported as an error")
+	}
+	if got := textOf(t, result); len(got) != 1 || !strings.Contains(got[0], "mnemo_search_memories") {
+		t.Errorf("the refusal reads %q; it should say what to do instead", got)
+	}
+}
+
+// The rules reach a client that supports nothing but the base protocol.
+func TestTheInstructionsTravelWithTheConnection(t *testing.T) {
+	server := New("v1.2.3", project(t, ""))
+	if server == nil {
+		t.Fatal("no server")
+	}
+	session := connect(t, project(t, ""))
+
+	// The guide is the other channel for the same rules, and it is a tool, so a
+	// client with no prompts can still ask for them.
+	result := call(t, session, "mnemo_guide", map[string]any{"target": "claude"})
+	if result.IsError {
+		t.Fatalf("refused: %q", textOf(t, result))
+	}
+	got := textOf(t, result)
+	if !strings.Contains(got[0], "CLAUDE.md") {
+		t.Errorf("the first block is %q", got[0])
+	}
+	for _, section := range []string{"## Saving", "## Machines", "## Confirmation", "## Mailbox"} {
+		if !strings.Contains(got[1], section) {
+			t.Errorf("the guide is missing %q", section)
+		}
+	}
+}
+
+// A handler that panics must refuse this one call, not end the chat's memory
+// for the rest of the session.
+func TestAPanicIsOneRefusalNotADeadServer(t *testing.T) {
+	result := safely(t.Context(), func(_ context.Context, _ *Call, _ Args) *answer {
+		panic("something impossible")
+	}, nil, nil)
+
+	if !result.IsError {
+		t.Fatal("a panic came back as success")
+	}
+	text := textOf(t, result)[0]
+	if !strings.HasPrefix(text, "mnemo failed unexpectedly: ") {
+		t.Errorf("the result reads %q", text)
+	}
+	if !strings.Contains(text, "something impossible") {
+		t.Errorf("the result does not say what happened: %q", text)
+	}
+}

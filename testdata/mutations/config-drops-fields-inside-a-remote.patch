@@ -1,0 +1,16 @@
+Breaks: rewriting the config file keeps only the fields of a remote that this version knows, so a field written by a newer mnemo is silently deleted.
+Must fail: go test ./internal/config -run '^TestARewriteKeepsFieldsInsideARemote$'
+
+diff --git a/internal/config/file.go b/internal/config/file.go
+index 7736819..9a7722b 100644
+--- a/internal/config/file.go
++++ b/internal/config/file.go
+@@ -195,7 +195,7 @@ func (f *File) Save() error {
+ 	put(out, "server.port", f.Server.Port != 0, f.Server.Port)
+ 	put(out, "server.token", f.Server.Token != "", f.Server.Token)
+ 	if len(f.Remotes) > 0 {
+-		out["remotes"] = f.remoteTables()
++		out["remotes"] = f.Remotes
+ 	} else {
+ 		delete(out, "remotes")
+ 	}

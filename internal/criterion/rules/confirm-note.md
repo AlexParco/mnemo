@@ -1,0 +1,1 @@
+Show the user exactly what this would change and wait for an explicit yes. Only then call this again with `confirm` set to the value above. Never confirm on your own judgement — git is the only undo there is.

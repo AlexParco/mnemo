@@ -1,0 +1,23 @@
+Breaks: a variable with no text behind it is left empty instead of stopping the program, so a renamed or deleted rule file ships as an empty rule.
+Must fail: go test ./internal/criterion -run '^TestTheBindingsAndTheFilesMustMatch$'
+
+diff --git a/internal/criterion/criterion.go b/internal/criterion/criterion.go
+index c62eb2d..aa7aca5 100644
+--- a/internal/criterion/criterion.go
++++ b/internal/criterion/criterion.go
+@@ -110,13 +110,8 @@ func read(fsys fs.FS) (map[string]string, error) {
+ 			missing = append(missing, name)
+ 		}
+ 	}
+-	if len(missing) > 0 {
+-		sort.Strings(missing)
+-		files := make([]string, len(missing))
+-		for i, name := range missing {
+-			files[i] = "rules/" + fileOf(name) + ".md"
+-		}
+-		return nil, fmt.Errorf("no text for %s: add %s", strings.Join(missing, ", "), strings.Join(files, ", "))
++	for _, name := range missing {
++		raw[name] = ""
+ 	}
+ 	return raw, nil
+ }

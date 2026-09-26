@@ -1,0 +1,18 @@
+Breaks: a path beginning with ~ is not expanded, so a store configured as ~/memories is created in a directory literally called ~ next to wherever the shell happened to be.
+Must fail: go test ./internal/config -run '^TestATildeMeansHome$'
+
+diff --git a/internal/config/paths.go b/internal/config/paths.go
+index 1d754cb..dadc619 100644
+--- a/internal/config/paths.go
++++ b/internal/config/paths.go
+@@ -97,10 +97,6 @@ func absolute(path string) string {
+ 	if path == "" {
+ 		return ""
+ 	}
+-	path, ok := expandHome(path)
+-	if !ok {
+-		return ""
+-	}
+ 	if filepath.IsAbs(path) {
+ 		return filepath.Clean(path)
+ 	}

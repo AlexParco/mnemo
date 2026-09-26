@@ -58,7 +58,7 @@ An arrow means "may import". Anything not listed may not.
 | `store` | `memory`, `gitx`, `lock`, `templates` |
 | `mailbox` | `lock` |
 | `criterion` | standard library |
-| `config` | `BurntSushi/toml` |
+| `config` | `memory`, `BurntSushi/toml` |
 | `mcpserver` | `store`, `gitx`, `mailbox`, `memory`, `criterion`, `config`, MCP SDK |
 | `httpapi` | `mcpserver`, `mailbox`, `config`, MCP SDK |
 | `remote` | `mcpserver`, `mailbox`, `config`, `tunnel`, MCP SDK |
@@ -170,8 +170,11 @@ and render the structured content.
 
 - **`templates/SCHEMA.md`** is embedded by the `templates` package. Bootstrap writes it, and a test
   checks that it equals the file in the repository.
-- **Rule texts** are Go constants in `criterion`. The skills in `plugin/` carry marked copies, and a
-  test checks they are identical.
+- **Rule texts** are one Markdown file each in `internal/criterion/rules/`, embedded and exposed as
+  variables of the same name. They are data, not code: a person edits a rule without reading Go, and
+  what ships is byte for byte what the file says. A text carries another with `{{NAME}}`, so the
+  short note a tool returns and the long rule in a guide cannot drift apart. The skills in `plugin/`
+  carry marked copies, and a test checks they are identical.
 
 ## Libraries
 
@@ -193,7 +196,8 @@ and render the structured content.
    card is the first thing a person sees, so its layout is settled before anything is built on top.
 2. `gitx` and `store`, with the fixture store and hub tests.
 3. `criterion` and `mcpserver` local handlers, and `mnemo serve` over stdio. At this point the
-   binary is usable: one machine, memory only, no mailbox.
+   binary is usable: one machine, memory only, no mailbox. **Done**, for the read-only tools; the
+   write and sync tools are the rest of this step.
 4. `mailbox`, with its tools, `mnemo peers`, `send`, `reply` and `read` in local mode, and `mnemo
    watch`.
 5. `integration`, `plugin/` and `hook`, with `mnemo mcp add`, `remove` and `run`.

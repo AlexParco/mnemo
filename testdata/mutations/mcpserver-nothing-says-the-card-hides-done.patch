@@ -1,0 +1,23 @@
+Breaks: a load never tells the agent that the card omits finished work, so the card reads as a history and work that was done gets proposed again.
+Must fail: go test ./internal/mcpserver -run '^TestTheAgentIsToldWhatTheCardIsNotShowing$'
+
+diff --git a/internal/mcpserver/read.go b/internal/mcpserver/read.go
+index e7abe27..9f32d2a 100644
+--- a/internal/mcpserver/read.go
++++ b/internal/mcpserver/read.go
+@@ -379,14 +379,7 @@ func machineBlock(call *Call, loaded memory.ProjectContext) string {
+ 
+ 	parts := []string{fmt.Sprintf("This machine is '%s'. %d pending item(s) belong to another machine, "+
+ 		"and the card shows which one.", call.Machine, elsewhere)}
+-	if done > 0 {
+-		// The card is a list of what is left. An agent that reads it as a record
+-		// of the session will propose finished work again, which is the failure
+-		// this sentence exists to prevent.
+-		parts = append(parts, fmt.Sprintf("%d item(s) are already done. The card lists what is left, never what is "+
+-			"finished, so do not read it as a history: a task that is not on it may have been done, not skipped. "+
+-			"The done ones are in the detail above.", done))
+-	}
++
+ 	return strings.Join(append(parts, criterion.MachineRule), "\n\n")
+ }
+ 

@@ -1,0 +1,22 @@
+Breaks: a relative store path is kept relative, so the store moves whenever the process changes directory.
+Must fail: go test ./internal/config -run '^TestARelativeStoreIsPinnedToTheWorkingDirectory$'
+
+diff --git a/internal/config/paths.go b/internal/config/paths.go
+index 1d754cb..1a57cad 100644
+--- a/internal/config/paths.go
++++ b/internal/config/paths.go
+@@ -104,13 +104,7 @@ func absolute(path string) string {
+ 	if filepath.IsAbs(path) {
+ 		return filepath.Clean(path)
+ 	}
+-	cwd, err := os.Getwd()
+-	if err != nil {
+-		// Returning the relative path would break the promise above: it would move
+-		// with the process. Empty travels up and is reported, like a missing home.
+-		return ""
+-	}
+-	return filepath.Join(cwd, path)
++	return filepath.Clean(path)
+ }
+ 
+ // ConfigFile is where the config file is, with no file needed to find out.

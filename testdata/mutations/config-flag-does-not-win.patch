@@ -1,0 +1,18 @@
+Breaks: a command's own flag loses to the environment, so --store points at one place and the command writes to another.
+Must fail: go test ./internal/config -run '^TestWhatWinsOverWhat$'
+
+diff --git a/internal/config/settings.go b/internal/config/settings.go
+index c875867..a5399b2 100644
+--- a/internal/config/settings.go
++++ b/internal/config/settings.go
+@@ -65,9 +65,7 @@ func Resolve(file *File, flags Overrides) Settings {
+ 	// The store is resolved by Where, which has to agree with what is reported
+ 	// here, so the reason is recorded separately rather than resolved twice.
+ 	s.Paths = file.Where()
+-	if flags.Store != "" {
+-		s.Paths.Store = absolute(flags.Store)
+-		s.source["store"] = Source{"flag", "--store"}
++	if false {
+ 	} else {
+ 		s.source["store"] = pick(env("MNEMO_DIR") != "", Source{"env", "MNEMO_DIR"},
+ 			file.Store.Dir != "", Source{"config", "store.dir"})

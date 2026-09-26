@@ -1,0 +1,24 @@
+Breaks: the detail block is put before the card, so an agent told to print the first block verbatim prints a wall of JSON at the user.
+Must fail: go test ./internal/mcpserver -run '^TestTheCardComesFirst$'
+
+diff --git a/internal/mcpserver/read.go b/internal/mcpserver/read.go
+index e7abe27..4cdb53b 100644
+--- a/internal/mcpserver/read.go
++++ b/internal/mcpserver/read.go
+@@ -262,8 +262,6 @@ func handleLoadProject(ctx context.Context, call *Call, args Args) *answer {
+ 	if !ok {
+ 		return a.refuse("%s", unknownProject(call.StoreDir, slug))
+ 	}
+-	a.block(loaded.Card)
+-
+ 	if args.choice("detail", "full") == "full" {
+ 		body, omitted := buildDetail(loaded)
+ 		// The label and the JSON are one block, so that what was left out can be
+@@ -277,6 +275,7 @@ func handleLoadProject(ctx context.Context, call *Call, args Args) *answer {
+ 		a.block("Detail (do not print unless asked):\n" + encoded)
+ 		a.block(omitted)
+ 	}
++	a.block(loaded.Card)
+ 	return a.block(machineBlock(call, loaded))
+ }
+ 

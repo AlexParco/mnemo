@@ -1,0 +1,18 @@
+Breaks: starting the server brings a store into being, so a machine that has never saved reports an empty memory instead of none, and syncing that emptiness would reach the hub.
+Must fail: go test ./internal/cli -run '^TestServingDoesNotCreateAStore$'
+
+diff --git a/internal/cli/cli.go b/internal/cli/cli.go
+index 8f2b4c7..484b707 100644
+--- a/internal/cli/cli.go
++++ b/internal/cli/cli.go
+@@ -80,9 +80,7 @@ func serveCommand() *cobra.Command {
+ 			if err != nil {
+ 				return err
+ 			}
+-			// The store is not created here. A chat that only reads gets an
+-			// answer saying there is nothing saved yet, which is true, and the
+-			// first write is what brings a store into being.
++			_ = os.MkdirAll(resolved.Paths.Store, 0o755)
+ 			return mcpserver.Serve(cmd.Context(), Version, mcpserver.Local(resolved), &mcp.StdioTransport{})
+ 		},
+ 	}

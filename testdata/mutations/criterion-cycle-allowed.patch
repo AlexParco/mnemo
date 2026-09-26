@@ -1,0 +1,21 @@
+Breaks: an inclusion cycle is not detected, so a text that includes itself recurses until the program dies with no message a person can act on.
+Must fail: go test ./internal/criterion -run '^TestACycleIsRefused$'
+
+diff --git a/internal/criterion/criterion.go b/internal/criterion/criterion.go
+index c62eb2d..6539f0c 100644
+--- a/internal/criterion/criterion.go
++++ b/internal/criterion/criterion.go
+@@ -124,13 +124,6 @@ func read(fsys fs.FS) (map[string]string, error) {
+ // expand resolves the inclusions of one text, refusing a cycle rather than
+ // looping until the stack runs out.
+ func expand(name string, raw map[string]string, open []string) (string, error) {
+-	for _, already := range open {
+-		if already == name {
+-			// The text that closes the loop is this one, not the one the walk
+-			// started from: naming open[0] would send a person to the wrong file.
+-			return "", fmt.Errorf("%s includes itself through %s", name, strings.Join(append(open, name), " → "))
+-		}
+-	}
+ 	open = append(open, name)
+ 
+ 	var failure error

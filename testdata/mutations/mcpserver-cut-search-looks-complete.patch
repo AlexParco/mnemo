@@ -1,0 +1,19 @@
+Breaks: a search that hit its limit comes back looking like the whole answer, so an agent concludes nothing else is saved.
+Must fail: go test ./internal/mcpserver -run '^TestACutSearchSaysItWasCut$'
+
+diff --git a/internal/mcpserver/read.go b/internal/mcpserver/read.go
+index e7abe27..db88499 100644
+--- a/internal/mcpserver/read.go
++++ b/internal/mcpserver/read.go
+@@ -428,10 +428,7 @@ func handleSearch(ctx context.Context, call *Call, args Args) *answer {
+ 		})
+ 	}
+ 	a.data(hits).say("Use mnemo_read_memory for the full body of any of these.")
+-	if len(found) == limit {
+-		// A result that was cut must never look like a complete one.
+-		a.say("Stopped at %d results; there may be more. Narrow the query or raise the limit.", limit)
+-	}
++
+ 	return a
+ }
+ 

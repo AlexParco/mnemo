@@ -1,0 +1,16 @@
+Breaks: the cap on ticked items also drops unchecked ones, so work that is still to do disappears from a load.
+Must fail: go test ./internal/mcpserver -run '^TestTheAnswerIsBoundedAndTheFileIsNot$'
+
+diff --git a/internal/mcpserver/read.go b/internal/mcpserver/read.go
+index e7abe27..c249cf6 100644
+--- a/internal/mcpserver/read.go
++++ b/internal/mcpserver/read.go
+@@ -312,7 +312,7 @@ func buildDetail(loaded memory.ProjectContext) (detail, string) {
+ 	for _, section := range project.Pending {
+ 		items := make([]detailItem, 0, len(section.Items))
+ 		for _, item := range section.Items {
+-			if item.Done && skipDone > 0 {
++			if skipDone > 0 {
+ 				skipDone--
+ 				continue
+ 			}

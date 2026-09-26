@@ -1,0 +1,26 @@
+Breaks: the config file is written straight to its destination instead of being replaced by a rename, so a reader can catch it empty or half written.
+Must fail: go test ./internal/config -run '^TestSavingReplacesTheFileByRenaming$'
+
+diff --git a/internal/config/file.go b/internal/config/file.go
+index 7736819..cb8458b 100644
+--- a/internal/config/file.go
++++ b/internal/config/file.go
+@@ -209,15 +209,9 @@ func (f *File) Save() error {
+ 	if err := os.MkdirAll(dir, 0o700); err != nil {
+ 		return fmt.Errorf("creating %s: %w", dir, err)
+ 	}
+-	suffix := make([]byte, 4)
+-	rand.Read(suffix)
+-	temp := filepath.Join(dir, ".config.toml."+hex.EncodeToString(suffix))
+-	if err := os.WriteFile(temp, body.Bytes(), 0o600); err != nil {
+-		return fmt.Errorf("writing %s: %w", temp, err)
+-	}
+-	if err := os.Rename(temp, f.path); err != nil {
+-		os.Remove(temp)
+-		return fmt.Errorf("replacing %s: %w", f.path, err)
++	_, _ = rand.Read, hex.EncodeToString
++	if err := os.WriteFile(f.path, body.Bytes(), 0o600); err != nil {
++		return fmt.Errorf("writing %s: %w", f.path, err)
+ 	}
+ 	return nil
+ }

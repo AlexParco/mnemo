@@ -91,6 +91,26 @@ Each list below is behaviour, not a test-per-function list.
   file, never as a context error the caller did not set.
 - Concurrency: many processes writing to one store at once all land, and the tree is left clean.
 
+### Config
+
+- The defaults with nothing set, every path in the table; asking where the store is does not create
+  it. The XDG variables move all of them, and a relative XDG value is ignored and reported.
+- A flag beats the environment, which beats the file, which beats the default, for every setting,
+  and each one says where its value came from. A variable set to blank counts as unset.
+- A path beginning with `~` means the home directory; `~user` is left alone.
+- A relative path is pinned to the working directory when it is read.
+- `MNEMO_AUTOPUSH` is on for anything but `0`, `false` and `no`. `autopush = false` written in the
+  file is a decision and is reported as one; a file that never mentions it reports the default, and
+  a save does not invent the key.
+- The machine label is normalised, and a label that normalises to nothing says what to type.
+- A missing file is not an error. Broken TOML names the file.
+- A rewrite keeps every key mnemo does not understand, including fields inside a `[[remotes]]`
+  entry, and does not turn mnemo's own keys into unknown ones.
+- The file is written `0600` in a `0700` directory, the token survives it, no temporary file is
+  left behind, and the destination is replaced by a rename — proved with a hard link, because
+  nothing else tells a rename from a write in place after the fact.
+- The agent name and the tool come only from the environment and never reach the file.
+
 ### Store, concurrency and safety
 
 - Atomic writes: a reader polling during writes never sees a partial file, and stale temporary files
@@ -115,6 +135,72 @@ Each list below is behaviour, not a test-per-function list.
   nothing; the lock file goes and the mailbox stays; the hub is never contacted, proved by a bare
   repository that is byte-identical afterwards; the config still points at the same remote, and the
   next save builds a fresh store.
+
+### Rule texts
+
+- Every text is there and none is empty, and a text that ships with a `{{NAME}}` left in it fails.
+- `CONFIRMATION_RULE` contains `CONFIRM_NOTE` word for word, and the guide contains each rule word
+  for word, with all seven of its headings.
+- Inclusion nests, an unknown name is refused, and a cycle is reported instead of recursing until
+  the program dies.
+- The bindings and the files must match, proved against a `rules/` that is wrong on purpose: a file
+  nothing is bound to, and a binding with no file. Both stop the program at startup.
+- Every marked region of every `.md` file of every skill is byte-identical to the text it names.
+  Which skill carries which rule is a table, not a global set: two skills quote `SAVE_CRITERION`,
+  and either copy could rot while the other kept the check green. A skill missing from the table,
+  or a rule a skill quotes that the table does not expect, is reported.
+- A region that cannot be read is reported rather than skipped. A trailing space after the marker,
+  a CRLF line ending or a misspelt closing marker would otherwise take a wrong copy out of the
+  comparison in silence, which is worse than the wrong copy.
+- A skill directory that is a symlink is still walked.
+- No text contains an emoji.
+- The instructions stay under 1400 bytes and still name `mnemo_load_project`, `mnemo_push` and the
+  `mailbox_*` tools.
+
+### MCP, the read-only tools
+
+- The card is the first block of a load, and carries no JSON. `detail: card` returns the card and
+  the machine block, and nothing else.
+- Every unchecked pending item comes back; ticked ones are capped at the 20 most recent, and a
+  block says how many were left out and that nothing was deleted.
+- An unknown slug is refused and names the real slugs. A missing store is a different refusal from
+  an empty one.
+- An empty search tells the agent to say so rather than fill the gap; a search that hit its limit
+  says it was cut.
+- Reading a memory returns the raw file and its fields; a missing one says to search first.
+- Status without a slug does not carry a project; with one it reports the counts, what belongs to
+  another machine, how many are ticked, and what comes next.
+- The machine block carries the machine rule, what belongs elsewhere, and the warning not to read
+  the card as a history.
+- JSON is indented by two spaces and does not escape `<`, `>` or `&`.
+- Every tool has a name, a description, a handler and a closed object schema whose every property
+  is described and whose required fields exist.
+
+### The binary over stdio
+
+Against the built binary, started as a tool starts it, with a real MCP client over a pipe. Calling
+the command in-process would skip the part most likely to be wrong.
+
+- It offers the memory tools, and loading a project returns the card as its first block, carrying
+  what is left and not what is finished.
+- The machine label reaches the answer, which is what decides whether a stamped pending item is
+  this machine's to act on.
+- Starting the server does not create a store: a machine that has never saved is told so, and the
+  directory is still absent afterwards.
+- Nothing but the protocol reaches stdout. Proved with a setting mnemo cannot honour: the warning
+  goes to stderr and the session survives it.
+- `mnemo version` prints the version the package carries.
+
+### MCP, the server
+
+- A client sees every defined tool, with the same description, and read-only where the definition
+  says so. The count offered equals the count defined.
+- Arguments are validated against the schema before any handler runs: a value outside an enum, a
+  number outside its bounds and an argument the schema does not name are all refused.
+- The order of the blocks survives the protocol.
+- A refusal arrives as a result with `isError`, not as a protocol error the client reports as a
+  broken server.
+- A handler that panics is one refusal reading `mnemo failed unexpectedly: ...`, not a dead server.
 
 ### Card
 
@@ -316,6 +402,13 @@ The minimum set. Each control names the behaviour it breaks.
 file lock already excludes a second descriptor. It is what keeps a process out of its own lock on
 AIX and Solaris, and nothing here can show that, so no control pretends to.
 
+**Also deliberately absent.** The walk over the plugin's skills lives entirely in the test: there is
+no production code behind it, so the only way to break it is to edit the test, which is not a
+control. Its two guards — every directory is resolved with `os.Stat`, so a skill shipped as a
+symlink is still visited, and every opening marker the region pattern did not match is reported —
+were each proved by hand against a skill made wrong on purpose, and both were green before the
+guards existed.
+
 - Write without scanning, adopt a hub with `--force` over local content, keep the co-author
   trailer, delete the memory a supersession replaces, allow a supersession chain to close on
   itself, write a file in place instead of atomically, and take no lock around a save: each fails
@@ -330,6 +423,9 @@ AIX and Solaris, and nothing here can show that, so no control pretends to.
   uncommitted work fail.
 - Push to the hub while retiring: the test that the bare repository is byte-identical afterwards
   fails.
+- Change one word of a skill's copy of a rule text, leave an inclusion unresolved, accept a cycle,
+  drop a text nothing is bound to, and let a missing text ship as an empty rule: each fails the
+  tests that cover it.
 
 **What the lock control taught.** Removing the lock did not fail anything at first: every write
 lands atomically under its own name, so files alone do not need it. What needs it is git, which has

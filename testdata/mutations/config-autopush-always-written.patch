@@ -1,0 +1,16 @@
+Breaks: every save writes store.autopush, so an unrelated change records a decision the user never made and the key can never be unset.
+Must fail: go test ./internal/config -run '^TestAutopushIsOnlyWrittenWhenItWasChosen$'
+
+diff --git a/internal/config/file.go b/internal/config/file.go
+index 7736819..7efe839 100644
+--- a/internal/config/file.go
++++ b/internal/config/file.go
+@@ -190,7 +190,7 @@ func (f *File) Save() error {
+ 	// a caller set it here. Writing it unconditionally would turn every save of
+ 	// an unrelated setting into a decision the user never made, and would make
+ 	// `mnemo config unset store.autopush` impossible.
+-	put(out, "store.autopush", f.Store.Autopush || f.Has("store.autopush") || f.touched["store.autopush"], f.Store.Autopush)
++	put(out, "store.autopush", true, f.Store.Autopush)
+ 	put(out, "mailbox.dir", f.Mailbox.Dir != "", f.Mailbox.Dir)
+ 	put(out, "server.port", f.Server.Port != 0, f.Server.Port)
+ 	put(out, "server.token", f.Server.Token != "", f.Server.Token)

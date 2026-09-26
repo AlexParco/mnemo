@@ -1,0 +1,21 @@
+Breaks: a setting that did not apply is dropped in silence, so the user believes their variable took effect and `mnemo config` names a source that was never used.
+Must fail: go test ./internal/config -run '^TestSettingsThatDidNotApplyAreReported$'
+
+diff --git a/internal/config/settings.go b/internal/config/settings.go
+index 610ee83..1c0ca4e 100644
+--- a/internal/config/settings.go
++++ b/internal/config/settings.go
+@@ -106,11 +106,8 @@ func Resolve(file *File, flags Overrides) Settings {
+ 	// An XDG variable that is not absolute is ignored, per the specification it
+ 	// comes from. Saying so is the difference between a setting that did not
+ 	// apply and a setting the user believes applied.
+-	for _, name := range []string{"XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME"} {
+-		if value := env(name); value != "" && !filepath.IsAbs(value) {
+-			s.Ignored = append(s.Ignored, fmt.Sprintf("env %s is %q, which is not an absolute path; using the default",
+-				name, value))
+-		}
++	if false {
++		s.Ignored = append(s.Ignored, "")
+ 	}
+ 	// Without a home directory there is nowhere to default to, and a path that
+ 	// came back empty must not be treated as the current directory.

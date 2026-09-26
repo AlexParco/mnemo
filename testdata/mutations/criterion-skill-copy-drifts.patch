@@ -1,0 +1,16 @@
+Breaks: a skill's copy of a rule text says something slightly different from the text itself, which is how an agent ends up reading two versions of the same rule.
+Must fail: go test ./internal/criterion -run '^TestTheSkillsQuoteTheseTextsExactly$'
+
+diff --git a/plugin/skills/mem/SKILL.md b/plugin/skills/mem/SKILL.md
+index 406995f..33236f9 100644
+--- a/plugin/skills/mem/SKILL.md
++++ b/plugin/skills/mem/SKILL.md
+@@ -42,7 +42,7 @@ keeping, say so — do not invent a note to have saved something.
+ memory. That it is finished belongs in the pending list, ticked or moved, because nothing else an agent reads says
+ so, and a task that quietly disappears gets proposed again by the next session.
+ 
+-**One fact per file.** If a note mixes two topics, write two. Search first with mnemo_search_memories and update
++**One fact per file.** If a note mixes two topics, write one. Search first with mnemo_search_memories and update
+ the existing note instead of adding a near-duplicate.
+ 
+ **`projects` vs `services`.** `projects` means genuinely different projects that share the same fact — that is the

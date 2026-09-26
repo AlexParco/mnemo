@@ -1,0 +1,16 @@
+Breaks: mnemo writes a warning to stdout during serve, which is the protocol stream, so the client fails to parse the session and the cause looks like a broken server.
+Must fail: go test ./internal/cli -run '^TestNothingButTheProtocolReachesStdout$'
+
+diff --git a/internal/cli/cli.go b/internal/cli/cli.go
+index 8f2b4c7..fd93fb4 100644
+--- a/internal/cli/cli.go
++++ b/internal/cli/cli.go
+@@ -56,7 +56,7 @@ func settings() (config.Settings, error) {
+ 	}
+ 	resolved := config.Resolve(file, flags)
+ 	for _, ignored := range resolved.Ignored {
+-		fmt.Fprintln(os.Stderr, "mnemo: "+ignored)
++		fmt.Fprintln(os.Stdout, "mnemo: "+ignored)
+ 	}
+ 	for _, unknown := range file.Unknown() {
+ 		fmt.Fprintf(os.Stderr, "mnemo: %s does not know the setting %q in %s\n", Version, unknown, file.Path())

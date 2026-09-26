@@ -1,0 +1,16 @@
+Breaks: the cycle message names the text the walk started from instead of the one that closes the loop, sending a person to the wrong file.
+Must fail: go test ./internal/criterion -run '^TestACycleIsRefused$'
+
+diff --git a/internal/criterion/criterion.go b/internal/criterion/criterion.go
+index c62eb2d..6edc77a 100644
+--- a/internal/criterion/criterion.go
++++ b/internal/criterion/criterion.go
+@@ -128,7 +128,7 @@ func expand(name string, raw map[string]string, open []string) (string, error) {
+ 		if already == name {
+ 			// The text that closes the loop is this one, not the one the walk
+ 			// started from: naming open[0] would send a person to the wrong file.
+-			return "", fmt.Errorf("%s includes itself through %s", name, strings.Join(append(open, name), " → "))
++			return "", fmt.Errorf("%s includes itself through %s", open[0], strings.Join(append(open, name), " → "))
+ 		}
+ 	}
+ 	open = append(open, name)

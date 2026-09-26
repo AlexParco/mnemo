@@ -1,0 +1,16 @@
+Breaks: JSON escapes `<`, `>` and `&`, so a memory about a shell pipeline comes back unreadable to the agent that has to act on it.
+Must fail: go test ./internal/mcpserver -run '^TestJSONIsReadable$'
+
+diff --git a/internal/mcpserver/render.go b/internal/mcpserver/render.go
+index 4a56a24..f2ca7e7 100644
+--- a/internal/mcpserver/render.go
++++ b/internal/mcpserver/render.go
+@@ -91,7 +91,7 @@ func (a *answer) result() *mcp.CallToolResult {
+ func encode(value any) (string, error) {
+ 	var out bytes.Buffer
+ 	encoder := json.NewEncoder(&out)
+-	encoder.SetEscapeHTML(false)
++	encoder.SetEscapeHTML(true)
+ 	encoder.SetIndent("", "  ")
+ 	if err := encoder.Encode(value); err != nil {
+ 		return "", err

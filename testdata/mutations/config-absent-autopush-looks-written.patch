@@ -1,0 +1,16 @@
+Breaks: a config file that never mentions autopush is reported as having set it to off, so `mnemo config` explains a decision the user never made.
+Must fail: go test ./internal/config -run '^TestOffInTheFileIsNotTheSameAsAbsent$'
+
+diff --git a/internal/config/settings.go b/internal/config/settings.go
+index c875867..d05e2b6 100644
+--- a/internal/config/settings.go
++++ b/internal/config/settings.go
+@@ -94,7 +94,7 @@ func Resolve(file *File, flags Overrides) Settings {
+ 	switch raw := env("MNEMO_AUTOPUSH"); {
+ 	case raw != "":
+ 		s.Autopush, s.source["autopush"] = truthy(raw), Source{"env", "MNEMO_AUTOPUSH"}
+-	case file.Has("store.autopush"):
++	case true:
+ 		s.Autopush, s.source["autopush"] = file.Store.Autopush, Source{"config", "store.autopush"}
+ 	default:
+ 		s.source["autopush"] = Source{"default", ""}

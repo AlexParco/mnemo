@@ -71,14 +71,20 @@ first, then anything else you add (`## Blocked`, `## Debt`, `## Branches`, `## R
 Ticking an item off takes it off the card. Add only the ones this project needs; do not copy another project's or
 force empty ones.
 
-**Finish an item by ticking it, never by removing it.** `- [x]`, or move it to `## Done`. The card stops showing it
-either way, so the person still sees only what is left, and the next session can tell "already done" from "never
-started". Deleting it destroys that difference.
+**Finish an item by ticking it, never by removing it.** Write `- [x]`; you may also move it under `## Done`, but the
+tick is what counts. The card lists unchecked items from every section, `## Done` included, so an item moved there
+without being ticked stays on the card labelled done, which is the one thing the card must never show. Ticking takes
+it off, the person still sees only what is left, and the next session can tell "already done" from "never started".
+Deleting it destroys that difference.
 
-**Keep `## Done` short**, around ten entries. When it grows past that, drop the oldest, and ask one question of each
-before it goes: did this leave a rule, a constraint or a trap that will matter later? If it did, write it as a
-memory, where search finds it. If it did not, git already has the commit. The pending list is the project's living
-state, not its archive.
+**Do not prune `## Done`.** A ticked item costs one line and the card never shows it, so there is no reason to
+delete the record of what was finished — that record is the only thing standing between a completed task and the
+next session proposing it again. When you load a project you get the recent ones and a count of the rest; ask for
+more if you need to know whether something older was done.
+
+**Graduate the lesson, keep the entry.** When a finished item left a rule, a constraint or a trap that will matter
+later, write that as a memory, where search finds it. That is in addition to the ticked entry, never instead of it:
+the memory holds what was learnt, the pending list holds that it happened.
 <!-- /mnemo:rule -->
 
 ## Machine-bound items

@@ -1,0 +1,35 @@
+Breaks: tools are registered with the low-level call that does no validation, so an argument of the wrong type, outside an enum, out of bounds or simply misspelt reaches the handler and the call does something other than what was asked.
+Must fail: go test ./internal/mcpserver -run '^TestTheSchemaIsEnforcedBeforeAnyHandlerRuns$'
+
+diff --git a/internal/mcpserver/server.go b/internal/mcpserver/server.go
+index f45acae..9193336 100644
+--- a/internal/mcpserver/server.go
++++ b/internal/mcpserver/server.go
+@@ -2,6 +2,7 @@ package mcpserver
+ 
+ import (
+ 	"context"
++	"encoding/json"
+ 
+ 	"github.com/AlexParco/mnemo/internal/criterion"
+ 	"github.com/modelcontextprotocol/go-sdk/mcp"
+@@ -47,14 +48,11 @@ func Register(server *mcp.Server, call *Call) {
+ // the same fields, and the two would drift.
+ func add(server *mcp.Server, definition Definition, call *Call) {
+ 	handle := definition.Handle
+-	mcp.AddTool(server, definition.Tool,
+-		func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+-			// Whatever a handler panics on is this program's fault, not the
+-			// caller's, and it must not take the whole server down: one bad call
+-			// would end the chat's memory for the rest of the session.
+-			result := safely(ctx, handle, call, Args(args))
+-			return result, nil, nil
+-		})
++	server.AddTool(definition.Tool, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
++		args := map[string]any{}
++		_ = json.Unmarshal(req.Params.Arguments, &args)
++		return safely(ctx, handle, call, Args(args)), nil
++	})
+ }
+ 
+ // safely runs a handler and turns a panic into a result that says so. It never

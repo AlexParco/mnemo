@@ -1,0 +1,20 @@
+Breaks: a variable exported empty by a wrapper script is treated as a chosen value, so the store moves to nowhere.
+Must fail: go test ./internal/config -run '^TestAnEmptyVariableCountsAsUnset$'
+
+diff --git a/internal/config/paths.go b/internal/config/paths.go
+index f9d54dc..e5a0fd8 100644
+--- a/internal/config/paths.go
++++ b/internal/config/paths.go
+@@ -37,11 +37,7 @@ type Paths struct {
+ // back as it was written, because trimming a path would be this package
+ // changing a setting behind the user's back.
+ func env(name string) string {
+-	value := os.Getenv(name)
+-	if strings.TrimSpace(value) == "" {
+-		return ""
+-	}
+-	return value
++	return os.Getenv(name)
+ }
+ 
+ // home is the user's home directory. On Windows it is %USERPROFILE%.

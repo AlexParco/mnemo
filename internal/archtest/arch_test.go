@@ -25,6 +25,7 @@ const (
 	sdk   = "github.com/modelcontextprotocol/go-sdk"
 	flock = "github.com/gofrs/flock"
 	toml  = "github.com/BurntSushi/toml"
+	cobra = "github.com/spf13/cobra"
 	sjson = "github.com/tidwall/sjson"
 	gjson = "github.com/tidwall/gjson"
 )
@@ -36,9 +37,11 @@ const anything = "*"
 // paths relative to the module, matched exactly: a subpackage is declared on its own.
 // The standard library is always allowed and never listed.
 var allowed = map[string][]string{
-	"cmd/mnemo":            {"internal/cli"},
-	"internal/cli":         {anything},
-	"internal/config":      {toml},
+	"cmd/mnemo": {"internal/cli"},
+	// cli is the command layer: it is allowed everything, including Cobra, which
+	// no other package may reach for.
+	"internal/cli":         {anything, cobra},
+	"internal/config":      {"internal/memory", toml},
 	"internal/lock":        {flock},
 	"internal/memory":      {},
 	"internal/gitx":        {"internal/lock"},

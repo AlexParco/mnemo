@@ -1,0 +1,17 @@
+Breaks: a text ships with its inclusions unresolved, so an agent reads the literal `{{SAVE_CRITERION}}` instead of the rule.
+Must fail: go test ./internal/criterion -run '^TestNoTextShipsUnresolved$|^TestTheLongRuleCarriesTheShortOne$|^TestInclusionSurvivesNesting$'
+
+diff --git a/internal/criterion/criterion.go b/internal/criterion/criterion.go
+index 8b1b856..1f232ca 100644
+--- a/internal/criterion/criterion.go
++++ b/internal/criterion/criterion.go
+@@ -126,6 +126,9 @@ func expand(name string, raw map[string]string, open []string) (string, error) {
+ 	open = append(open, name)
+ 
+ 	var failure error
++	if true {
++		return raw[name], nil
++	}
+ 	out := inclusion.ReplaceAllStringFunc(raw[name], func(match string) string {
+ 		included := inclusion.FindStringSubmatch(match)[1]
+ 		if _, ok := raw[included]; !ok {

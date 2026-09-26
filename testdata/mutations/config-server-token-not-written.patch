@@ -1,0 +1,16 @@
+Breaks: the server token is dropped when the config is written, so `mnemo server setup` reports success and persists nothing.
+Must fail: go test ./internal/config -run '^TestTheFileIsWrittenPrivatelyAndWithoutLitter$'
+
+diff --git a/internal/config/file.go b/internal/config/file.go
+index 7736819..e49fd2a 100644
+--- a/internal/config/file.go
++++ b/internal/config/file.go
+@@ -193,7 +193,7 @@ func (f *File) Save() error {
+ 	put(out, "store.autopush", f.Store.Autopush || f.Has("store.autopush") || f.touched["store.autopush"], f.Store.Autopush)
+ 	put(out, "mailbox.dir", f.Mailbox.Dir != "", f.Mailbox.Dir)
+ 	put(out, "server.port", f.Server.Port != 0, f.Server.Port)
+-	put(out, "server.token", f.Server.Token != "", f.Server.Token)
++	put(out, "server.token", false, f.Server.Token)
+ 	if len(f.Remotes) > 0 {
+ 		out["remotes"] = f.remoteTables()
+ 	} else {
