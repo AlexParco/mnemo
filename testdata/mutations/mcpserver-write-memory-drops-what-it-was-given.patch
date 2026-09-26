@@ -1,0 +1,20 @@
+Breaks: the services, tags and author on a memory are thrown away, so the write succeeds and the fact that lands is not the one the agent sent.
+Must fail: go test ./internal/mcpserver -run '^TestWriteMemoryCarriesEveryField$'
+
+diff --git a/internal/mcpserver/write.go b/internal/mcpserver/write.go
+index b37ab43..c0d2555 100644
+--- a/internal/mcpserver/write.go
++++ b/internal/mcpserver/write.go
+@@ -139,9 +139,9 @@ func handleWriteMemory(ctx context.Context, call *Call, args Args) *answer {
+ 		Projects:   args.list("projects"),
+ 		Type:       args.str("type"),
+ 		Body:       args.str("body"),
+-		Services:   args.list("services"),
+-		Tags:       args.list("tags"),
+-		Author:     args.str("author"),
++		Services:   nil,
++		Tags:       nil,
++		Author:     "",
+ 		Overwrite:  args.flag("overwrite"),
+ 		Supersedes: args.str("supersedes"),
+ 	})

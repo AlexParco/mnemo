@@ -1,0 +1,16 @@
+Breaks: a new memory that looks like an existing one is written without a word, so one fact ends up split across two files and neither is the whole answer.
+Must fail: go test ./internal/mcpserver -run '^TestWriteMemoryCarriesEveryField$'
+
+diff --git a/internal/mcpserver/write.go b/internal/mcpserver/write.go
+index b37ab43..52bbfda 100644
+--- a/internal/mcpserver/write.go
++++ b/internal/mcpserver/write.go
+@@ -158,7 +158,7 @@ func handleWriteMemory(ctx context.Context, call *Call, args Args) *answer {
+ 		a.say("'%s' is kept and marked as superseded by this one. Nothing was deleted: someone asking "+
+ 			"why the answer changed needs both.", result.Superseded)
+ 	}
+-	if len(result.Related) > 0 {
++	if false && len(result.Related) > 0 {
+ 		// Near-duplicates are reported, never merged: only the agent knows
+ 		// whether two notes are one fact.
+ 		a.say("These existing memories share vocabulary with it — check you are not splitting one fact in two: %s",

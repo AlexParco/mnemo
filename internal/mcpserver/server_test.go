@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/AlexParco/mnemo/internal/criterion"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -135,32 +136,54 @@ func TestAClientSeesTheToolsAndTheirShape(t *testing.T) {
 func TestTheSchemaIsEnforcedBeforeAnyHandlerRuns(t *testing.T) {
 	session := connect(t, project(t, "## In progress\n\n- [ ] work\n"))
 
+	// Every case checks that the SCHEMA stopped the call, not merely that
+	// something did. A handler that ran and refused for its own reasons also
+	// sets isError, and three of these used to pass that way.
+	refusedByTheSchema := func(t *testing.T, what string, tool string, args map[string]any) {
+		t.Helper()
+		result := call(t, session, tool, args)
+		if !result.IsError {
+			t.Fatalf("%s was accepted", what)
+		}
+		said := strings.Join(textOf(t, result), "\n")
+		if !strings.Contains(said, "validating") {
+			t.Fatalf("%s was refused, but not by the schema: %s", what, said)
+		}
+	}
+
 	t.Run("a missing required argument", func(t *testing.T) {
-		result := call(t, session, "mnemo_load_project", map[string]any{})
-		if !result.IsError {
-			t.Fatal("a load with no slug was accepted")
-		}
+		refusedByTheSchema(t, "a load with no slug", "mnemo_load_project", map[string]any{})
 	})
-
 	t.Run("a value outside the enum", func(t *testing.T) {
-		result := call(t, session, "mnemo_load_project", map[string]any{"slug": "shop", "lang": "fr"})
-		if !result.IsError {
-			t.Fatal("an unsupported language was accepted")
-		}
+		refusedByTheSchema(t, "an unsupported language", "mnemo_load_project",
+			map[string]any{"slug": "shop", "lang": "fr"})
 	})
-
 	t.Run("a limit outside its bounds", func(t *testing.T) {
-		result := call(t, session, "mnemo_search_memories", map[string]any{"limit": 500})
-		if !result.IsError {
-			t.Fatal("a limit above the maximum was accepted")
-		}
+		refusedByTheSchema(t, "a limit above the maximum", "mnemo_search_memories", map[string]any{"limit": 500})
+	})
+	t.Run("an argument that is not in the schema", func(t *testing.T) {
+		refusedByTheSchema(t, "a misspelt argument", "mnemo_status", map[string]any{"slugg": "shop"})
 	})
 
-	t.Run("an argument that is not in the schema", func(t *testing.T) {
-		result := call(t, session, "mnemo_status", map[string]any{"slugg": "shop"})
-		if !result.IsError {
-			t.Fatal("a misspelt argument was accepted, so the call did something other than what was asked")
-		}
+	// The write tools were not covered at all, and they are the ones where a
+	// wrong argument changes the store rather than an answer.
+	t.Run("a write with a required argument missing", func(t *testing.T) {
+		refusedByTheSchema(t, "a commit with no message", "mnemo_commit", map[string]any{})
+		refusedByTheSchema(t, "a project with no slug", "mnemo_upsert_project", map[string]any{})
+		refusedByTheSchema(t, "a pending rewrite with no content", "mnemo_write_pending",
+			map[string]any{"slug": "shop"})
+		refusedByTheSchema(t, "a memory with no body", "mnemo_write_memory",
+			map[string]any{"id": "x", "projects": []any{"shop"}, "type": "decision"})
+	})
+	t.Run("a write outside an enum", func(t *testing.T) {
+		refusedByTheSchema(t, "a memory of no known type", "mnemo_write_memory",
+			map[string]any{"id": "x", "projects": []any{"shop"}, "type": "musing", "body": "b"})
+		refusedByTheSchema(t, "a project in no known state", "mnemo_upsert_project",
+			map[string]any{"slug": "shop", "status": "hibernating"})
+	})
+	t.Run("a memory belonging to no project", func(t *testing.T) {
+		refusedByTheSchema(t, "an empty projects list", "mnemo_write_memory",
+			map[string]any{"id": "x", "projects": []any{}, "type": "decision", "body": "b"})
 	})
 
 	t.Run("what the schema allows gets through", func(t *testing.T) {
@@ -215,11 +238,24 @@ func TestARefusalIsAResultNotAnError(t *testing.T) {
 
 // The rules reach a client that supports nothing but the base protocol.
 func TestTheInstructionsTravelWithTheConnection(t *testing.T) {
-	server := New("v1.2.3", project(t, ""))
-	if server == nil {
-		t.Fatal("no server")
-	}
 	session := connect(t, project(t, ""))
+
+	// The instructions are the only channel that reaches a client supporting
+	// neither prompts nor resources, so they have to be on the handshake
+	// itself, not merely defined somewhere.
+	initialised := session.InitializeResult()
+	if initialised == nil {
+		t.Fatal("the client has no initialize result")
+	}
+	if initialised.Instructions != criterion.ServerInstructions {
+		t.Errorf("the instructions that reached the client are:\n%s", initialised.Instructions)
+	}
+	if initialised.ServerInfo == nil || initialised.ServerInfo.Name != Name {
+		t.Errorf("the server introduced itself as %+v", initialised.ServerInfo)
+	}
+	if initialised.ServerInfo.Version != "v0.0.0-test" {
+		t.Errorf("the version reaching the client is %q", initialised.ServerInfo.Version)
+	}
 
 	// The guide is the other channel for the same rules, and it is a tool, so a
 	// client with no prompts can still ask for them.

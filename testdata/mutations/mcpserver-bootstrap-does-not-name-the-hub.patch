@@ -1,0 +1,15 @@
+Breaks: wiring a hub is silent, so a person cannot tell from the report whether their memory will reach their other machines.
+Must fail: go test ./internal/mcpserver -run '^TestBootstrapReportsTheHub$'
+
+diff --git a/internal/mcpserver/write.go b/internal/mcpserver/write.go
+index b37ab43..3a20925 100644
+--- a/internal/mcpserver/write.go
++++ b/internal/mcpserver/write.go
+@@ -74,7 +74,6 @@ func handleBootstrap(ctx context.Context, call *Call, args Args) *answer {
+ 	case report.AdoptedHistory:
+ 		lines = append(lines, "Adopted the existing memory from the hub — this machine now shares it.")
+ 	case report.WiredRemote != "":
+-		lines = append(lines, "Wired remote: "+report.WiredRemote)
+ 	}
+ 	if report.AdoptionBlocked != "" {
+ 		lines = append(lines, "warning: "+report.AdoptionBlocked)

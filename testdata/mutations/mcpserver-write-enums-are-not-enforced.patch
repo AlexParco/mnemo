@@ -1,0 +1,20 @@
+Breaks: a memory of a type that does not exist, or a project in a state that does not exist, is written instead of refused.
+Must fail: go test ./internal/mcpserver -run '^TestTheSchemaIsEnforcedBeforeAnyHandlerRuns$'
+
+diff --git a/internal/mcpserver/tools.go b/internal/mcpserver/tools.go
+index e843781..7d5157a 100644
+--- a/internal/mcpserver/tools.go
++++ b/internal/mcpserver/tools.go
+@@ -46,11 +46,7 @@ func text(description string) schema {
+ }
+ 
+ func choice(description string, options ...string) schema {
+-	values := make([]any, len(options))
+-	for i, option := range options {
+-		values[i] = option
+-	}
+-	return schema{"type": "string", "description": description, "enum": values}
++	return schema{"type": "string", "description": description}
+ }
+ 
+ func number(description string, min, max int) schema {

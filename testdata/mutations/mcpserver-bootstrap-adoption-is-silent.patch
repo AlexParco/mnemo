@@ -1,0 +1,15 @@
+Breaks: a new machine takes on the memory already on the hub and says nothing, so nobody knows whether it started empty or joined what was there.
+Must fail: go test ./internal/mcpserver -run '^TestBootstrapReportsTheHub$'
+
+diff --git a/internal/mcpserver/write.go b/internal/mcpserver/write.go
+index b37ab43..aee3b44 100644
+--- a/internal/mcpserver/write.go
++++ b/internal/mcpserver/write.go
+@@ -72,7 +72,6 @@ func handleBootstrap(ctx context.Context, call *Call, args Args) *answer {
+ 	}
+ 	switch {
+ 	case report.AdoptedHistory:
+-		lines = append(lines, "Adopted the existing memory from the hub — this machine now shares it.")
+ 	case report.WiredRemote != "":
+ 		lines = append(lines, "Wired remote: "+report.WiredRemote)
+ 	}

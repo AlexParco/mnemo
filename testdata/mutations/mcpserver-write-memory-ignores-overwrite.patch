@@ -1,0 +1,16 @@
+Breaks: overwrite is dropped on the way to the store, so a correction the user approved is refused as a duplicate and the note is never fixed.
+Must fail: go test ./internal/mcpserver -run '^TestWriteMemoryCarriesEveryField$'
+
+diff --git a/internal/mcpserver/write.go b/internal/mcpserver/write.go
+index b37ab43..973e7af 100644
+--- a/internal/mcpserver/write.go
++++ b/internal/mcpserver/write.go
+@@ -142,7 +142,7 @@ func handleWriteMemory(ctx context.Context, call *Call, args Args) *answer {
+ 		Services:   args.list("services"),
+ 		Tags:       args.list("tags"),
+ 		Author:     args.str("author"),
+-		Overwrite:  args.flag("overwrite"),
++		Overwrite:  false,
+ 		Supersedes: args.str("supersedes"),
+ 	})
+ 	if err != nil {

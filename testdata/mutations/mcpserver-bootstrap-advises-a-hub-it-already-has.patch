@@ -1,0 +1,16 @@
+Breaks: a store wired to a hub is told to set one, directly above the line naming the hub it has.
+Must fail: go test ./internal/mcpserver -run '^TestBootstrapReportsTheHub$'
+
+diff --git a/internal/mcpserver/write.go b/internal/mcpserver/write.go
+index b37ab43..f89b41f 100644
+--- a/internal/mcpserver/write.go
++++ b/internal/mcpserver/write.go
+@@ -63,7 +63,7 @@ func handleBootstrap(ctx context.Context, call *Call, args Args) *answer {
+ 	var lines []string
+ 	if report.CreatedStore {
+ 		created := fmt.Sprintf("Created the store at %s.", report.Store)
+-		if report.WiredRemote == "" && !report.AdoptedHistory {
++		if true {
+ 			// Only worth saying when there is no hub. Printed next to "Wired
+ 			// remote" it would be advice contradicting the line below it.
+ 			created += " Set a hub remote with mnemo config set store.remote <url> to sync it across machines."

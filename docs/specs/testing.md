@@ -209,8 +209,20 @@ the command in-process would skip the part most likely to be wrong.
   reports a stripped `Co-Authored-By` trailer, and a second commit with nothing to do says so.
 - A connection that may read but not write refuses every write tool by saying so, rather than
   crashing on a store that is not there.
+- The whole bootstrap report, including the half that only happens on a machine with a hub: the
+  hub is named, a store that has one is not advised to set one, and a second machine is told it
+  adopted what was already there.
+- A write carries every argument it was given: services, tags and author reach the file, overwrite
+  really replaces and reports "Updated", and a near-duplicate is named.
+- A commit on a machine with a hub says the work has not left it, and names the files.
+- The write tools' schemas are enforced too: a missing required argument, a type or a status
+  outside its enum, and a memory belonging to no project are all refused before a handler runs.
 - End to end through the binary: a whole session — create, write, replace pending, commit — leaves
   the files a later session reads, and the next load shows the open item and not the finished one.
+
+**A refusal and a failure are told apart by what they say**, not by the error flag, which both set.
+A helper that only checked the flag would let the whole classification be deleted with every test
+still passing, which is how it was found.
 
 ### Refusing rather than guessing
 
@@ -227,8 +239,12 @@ the command in-process would skip the part most likely to be wrong.
 
 ### MCP, the server
 
-- A client sees every defined tool, with the same description, and read-only where the definition
-  says so. The count offered equals the count defined.
+- A client sees every defined tool, with the same description, and each one's annotations match
+  the tool table of [mcp.md](mcp.md#tools) rather than matching themselves. The count offered
+  equals the count defined.
+- The instructions reach the client on the handshake, byte for byte, with the server's name and
+  version. They are the only channel that reaches a client supporting neither prompts nor
+  resources.
 - Arguments are validated against the schema before any handler runs: a value outside an enum, a
   number outside its bounds and an argument the schema does not name are all refused.
 - The order of the blocks survives the protocol.
@@ -435,6 +451,11 @@ The minimum set. Each control names the behaviour it breaks.
 **Deliberately absent.** Removing the in-process gate breaks nothing on Linux or macOS, where the
 file lock already excludes a second descriptor. It is what keeps a process out of its own lock on
 AIX and Solaris, and nothing here can show that, so no control pretends to.
+
+**Also deliberately absent.** There is no control for the inverse of the refusal classification —
+an internal fault reported as advice the agent could act on. It would need an error out of the
+store that is neither a refusal nor reachable from a handler's arguments, and constructing one
+means putting the store in a state it cannot be in.
 
 **Also deliberately absent.** The walk over the plugin's skills lives entirely in the test: there is
 no production code behind it, so the only way to break it is to edit the test, which is not a

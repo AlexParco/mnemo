@@ -1,0 +1,16 @@
+Breaks: the server sends no instructions, so a client that supports neither prompts nor resources gets the tools with none of the rules for using them.
+Must fail: go test ./internal/mcpserver -run '^TestTheInstructionsTravelWithTheConnection$'
+
+diff --git a/internal/mcpserver/server.go b/internal/mcpserver/server.go
+index f45acae..ec3aa83 100644
+--- a/internal/mcpserver/server.go
++++ b/internal/mcpserver/server.go
+@@ -23,7 +23,7 @@ func New(version string, call *Call) *mcp.Server {
+ 		// that reaches a client supporting neither prompts nor resources, which
+ 		// is why they are kept short and why they are a rule text rather than a
+ 		// string written here.
+-		&mcp.ServerOptions{Instructions: criterion.ServerInstructions},
++		&mcp.ServerOptions{},
+ 	)
+ 	Register(server, call)
+ 	return server

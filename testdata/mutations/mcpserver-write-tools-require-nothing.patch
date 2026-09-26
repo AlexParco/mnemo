@@ -1,0 +1,18 @@
+Breaks: the write tools accept a call with its required arguments missing, so a commit with no message or a memory with no body reaches the store.
+Must fail: go test ./internal/mcpserver -run '^TestTheSchemaIsEnforcedBeforeAnyHandlerRuns$'
+
+diff --git a/internal/mcpserver/tools.go b/internal/mcpserver/tools.go
+index e843781..61b2d17 100644
+--- a/internal/mcpserver/tools.go
++++ b/internal/mcpserver/tools.go
+@@ -30,9 +30,7 @@ type schema = map[string]any
+ 
+ // object builds an input schema. Properties not named in required are optional.
+ func object(required []string, properties schema) schema {
+-	if required == nil {
+-		required = []string{}
+-	}
++	required = []string{}
+ 	return schema{
+ 		"type":                 "object",
+ 		"properties":           properties,

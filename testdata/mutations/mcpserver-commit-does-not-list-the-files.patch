@@ -1,0 +1,18 @@
+Breaks: a commit reports a count and no names, so a person cannot see what the session actually wrote into their memory.
+Must fail: go test ./internal/mcpserver -run '^TestCommitSaysWhatTheHubHasNotSeen$'
+
+diff --git a/internal/mcpserver/write.go b/internal/mcpserver/write.go
+index b37ab43..cb253d5 100644
+--- a/internal/mcpserver/write.go
++++ b/internal/mcpserver/write.go
+@@ -210,9 +210,7 @@ func handleCommit(ctx context.Context, call *Call, args Args) *answer {
+ 	}
+ 
+ 	lines := []string{fmt.Sprintf("Committed %s · %d file(s):", result.SHA, len(result.Files))}
+-	for _, file := range result.Files {
+-		lines = append(lines, "  "+file)
+-	}
++
+ 	if result.StrippedTrailers > 0 {
+ 		lines = append(lines, fmt.Sprintf("Removed %d Co-Authored-By trailer(s): the store does not carry them.",
+ 			result.StrippedTrailers))

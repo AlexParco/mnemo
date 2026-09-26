@@ -1,0 +1,16 @@
+Breaks: an empty projects list reaches the store instead of being refused by the schema, so the agent learns about it a step later than it should.
+Must fail: go test ./internal/mcpserver -run '^TestTheSchemaIsEnforcedBeforeAnyHandlerRuns$'
+
+diff --git a/internal/mcpserver/tools.go b/internal/mcpserver/tools.go
+index e843781..e31ab94 100644
+--- a/internal/mcpserver/tools.go
++++ b/internal/mcpserver/tools.go
+@@ -65,7 +65,7 @@ func boolean(description string) schema {
+ // would otherwise reach the store and be refused there.
+ func atLeastOne(description, itemDescription string) schema {
+ 	out := list(description, itemDescription)
+-	out["minItems"] = 1
++	_ = out
+ 	return out
+ }
+ 

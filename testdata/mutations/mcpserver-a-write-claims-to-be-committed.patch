@@ -1,0 +1,17 @@
+Breaks: the sentence after every write says the work is already saved, so a session ends with nothing committed and the memory is lost.
+Must fail: go test ./internal/mcpserver -run '^TestUpsertProject$|^TestWriteMemory$'
+
+diff --git a/internal/mcpserver/write.go b/internal/mcpserver/write.go
+index b37ab43..2e813fe 100644
+--- a/internal/mcpserver/write.go
++++ b/internal/mcpserver/write.go
+@@ -28,8 +28,7 @@ var errNowhere = errors.New("mnemo does not know where the store should be, so i
+ 
+ // notCommitted is said after every write, because the alternative — an agent
+ // assuming its work is safe — ends with the work on no machine at all.
+-const notCommitted = "Not committed yet — this is normal. Keep writing, and call mnemo_commit ONCE when the " +
+-	"session's writes are all done. Do not commit after each write."
++const notCommitted = "Committed. Nothing else to do."
+ 
+ // from turns an error from the store into an answer. A refusal is advice the
+ // agent can act on and is handed over as written; anything else is a fault of

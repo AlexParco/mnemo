@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/AlexParco/mnemo/internal/gitx"
 	"github.com/AlexParco/mnemo/internal/lock"
 	"github.com/AlexParco/mnemo/internal/memory"
 	"github.com/AlexParco/mnemo/internal/store"
@@ -43,13 +44,26 @@ func writable(t *testing.T, identity bool) *Call {
 }
 
 // refusal runs a handler and requires it to refuse, returning what it said.
+//
+// A refusal and an unexpected failure both set IsError, so checking the flag
+// alone is not checking anything: the whole classification could be deleted and
+// every test here would still pass. The two are told apart by what they say,
+// because that is also how an agent tells them apart — one is advice it can act
+// on, the other says there is nothing to be done.
 func refusal(t *testing.T, handle Handler, call *Call, args Args) string {
 	t.Helper()
 	result := handle(t.Context(), call, args).result()
+	said := strings.Join(textOf(t, result), "\n")
 	if !result.IsError {
-		t.Fatalf("expected a refusal, got %q", textOf(t, result))
+		t.Fatalf("expected a refusal, got %q", said)
 	}
-	return strings.Join(textOf(t, result), "\n")
+	if strings.Contains(said, "mnemo failed unexpectedly") {
+		t.Fatalf("this is advice the agent could act on, reported as a crash: %s", said)
+	}
+	if len(textOf(t, result)) != 1 {
+		t.Errorf("a refusal carries %d blocks, want exactly one", len(textOf(t, result)))
+	}
+	return said
 }
 
 func TestBootstrapSaysWhatItDid(t *testing.T) {
@@ -95,7 +109,10 @@ func TestUpsertProject(t *testing.T) {
 	if !strings.Contains(created[0], "pending.md is empty; sections are free-form") {
 		t.Errorf("creating does not explain the empty pending list: %q", created[0])
 	}
-	if created[1] != notCommitted {
+	// Written out, not compared to the constant: comparing a value to itself
+	// would let the sentence be rewritten to say the opposite.
+	if created[1] != "Not committed yet — this is normal. Keep writing, and call mnemo_commit ONCE "+
+		"when the session's writes are all done. Do not commit after each write." {
 		t.Errorf("the second block is %q", created[1])
 	}
 
@@ -339,4 +356,146 @@ func TestAFailedAnswerAcceptsNothingMore(t *testing.T) {
 	if got := textOf(t, failed); len(got) != 1 || got[0] != "mnemo failed unexpectedly: broke" {
 		t.Errorf("a failure carries %q", got)
 	}
+}
+
+// hub is an empty bare repository, standing in for the machine the user syncs
+// through.
+func hub(t *testing.T) string {
+	t.Helper()
+	dir := filepath.Join(t.TempDir(), "hub.git")
+	if _, err := gitx.New(filepath.Dir(dir)).Run("init", "-q", "--bare", dir); err != nil {
+		t.Fatalf("creating the hub: %v", err)
+	}
+	return dir
+}
+
+// Everything the bootstrap report can say, which is the half of it that only
+// happens on a machine with a hub — the machine where getting it wrong means a
+// person cannot tell whether their memory arrived.
+func TestBootstrapReportsTheHub(t *testing.T) {
+	t.Run("wired, with nothing on it yet", func(t *testing.T) {
+		call := writable(t, true)
+		remote := hub(t)
+		call.store = store.New(call.StoreDir, store.Options{
+			Locker: lock.New(filepath.Join(filepath.Dir(call.StoreDir), "locks")), Remote: remote,
+		})
+
+		got := blocks(t, handleBootstrap, call, Args{})
+		if !strings.Contains(got[0], "Wired remote: "+remote) {
+			t.Errorf("the hub is not named:\n%s", got[0])
+		}
+		// Advising a hub to a store that has one would contradict the line
+		// right above it.
+		if strings.Contains(got[0], "Set a hub remote") {
+			t.Errorf("it advised setting a hub it already has:\n%s", got[0])
+		}
+	})
+
+	t.Run("adopting what is already on it", func(t *testing.T) {
+		remote := hub(t)
+		first := writable(t, true)
+		first.store = store.New(first.StoreDir, store.Options{
+			Locker: lock.New(filepath.Join(filepath.Dir(first.StoreDir), "locks")), Remote: remote,
+		})
+		blocks(t, handleUpsertProject, first, Args{"slug": "shop", "name": "Shop"})
+		blocks(t, handleCommit, first, Args{"message": "save(shop): the first machine"})
+		if pushed := first.repo().Push(""); !pushed.Pushed {
+			t.Fatalf("publishing: %+v", pushed)
+		}
+
+		second := writable(t, true)
+		second.store = store.New(second.StoreDir, store.Options{
+			Locker: lock.New(filepath.Join(filepath.Dir(second.StoreDir), "locks")), Remote: remote,
+		})
+		got := blocks(t, handleBootstrap, second, Args{})
+		if !strings.Contains(got[0], "Adopted the existing memory from the hub") {
+			t.Errorf("the second machine was not told it adopted:\n%s", got[0])
+		}
+		if !memory.ProjectExists(second.StoreDir, "shop") {
+			t.Error("the other machine's project did not arrive")
+		}
+	})
+}
+
+// A write tool must carry every argument it was given through to the store. A
+// dropped one is silent: the write succeeds and the fact is wrong.
+func TestWriteMemoryCarriesEveryField(t *testing.T) {
+	call := writable(t, true)
+	blocks(t, handleUpsertProject, call, Args{"slug": "shop", "name": "Shop"})
+
+	blocks(t, handleWriteMemory, call, Args{
+		"id": "first-answer", "projects": []any{"shop"}, "type": "decision",
+		"body": "The first answer.", "services": []any{"api", "web"},
+		"tags": []any{"storage"}, "author": "Someone Else",
+	})
+	written, ok := findMemory(t, call.StoreDir, "first-answer")
+	if !ok {
+		t.Fatal("nothing was written")
+	}
+	if strings.Join(written.Services, ",") != "api,web" || strings.Join(written.Tags, ",") != "storage" {
+		t.Errorf("services and tags did not arrive: %+v", written)
+	}
+	if written.Author != "Someone Else" {
+		t.Errorf("author is %q, want the one that was given", written.Author)
+	}
+
+	t.Run("overwrite really replaces, and says it updated", func(t *testing.T) {
+		got := blocks(t, handleWriteMemory, call, Args{
+			"id": "first-answer", "projects": []any{"shop"}, "type": "decision",
+			"body": "A corrected answer.", "overwrite": true,
+		})
+		if !strings.HasPrefix(got[0], "Updated memory 'first-answer'") {
+			t.Errorf("a replacement reported itself as %q", got[0])
+		}
+		if !strings.Contains(got[0], memory.MemoryPath(call.StoreDir, "first-answer")) {
+			t.Errorf("the answer does not say where it went: %q", got[0])
+		}
+		again, _ := findMemory(t, call.StoreDir, "first-answer")
+		if !strings.Contains(again.Body, "A corrected answer.") {
+			t.Errorf("the body was not replaced: %q", again.Body)
+		}
+	})
+
+	t.Run("a near-duplicate is named", func(t *testing.T) {
+		got := blocks(t, handleWriteMemory, call, Args{
+			"id": "first-answer-again", "projects": []any{"shop"}, "type": "decision",
+			"body": "A corrected answer, said twice.",
+		})
+		joined := strings.Join(got, "\n")
+		if !strings.Contains(joined, "share vocabulary") || !strings.Contains(joined, "first-answer") {
+			t.Errorf("the store's only defence against one fact in two files said nothing:\n%s", joined)
+		}
+	})
+}
+
+// Committing on a machine with a hub has to say the work has not left it.
+func TestCommitSaysWhatTheHubHasNotSeen(t *testing.T) {
+	call := writable(t, true)
+	remote := hub(t)
+	call.store = store.New(call.StoreDir, store.Options{
+		Locker: lock.New(filepath.Join(filepath.Dir(call.StoreDir), "locks")), Remote: remote,
+	})
+	blocks(t, handleUpsertProject, call, Args{"slug": "shop", "name": "Shop"})
+
+	got := blocks(t, handleCommit, call, Args{"message": "save(shop): not pushed"})
+	if !strings.Contains(got[0], "not on the hub yet") {
+		t.Errorf("the commit does not say the work is unpublished:\n%s", got[0])
+	}
+	if strings.Contains(got[0], "This store has no remote") {
+		t.Errorf("a store with a hub was reported as having none:\n%s", got[0])
+	}
+	// The files are named, so a person can see what the session actually wrote.
+	if !strings.Contains(got[0], "projects/shop/INDEX.md") {
+		t.Errorf("the commit does not list the files:\n%s", got[0])
+	}
+}
+
+func findMemory(t *testing.T, dir, id string) (memory.Memory, bool) {
+	t.Helper()
+	for _, m := range memory.LoadMemories(dir) {
+		if m.ID == id {
+			return m, true
+		}
+	}
+	return memory.Memory{}, false
 }

@@ -1,0 +1,16 @@
+Breaks: a commit on a machine with a hub does not say the work has not left it, so the agent stops and the user goes looking for it on their other machine.
+Must fail: go test ./internal/mcpserver -run '^TestCommitSaysWhatTheHubHasNotSeen$'
+
+diff --git a/internal/mcpserver/write.go b/internal/mcpserver/write.go
+index b37ab43..8a01efe 100644
+--- a/internal/mcpserver/write.go
++++ b/internal/mcpserver/write.go
+@@ -219,7 +219,7 @@ func handleCommit(ctx context.Context, call *Call, args Args) *answer {
+ 	}
+ 	// Committed is not published. An agent that stops here has left the work on
+ 	// one machine, and the user will not find it on the other.
+-	if !result.HasRemote {
++	if true {
+ 		lines = append(lines, "This store has no remote, so it lives only on this machine.")
+ 	} else {
+ 		if result.UnpushedKnown {

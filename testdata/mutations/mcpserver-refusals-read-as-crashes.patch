@@ -1,0 +1,18 @@
+Breaks: advice the agent could act on — a slug that does not exist, a secret in the body, a connection that may not write — arrives as "mnemo failed unexpectedly", so the agent gives up instead of fixing the call.
+Must fail: go test ./internal/mcpserver -run '^Test(WriteMemory|ASecretIsRefusedAndNothingIsWritten|AReadOnlyConnectionRefusesToWrite|AStoreWithNoPathIsRefusedByName|TheOverwriteRefusalOffersBothWaysOut)$'
+
+diff --git a/internal/mcpserver/write.go b/internal/mcpserver/write.go
+index b37ab43..8cd0c6d 100644
+--- a/internal/mcpserver/write.go
++++ b/internal/mcpserver/write.go
+@@ -35,9 +35,7 @@ const notCommitted = "Not committed yet — this is normal. Keep writing, and ca
+ // agent can act on and is handed over as written; anything else is a fault of
+ // mnemo's and must not be dressed up as advice.
+ func (a *answer) from(err error) *answer {
+-	if store.IsRefusal(err) || errors.Is(err, errNotWritable) || errors.Is(err, errNowhere) {
+-		return a.refuse("%s", err.Error())
+-	}
++
+ 	// A path that cannot be read or written is the machine's state, not a bug
+ 	// in mnemo: the user can chmod it or point mnemo elsewhere. Calling it an
+ 	// unexpected failure tells the agent there is nothing to be done.
