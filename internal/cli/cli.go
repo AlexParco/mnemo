@@ -9,7 +9,9 @@ import (
 	"os"
 
 	"github.com/AlexParco/mnemo/internal/config"
+	"github.com/AlexParco/mnemo/internal/lock"
 	"github.com/AlexParco/mnemo/internal/mcpserver"
+	"github.com/AlexParco/mnemo/internal/store"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/spf13/cobra"
 )
@@ -64,6 +66,18 @@ func settings() (config.Settings, error) {
 	return resolved, nil
 }
 
+// memoryStore builds the store the write tools act through.
+//
+// It is built here and not inside mcpserver because building one means choosing
+// where the lock file lives, and that is a fact about this machine. A server
+// answering for other machines makes the same choice for itself.
+func memoryStore(resolved config.Settings) *store.Store {
+	return store.New(resolved.Paths.Store, store.Options{
+		Locker: lock.New(resolved.Paths.Locks),
+		Remote: resolved.Remote,
+	})
+}
+
 func serveCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "serve",
@@ -80,10 +94,17 @@ func serveCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			// Refuse rather than serve against nowhere. Serving would answer
+			// every call successfully while writing into the directory the
+			// agent was started in.
+			if _, err := resolved.RequireStore(); err != nil {
+				return err
+			}
 			// The store is not created here. A chat that only reads gets an
 			// answer saying there is nothing saved yet, which is true, and the
 			// first write is what brings a store into being.
-			return mcpserver.Serve(cmd.Context(), Version, mcpserver.Local(resolved), &mcp.StdioTransport{})
+			return mcpserver.Serve(cmd.Context(), Version,
+				mcpserver.Local(resolved, memoryStore(resolved)), &mcp.StdioTransport{})
 		},
 	}
 }

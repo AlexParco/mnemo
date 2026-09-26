@@ -45,8 +45,13 @@ in the card and in `mnemo_status`.
   not escape `<`, `>` or `&`.
 - **The mailbox tools also return structured content**, which the terminal commands use. Its
   schema is given with each tool.
-- **A refusal** is a result with `isError: true` and one text block that says what to do instead.
-  Store refusals, git errors and lock timeouts become refusals.
+- **A refusal** is a result with `isError: true` and exactly one text block that says what to do
+  instead. Store refusals, git errors, lock timeouts and a path mnemo cannot read or write become
+  refusals. Once an answer has failed it takes no further blocks, so a handler that keeps writing
+  cannot turn a refusal into three blocks describing a success that did not happen.
+- **A store with no path is refused**, never written. Every path would otherwise be relative to
+  whatever directory the process was started in, which for a server started by a coding tool is
+  the user's own repository.
 - **Any other error** becomes `isError: true` with `mnemo failed unexpectedly: <message>`. It
   never looks like success.
 - **Inputs are validated** against the tool's schema before the handler runs, in both the local
@@ -66,7 +71,7 @@ The table lists the annotations. `ro` is `readOnlyHint: true`. `idem` is `idempo
 | `mnemo_read_memory` | `id` | ro |
 | `mnemo_bootstrap` | none | idem |
 | `mnemo_upsert_project` | `slug`, `name?`, `status?`, `services?`, `description?` | idem |
-| `mnemo_write_memory` | `id`, `projects` (at least one), `type`, `body`, `services?`, `tags?`, `author?`, `overwrite?` | add |
+| `mnemo_write_memory` | `id`, `projects` (at least one), `type`, `body`, `services?`, `tags?`, `author?`, `overwrite?`, `supersedes?` | destr |
 | `mnemo_write_pending` | `slug`, `content` | destr |
 | `mnemo_commit` | `message` | add |
 | `mnemo_sync` | none | idem |
@@ -82,6 +87,10 @@ The table lists the annotations. `ro` is `readOnlyHint: true`. `idem` is `idempo
 | `mailbox_read` | none | ro |
 | `mailbox_wait` | `timeout_ms?` (0–55000) | ro |
 
+- **`mnemo_write_memory` is annotated destructive** although it usually only adds. The hint is
+  static per tool, so it has to describe the worst the tool can do, and with `overwrite` it
+  replaces a file. A client that skips confirmation for a non-destructive call would otherwise
+  approve an overwrite on the agent's word alone.
 - **Reading mail is annotated read-only**, although it moves a cursor. That is the server's own
   bookkeeping, and annotating it as a write would make Codex's `writes` approval mode prompt on
   every check.
@@ -137,7 +146,7 @@ name: <name>
 [services: <a, b>]
 [updated: <date>]
 memories: <n>[ (<m> shared with other projects)]
-pending: <open> open — <i> in progress, <x> next[ · <k> belong(s) to another machine]
+pending: <open> open — <i> in progress, <x> next[ · <k> belongs|belong to another machine]
 [done: <d> ticked in the pending list — the card does not show them]
 next: <first in-progress item, else first next item, else —>
 ```
@@ -211,14 +220,20 @@ Output:
 
    - **The index is always complete.** Every memory of the project appears, with its fields and its
      summary, in the stored order. An agent can always see what exists.
-   - **Bodies are included until 32 KiB of them have been added**, in that same order. After that,
-     entries carry no `body` and say `"body_omitted": true`.
+   - **Each body is included while it still fits** within 32 KiB of bodies in total, in that same
+     order. One oversized memory is skipped and smaller ones after it still arrive, so entries
+     without a body are interleaved rather than forming a tail. They say `"body_omitted": true`.
+   - **`pending_file` is pending.md as it is on disk**, capped at 64 KiB, because the tool that
+     rewrites it replaces the whole file. The parsed `pending` sections are a summary: they keep
+     headings and checkbox lines, drop prose and cut each item at 100 characters, so an agent that
+     rebuilt the file from them would delete the user's own words. When the copy was cut,
+     `"pending_truncated": true` and the block below says not to send it back.
    - **Each shared file is included up to 8 KiB**, and says `"truncated": true` when it was cut.
    - **Ticked pending items are capped** at 20, counting back from the end of the file. Every
      unchecked item always comes back: they are the work. Finished ones are never deleted from a
      pending list, so the list grows without limit and it is the answer that is bounded, not the
      file.
-   - **When anything was left out**, a third block says so: `<n> of <m> memories came back without
+3. **When anything was left out**, a block says so: `<n> of <m> memories came back without
      their body, and <k> shared file(s) were cut. Read any of them in full with mnemo_read_memory.`
      and, on its own line, `<n> older ticked item(s) are not in the pending sections above; the 20
      most recent are. Nothing was deleted — the file has them all.` Nothing is ever dropped
@@ -278,7 +293,7 @@ Description:
 Output: the report lines, or `The store at <path> was already set up; nothing to do.`. The lines
 are, in order, those that apply:
 
-- `Created the store at <path>. Set a hub remote with mnemo config set store.remote <url> to sync it across machines.`
+- `Created the store at <path>.`, followed, when no hub is set, by ` Set a hub remote with mnemo config set store.remote <url> to sync it across machines.`
 - `Adopted the existing memory from the hub — this machine now shares it.`, or else
   `Wired remote: <url>`
 - `warning: <adoption explanation>`
@@ -330,8 +345,12 @@ instead of overwriting when the old version was right at the time."
 
 Output:
 
-1. `Wrote|Updated memory '<id>' (<path>). Not committed yet.`
-2. When related memories exist: `These existing memories share vocabulary with it — check you are
+1. `Wrote|Updated memory '<id>' (<path>).` and then the not-committed sentence, which is the same
+   after every write: `Not committed yet — this is normal. Keep writing, and call mnemo_commit ONCE
+   when the session's writes are all done. Do not commit after each write.`
+2. When `supersedes` was given: `'<id>' is kept and marked as superseded by this one. Nothing was
+   deleted: someone asking why the answer changed needs both.`
+3. When related memories exist: `These existing memories share vocabulary with it — check you are
    not splitting one fact in two: <ids>`
 
 **A secret is refused before it is written.** The body is scanned with the rules in
@@ -348,11 +367,12 @@ Description:
 > REPLACES the whole file, so load the project first and send the merged result. Sections are
 > free-form, and the resume card lists the unchecked items of every one of them: `## In progress` and
 > `## Next` first, then anything else you add (`## Blocked`, `## Debt`, `## Branches`, `## Risks`),
-> labelled with its section. Ticking an item off takes it off the card. Finish an item by ticking it
-> or moving it to `## Done`, never by deleting it: that is the only record that it happened, and it
-> is what stops the next session proposing it again. Keep `## Done` to about ten entries, and when
-> one falls off, first ask whether it left a rule worth writing as a memory. Add only the sections
-> this project needs. Stamp an item `[@<machine>]` ONLY when it is
+> labelled with its section. Ticking an item off takes it off the card. Finish an item by writing
+> `- [x]`, never by deleting it: that record is the only thing that says it happened, and it is what
+> stops the next session proposing it again. You may also move a ticked item under `## Done`, but the
+> tick is what counts — an item moved there unticked stays on the card. Do not prune `## Done`: a
+> load returns the recent ones and a count of the rest. Add only the sections this project needs.
+> Stamp an item `[@<machine>]` ONLY when it is
 > physically bound to one machine (uncommitted changes, a local branch, a service running there).
 > Test: could any machine with the repo do it? Then it is portable — do not stamp it. When unsure,
 > do not stamp.
@@ -381,6 +401,7 @@ Committed <sha> · <n> file(s):
   <file>
 [Removed <k> Co-Authored-By trailer(s): the store does not carry them.]
 Local only. <u> commit(s) not on the hub yet — the other machines will not see this until it is pushed.
+   or Local only. Commits are not on the hub yet (no upstream branch, so the count is unknown) — …
    or This store has no remote, so it lives only on this machine.
 ```
 

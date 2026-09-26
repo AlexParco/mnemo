@@ -107,8 +107,18 @@ func (s *Store) Repo() *gitx.Repo { return s.repo }
 func (s *Store) Today() string { return s.now().Format("2006-01-02") }
 
 // hold runs fn with the store's lock held.
+//
+// Running out of time waiting for the lock is a refusal, not a fault: another
+// agent is saving right now and trying again in a moment is exactly the right
+// thing to do. Reported as an unexpected failure it would read as mnemo being
+// broken, and the caller would stop instead of retrying.
 func (s *Store) hold(ctx context.Context, fn func() error) error {
-	return s.locker.Hold(ctx, s.Dir, fn)
+	err := s.locker.Hold(ctx, s.Dir, fn)
+	if lock.IsTimeout(err) {
+		return refuse("Another writer is holding the store and did not let go in time (%s). "+
+			"Something else is saving right now: wait a moment and try again.", err)
+	}
+	return err
 }
 
 // tempPrefix marks the files an interrupted write leaves behind. It starts with

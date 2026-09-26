@@ -13,23 +13,45 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// binary builds mnemo once and returns its path.
+// binary is the built mnemo, compiled once for the whole package.
 //
-// Everything below runs against the built binary over a pipe, the way a tool
-// starts it. Calling Execute in-process would skip the part most likely to be
-// wrong: whether anything other than the protocol ends up on stdout.
-func binary(t *testing.T) string {
-	t.Helper()
-	path := filepath.Join(t.TempDir(), "mnemo")
+// Everything below runs against it over a pipe, the way a tool starts it.
+// Calling Execute in-process would skip the part most likely to be wrong:
+// whether anything other than the protocol ends up on stdout.
+var binary = sync.OnceValues(func() (string, error) {
+	dir, err := os.MkdirTemp("", "mnemo-binary-")
+	if err != nil {
+		return "", err
+	}
+	path := filepath.Join(dir, "mnemo")
 	if runtime.GOOS == "windows" {
 		path += ".exe"
 	}
 	build := exec.Command("go", "build", "-o", path, "github.com/AlexParco/mnemo/cmd/mnemo")
 	build.Stderr = os.Stderr
 	if err := build.Run(); err != nil {
+		return "", err
+	}
+	return path, nil
+})
+
+// built is the binary's path, or a fatal error.
+func built(t *testing.T) string {
+	t.Helper()
+	path, err := binary()
+	if err != nil {
 		t.Fatalf("building mnemo: %v", err)
 	}
 	return path
+}
+
+// TestMain removes the binary once every test has finished with it.
+func TestMain(m *testing.M) {
+	code := m.Run()
+	if path, err := binary(); err == nil {
+		os.RemoveAll(filepath.Dir(path))
+	}
+	os.Exit(code)
 }
 
 // machine is a home directory with a store in it, and the environment that
@@ -96,7 +118,7 @@ func (c *complaints) empty() bool { return c.String() == "" }
 // serve starts the binary and connects a real MCP client to it.
 func serve(t *testing.T, env []string) (*mcp.ClientSession, *complaints) {
 	t.Helper()
-	command := exec.Command(binary(t), "serve")
+	command := exec.Command(built(t), "serve")
 	command.Env = env
 	// stderr is where mnemo is allowed to speak. Keeping it lets a failure say
 	// what the process complained about instead of only that it went away.
@@ -226,7 +248,7 @@ func TestNothingButTheProtocolReachesStdout(t *testing.T) {
 
 func TestVersion(t *testing.T) {
 	_, env := machine(t, false)
-	command := exec.Command(binary(t), "version")
+	command := exec.Command(built(t), "version")
 	command.Env = env
 	out, err := command.Output()
 	if err != nil {
@@ -234,5 +256,152 @@ func TestVersion(t *testing.T) {
 	}
 	if strings.TrimSpace(string(out)) != Version {
 		t.Errorf("the binary reports %q, the package says %q", strings.TrimSpace(string(out)), Version)
+	}
+}
+
+// A whole save, end to end, through the binary: create a project, write a fact,
+// replace the pending list, commit. What matters is that the files on disk are
+// what a later session will read, so they are read back from disk and not from
+// what the tools said they did.
+func TestTheBinaryCanSaveASession(t *testing.T) {
+	home, env := machine(t, false)
+	// Commits need an identity, and the test must not borrow the developer's.
+	gitconfig := filepath.Join(home, "gitconfig")
+	write(t, gitconfig, "[user]\n\tname = Test\n\temail = test@example.invalid\n")
+	env = append(env, "GIT_CONFIG_GLOBAL="+gitconfig, "GIT_CONFIG_NOSYSTEM=1")
+
+	session, complaints := serve(t, env)
+	call := func(name string, args map[string]any) *mcp.CallToolResult {
+		t.Helper()
+		result, err := session.CallTool(t.Context(), &mcp.CallToolParams{Name: name, Arguments: args})
+		if err != nil {
+			t.Fatalf("%s: %v\nstderr:\n%s", name, err, complaints)
+		}
+		if result.IsError {
+			t.Fatalf("%s refused: %v\nstderr:\n%s", name, result.Content[0], complaints)
+		}
+		return result
+	}
+
+	call("mnemo_upsert_project", map[string]any{"slug": "shop", "name": "Shop"})
+	call("mnemo_write_memory", map[string]any{
+		"id": "plain-text-wins", "projects": []any{"shop"}, "type": "decision",
+		"body": "We chose plain text over a database.",
+	})
+	call("mnemo_write_pending", map[string]any{
+		"slug":    "shop",
+		"content": "## In progress\n\n- [ ] wire the parser\n\n## Done\n\n- [x] chose the format\n",
+	})
+	committed := call("mnemo_commit", map[string]any{"message": "save(shop): the first session"})
+
+	store := filepath.Join(home, "store")
+	for _, rel := range []string{
+		filepath.Join("projects", "shop", "INDEX.md"),
+		filepath.Join("projects", "shop", "pending.md"),
+		filepath.Join("memories", "plain-text-wins.md"),
+		filepath.Join("shared", "SCHEMA.md"),
+		".git",
+	} {
+		if _, err := os.Stat(filepath.Join(store, rel)); err != nil {
+			t.Errorf("%s is missing from the store", rel)
+		}
+	}
+	if text := committed.Content[0].(*mcp.TextContent).Text; !strings.Contains(text, "Committed ") {
+		t.Errorf("the commit reported:\n%s", text)
+	}
+
+	// The next session reads what this one wrote: the card carries the open
+	// item and not the finished one.
+	loaded := call("mnemo_load_project", map[string]any{"slug": "shop"})
+	card := loaded.Content[0].(*mcp.TextContent).Text
+	if !strings.Contains(card, "wire the parser") {
+		t.Errorf("the card lost the open item:\n%s", card)
+	}
+	if strings.Contains(card, "chose the format") {
+		t.Errorf("the card shows finished work:\n%s", card)
+	}
+	if !strings.Contains(strings.Join(allText(loaded), "\n"), "plain-text-wins") {
+		t.Error("the memory written this session is not in the load")
+	}
+
+	if complaints.String() != "" {
+		t.Errorf("the binary complained during a clean save:\n%s", complaints)
+	}
+}
+
+func allText(result *mcp.CallToolResult) []string {
+	var out []string
+	for _, content := range result.Content {
+		if text, ok := content.(*mcp.TextContent); ok {
+			out = append(out, text.Text)
+		}
+	}
+	return out
+}
+
+// A machine with no home directory has nowhere to keep a store. Serving anyway
+// would make every path relative, so the store would be created inside the
+// directory the tool started mnemo in — the user's own repository — and with a
+// hub configured the whole of their memory would be cloned into it.
+func TestWithNowhereToPutTheStoreItRefusesToServe(t *testing.T) {
+	work := t.TempDir()
+	state := t.TempDir()
+
+	command := exec.Command(built(t), "serve")
+	command.Dir = work
+	// No HOME, no USERPROFILE, no MNEMO_DIR, no XDG_DATA_HOME: nothing that says
+	// where a store belongs. XDG_STATE_HOME is set, as it often is, which is
+	// what makes the locks resolve while the store does not.
+	command.Env = []string{"PATH=" + os.Getenv("PATH"), "XDG_STATE_HOME=" + state}
+	var said complaints
+	command.Stderr = &said
+	output, err := command.Output()
+
+	if err == nil {
+		t.Error("mnemo served with nowhere to put the store")
+	}
+	if !strings.Contains(said.String(), "nowhere to keep the store") {
+		t.Errorf("it did not say why:\nstderr: %s\nstdout: %s", said.String(), output)
+	}
+
+	entries, readErr := os.ReadDir(work)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	if len(entries) != 0 {
+		var names []string
+		for _, e := range entries {
+			names = append(names, e.Name())
+		}
+		t.Errorf("it wrote into the working directory: %q", names)
+	}
+}
+
+// The tool that replaces pending.md is told to send back a merged version of
+// the file. So the load has to carry the file, not only mnemo's parse of it:
+// the parse keeps headings and checkbox lines, drops prose and cuts each item
+// at a hundred characters, and an agent rebuilding from it deletes the rest.
+func TestALoadCarriesThePendingFileItself(t *testing.T) {
+	home, env := machine(t, true)
+	long := strings.Repeat("a long task description ", 8)
+	write(t, filepath.Join(home, "store", "projects", "shop", "pending.md"),
+		"## In progress\n\nProse that explains the section.\n\n- [ ] "+long+"\n")
+
+	session, complaints := serve(t, env)
+	result, err := session.CallTool(t.Context(),
+		&mcp.CallToolParams{Name: "mnemo_load_project", Arguments: map[string]any{"slug": "shop"}})
+	if err != nil {
+		t.Fatalf("loading: %v\nstderr:\n%s", err, complaints)
+	}
+	detail := allText(result)[1]
+
+	if !strings.Contains(detail, "pending_file") {
+		t.Fatalf("the load does not carry the file:\n%s", detail)
+	}
+	if !strings.Contains(detail, "Prose that explains the section.") {
+		t.Error("the prose of pending.md is not in the answer, so a rewrite would delete it")
+	}
+	if !strings.Contains(detail, strings.TrimSpace(long)) {
+		t.Error("the full item text is not in the answer, so a rewrite would truncate it")
 	}
 }

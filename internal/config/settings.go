@@ -222,6 +222,18 @@ func (s Settings) Named() []string {
 	return out
 }
 
+// RequireStore is for every command that touches memory. An empty path is not
+// a store in the current directory: it is nowhere, and writing there would put
+// the user's memory inside whatever repository the agent happened to be in —
+// and, with a hub set, clone the whole of it in.
+func (s Settings) RequireStore() (string, error) {
+	if s.Paths.Store != "" {
+		return s.Paths.Store, nil
+	}
+	return "", fmt.Errorf("there is nowhere to keep the store: this machine has no home directory that mnemo " +
+		"could work one out from. Set MNEMO_DIR, or store.dir in the config file")
+}
+
 // RequireMachine is for the commands that cannot work without a label: the
 // mailbox, and stamping a pending item. It says what to type rather than
 // guessing a name the user would not recognise.

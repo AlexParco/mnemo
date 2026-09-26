@@ -1,11 +1,13 @@
 package store
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/AlexParco/mnemo/internal/memory"
 )
@@ -574,5 +576,45 @@ func TestStoreFilesAreNeverWrittenOutsideTheStore(t *testing.T) {
 	}
 	if _, err := os.Stat(outside); !os.IsNotExist(err) {
 		t.Error("something was written outside the store")
+	}
+}
+
+// Another agent saving right now is not mnemo being broken: it is a reason to
+// wait a moment and try again. Reported as an unexpected failure the caller
+// would stop instead of retrying.
+func TestWaitingTooLongForTheLockIsAdvice(t *testing.T) {
+	isolate(t, true)
+	s := newStore(t, Options{})
+	writeSomething(t, s)
+
+	// Someone else is holding it and will not let go while this runs.
+	held := make(chan struct{})
+	release := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		_ = s.locker.Hold(t.Context(), s.Dir, func() error {
+			close(held)
+			<-release
+			return nil
+		})
+	}()
+	<-held
+	defer func() { close(release); <-done }()
+
+	ctx, cancel := context.WithTimeout(t.Context(), 150*time.Millisecond)
+	defer cancel()
+	_, err := s.Commit(ctx, "save: while someone else has it")
+
+	if err == nil {
+		t.Fatal("two writers held the store at once")
+	}
+	if !IsRefusal(err) {
+		t.Fatalf("got %T (%v), want a refusal the agent can act on", err, err)
+	}
+	for _, want := range []string{"Another writer is holding the store", "try again"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("the refusal does not say %q: %v", want, err)
+		}
 	}
 }

@@ -43,6 +43,47 @@ func call(t *testing.T, session *mcp.ClientSession, name string, args map[string
 	return result
 }
 
+// annotated is the tool table of docs/specs/mcp.md: `ro` is read-only, `idem`
+// is idempotent, `add` is destructiveHint false and `destr` is true. A hint left
+// unset is not the same as one set to false, so it is written out here too.
+var annotated = map[string]struct {
+	readOnly    bool
+	idempotent  bool
+	destructive *bool
+}{
+	"mnemo_status":          {readOnly: true},
+	"mnemo_list_projects":   {readOnly: true},
+	"mnemo_load_project":    {readOnly: true},
+	"mnemo_search_memories": {readOnly: true},
+	"mnemo_read_memory":     {readOnly: true},
+	"mnemo_guide":           {readOnly: true},
+	"mnemo_bootstrap":       {idempotent: true},
+	"mnemo_upsert_project":  {idempotent: true},
+	// write_memory takes `overwrite`, which replaces a file. The hint is static
+	// per tool, so it has to describe the worst the tool can do: a client that
+	// skips confirmation for non-destructive calls would otherwise approve it.
+	"mnemo_write_memory":  {destructive: truth(true)},
+	"mnemo_write_pending": {destructive: truth(true)},
+	"mnemo_commit":        {destructive: truth(false)},
+}
+
+func sameHint(got, want *bool) bool {
+	if got == nil || want == nil {
+		return got == want
+	}
+	return *got == *want
+}
+
+func hint(value *bool) string {
+	if value == nil {
+		return "unset"
+	}
+	if *value {
+		return "true"
+	}
+	return "false"
+}
+
 func TestAClientSeesTheToolsAndTheirShape(t *testing.T) {
 	session := connect(t, project(t, ""))
 
@@ -63,10 +104,25 @@ func TestAClientSeesTheToolsAndTheirShape(t *testing.T) {
 		if tool.Description != definition.Tool.Description {
 			t.Errorf("%s reaches the client with a different description", tool.Name)
 		}
-		// Read-only is a promise a client acts on when it decides what to ask
-		// the user about.
-		if tool.Annotations == nil || !tool.Annotations.ReadOnlyHint {
-			t.Errorf("%s does not reach the client as read-only", tool.Name)
+		// The annotations are a promise a client acts on when it decides what
+		// to ask the user about before calling, so each one is checked against
+		// what the tool table in docs/specs/mcp.md says, not against itself.
+		want, known := annotated[tool.Name]
+		if !known {
+			t.Errorf("%s is not in the expected annotations; say what it promises", tool.Name)
+			continue
+		}
+		got := tool.Annotations
+		if got == nil {
+			t.Errorf("%s reaches the client with no annotations", tool.Name)
+			continue
+		}
+		if got.ReadOnlyHint != want.readOnly || got.IdempotentHint != want.idempotent {
+			t.Errorf("%s: readOnly=%v idempotent=%v, want %v and %v",
+				tool.Name, got.ReadOnlyHint, got.IdempotentHint, want.readOnly, want.idempotent)
+		}
+		if !sameHint(got.DestructiveHint, want.destructive) {
+			t.Errorf("%s: destructive hint is %s, want %s", tool.Name, hint(got.DestructiveHint), hint(want.destructive))
 		}
 	}
 	if len(listed.Tools) != len(memoryTools()) {

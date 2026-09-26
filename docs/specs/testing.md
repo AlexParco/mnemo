@@ -191,6 +191,40 @@ the command in-process would skip the part most likely to be wrong.
   goes to stderr and the session survives it.
 - `mnemo version` prints the version the package carries.
 
+### MCP, the write tools
+
+- Bootstrap says what it created, tells a store with no hub how to get one, and calling it again
+  says there was nothing to do. A machine with no git identity is warned then, not at the first
+  commit weeks later.
+- Creating a project explains its empty pending list; updating one touches only the fields given.
+  Both say the work is not committed.
+- Writing a memory reports where it went and that it is not committed. An existing id needs
+  `overwrite` and the refusal leaves the old body alone. A project that does not exist is refused
+  by name and nothing is written.
+- A secret is refused before anything reaches the disk, for a memory and for a pending list alike,
+  and the refusal never repeats the value.
+- Replacing a pending list hands back what mnemo parsed: every section with its open and done
+  counts, because the file was replaced wholesale.
+- A commit names the sha and the files, says a store with no remote lives only on this machine,
+  reports a stripped `Co-Authored-By` trailer, and a second commit with nothing to do says so.
+- A connection that may read but not write refuses every write tool by saying so, rather than
+  crashing on a store that is not there.
+- End to end through the binary: a whole session — create, write, replace pending, commit — leaves
+  the files a later session reads, and the next load shows the open item and not the finished one.
+
+### Refusing rather than guessing
+
+- A machine with no home directory has nowhere to keep a store: `mnemo serve` refuses, says why,
+  and the directory it was started in is still empty afterwards. Proved against the binary.
+- A store with no path is refused by name, with what to set.
+- A load carries `pending.md` itself, not only the parse of it: the prose and the full text of a
+  long item are in the answer, because the tool that rewrites the file replaces the whole of it.
+- The refusal on an existing memory names both ways out — overwrite for a note still true,
+  supersede for a fact that changed — and superseding keeps both.
+- Waiting too long for the lock is advice, not a failure: another agent is saving and the caller
+  should try again.
+- A failed answer accepts no further blocks, so a refusal is always exactly one.
+
 ### MCP, the server
 
 - A client sees every defined tool, with the same description, and read-only where the definition

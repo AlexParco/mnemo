@@ -1,0 +1,16 @@
+Breaks: the tool that can replace a memory tells a client it is not destructive, so a host that skips confirmation for safe calls approves an overwrite on the agent's word alone.
+Must fail: go test ./internal/mcpserver -run '^TestAClientSeesTheToolsAndTheirShape$'
+
+diff --git a/internal/mcpserver/tools.go b/internal/mcpserver/tools.go
+index e843781..6dec2ae 100644
+--- a/internal/mcpserver/tools.go
++++ b/internal/mcpserver/tools.go
+@@ -246,7 +246,7 @@ func memoryTools() []Definition {
+ 					"mnemo_search_memories first and update the existing note instead of adding a near-duplicate. " +
+ 					"`projects` is for genuinely different projects that share the fact (overlap); parts of a " +
+ 					"single project go in `services`. Writes are not committed — call mnemo_commit afterwards.",
+-				Annotations: destructive(),
++				Annotations: adds(),
+ 				InputSchema: object([]string{"id", "projects", "type", "body"}, schema{
+ 					"id": text("Kebab-case id derived from the content, and the file name. Choose it yourself; " +
+ 						"it must be unique and self-explanatory."),

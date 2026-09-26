@@ -2,12 +2,12 @@ Breaks: older ticked items are left out of a load with nothing saying so, which 
 Must fail: go test ./internal/mcpserver -run '^TestTheAnswerIsBoundedAndTheFileIsNot$'
 
 diff --git a/internal/mcpserver/read.go b/internal/mcpserver/read.go
-index e7abe27..a3e90ce 100644
+index 972c7c5..050d8d6 100644
 --- a/internal/mcpserver/read.go
 +++ b/internal/mcpserver/read.go
-@@ -353,11 +353,7 @@ func buildDetail(loaded memory.ProjectContext) (detail, string) {
- 			"%d of %d memories came back without their body, and %d shared file(s) were cut. "+
- 				"Read any of them in full with mnemo_read_memory.", withoutBody, len(out.Memories), cut))
+@@ -378,11 +378,7 @@ func buildDetail(storeDir string, loaded memory.ProjectContext) (detail, string)
+ 		left = append(left, "pending.md was too long to send back in full, so `pending_file` is cut. Do not rebuild "+
+ 			"the file from it: tell the user, and leave the pending list alone this time.")
  	}
 -	if dropped > 0 {
 -		left = append(left, fmt.Sprintf(

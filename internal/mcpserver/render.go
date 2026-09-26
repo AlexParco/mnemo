@@ -25,7 +25,15 @@ type answer struct {
 }
 
 // say appends one block, formatted.
+//
+// Once an answer has failed it accepts nothing more. A refusal is one block by
+// contract, and without this a handler that chains calls after a failure — the
+// usual shape, `a.data(x).say(y)` — would send a refusal with three blocks, the
+// last two describing a success that did not happen.
 func (a *answer) say(format string, args ...any) *answer {
+	if a.failed {
+		return a
+	}
 	if len(args) == 0 {
 		a.blocks = append(a.blocks, format)
 		return a
@@ -37,6 +45,9 @@ func (a *answer) say(format string, args ...any) *answer {
 // block appends a block already built, skipping an empty one so a caller can
 // add a section conditionally without leaving a hole.
 func (a *answer) block(text string) *answer {
+	if a.failed {
+		return a
+	}
 	if text != "" {
 		a.blocks = append(a.blocks, text)
 	}
@@ -45,12 +56,15 @@ func (a *answer) block(text string) *answer {
 
 // data appends a block of JSON.
 func (a *answer) data(value any) *answer {
+	if a.failed {
+		return a
+	}
 	encoded, err := encode(value)
 	if err != nil {
 		// Encoding our own structs cannot fail for any reason the caller could
 		// act on, so this becomes the unexpected-failure result rather than a
-		// refusal that pretends to be advice.
-		return a.fail("mnemo failed unexpectedly: %v", err)
+		// refusal that pretends to be advice. fail adds the prefix itself.
+		return a.fail("%v", err)
 	}
 	return a.block(encoded)
 }
@@ -61,7 +75,8 @@ func (a *answer) data(value any) *answer {
 func (a *answer) refuse(format string, args ...any) *answer {
 	a.blocks = nil
 	a.failed = true
-	return a.say(format, args...)
+	a.blocks = append(a.blocks, fmt.Sprintf(format, args...))
+	return a
 }
 
 // fail is for what should not happen. It never looks like success, and it never
@@ -69,7 +84,8 @@ func (a *answer) refuse(format string, args ...any) *answer {
 func (a *answer) fail(format string, args ...any) *answer {
 	a.blocks = nil
 	a.failed = true
-	return a.say("mnemo failed unexpectedly: "+format, args...)
+	a.blocks = append(a.blocks, "mnemo failed unexpectedly: "+fmt.Sprintf(format, args...))
+	return a
 }
 
 // result is what the SDK sends.

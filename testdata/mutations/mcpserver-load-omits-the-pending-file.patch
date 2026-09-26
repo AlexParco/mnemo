@@ -1,0 +1,21 @@
+Breaks: a load hands back only mnemo's parse of pending.md, so an agent told to send the merged file back rebuilds it from headings and checkbox lines and silently deletes the user's prose and the end of every long item.
+Must fail: go test ./internal/cli -run '^TestALoadCarriesThePendingFile$'
+
+diff --git a/internal/mcpserver/read.go b/internal/mcpserver/read.go
+index 972c7c5..50beaa9 100644
+--- a/internal/mcpserver/read.go
++++ b/internal/mcpserver/read.go
+@@ -307,13 +307,6 @@ func buildDetail(storeDir string, loaded memory.ProjectContext) (detail, string)
+ 		Memories: []detailMemory{},
+ 		Shared:   []detailShared{},
+ 	}
+-	if raw, err := os.ReadFile(memory.PendingPath(storeDir, project.Slug)); err == nil {
+-		out.PendingFile = string(raw)
+-		if len(out.PendingFile) > pendingBudget {
+-			out.PendingFile, out.PendingTruncated = out.PendingFile[:pendingBudget], true
+-		}
+-	}
+-
+ 	// Every unchecked item comes back, always: they are the work. Ticked ones
+ 	// are capped, counting from the end of the file, which is where the recent
+ 	// ones are.

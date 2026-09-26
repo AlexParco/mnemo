@@ -3,6 +3,7 @@ package mcpserver
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/AlexParco/mnemo/internal/criterion"
@@ -73,7 +74,7 @@ func handleStatus(ctx context.Context, call *Call, args Args) *answer {
 	if call.Autopush {
 		lines = append(lines, "autopush: on — the user has opted into pushing without being asked each time")
 	} else {
-		lines = append(lines, "autopush: off — confirm with the user before calling mnemo_push")
+		lines = append(lines, "autopush: off — confirm with the user before publishing to the hub")
 	}
 	if !exists {
 		lines = append(lines, "", noStore)
@@ -164,7 +165,8 @@ func handleListProjects(ctx context.Context, call *Call, args Args) *answer {
 
 	overview := memory.BuildOverview(call.StoreDir)
 	if len(overview.Projects) == 0 {
-		return a.say("The store has no projects yet. The first one is created by a save.")
+		return a.say("The store has no projects yet. Ask the user which project to create, then create it with " +
+			"mnemo_upsert_project: a write to a slug that does not exist is refused, never created.")
 	}
 
 	rows := []string{
@@ -201,6 +203,10 @@ const (
 	// and it is the answer that is bounded, not the file. The most recent ones
 	// are the ones an agent is about to need.
 	doneBudget = 20
+	// pendingBudget caps the copy of pending.md that comes back for rewriting.
+	// Beyond it the copy is marked as cut, and an agent is told not to send it
+	// back: a partial file written whole would delete the rest.
+	pendingBudget = 64 * 1024
 )
 
 type detailProject struct {
@@ -244,10 +250,18 @@ type detailShared struct {
 }
 
 type detail struct {
-	Project  detailProject   `json:"project"`
-	Pending  []detailSection `json:"pending"`
-	Memories []detailMemory  `json:"memories"`
-	Shared   []detailShared  `json:"shared"`
+	Project detailProject `json:"project"`
+	// PendingFile is pending.md exactly as it is on disk, because the tool that
+	// rewrites it replaces the whole file. The parsed sections below are a
+	// summary — they keep headings and checkbox lines only, drop prose and cut
+	// each item at 100 characters — so an agent that rebuilt the file from them
+	// would silently delete the user's own words.
+	PendingFile string `json:"pending_file"`
+	// PendingTruncated says the file above was cut and must not be sent back.
+	PendingTruncated bool            `json:"pending_truncated,omitempty"`
+	Pending          []detailSection `json:"pending"`
+	Memories         []detailMemory  `json:"memories"`
+	Shared           []detailShared  `json:"shared"`
 }
 
 func handleLoadProject(ctx context.Context, call *Call, args Args) *answer {
@@ -265,7 +279,7 @@ func handleLoadProject(ctx context.Context, call *Call, args Args) *answer {
 	a.block(loaded.Card)
 
 	if args.choice("detail", "full") == "full" {
-		body, omitted := buildDetail(loaded)
+		body, omitted := buildDetail(call.StoreDir, loaded)
 		// The label and the JSON are one block, so that what was left out can be
 		// the third and the machine rule stays last. An agent is told to print
 		// the first block and keep the rest; the fewer of them, the clearer that
@@ -282,7 +296,7 @@ func handleLoadProject(ctx context.Context, call *Call, args Args) *answer {
 
 // buildDetail assembles the second block and the sentence that says what was
 // left out of it.
-func buildDetail(loaded memory.ProjectContext) (detail, string) {
+func buildDetail(storeDir string, loaded memory.ProjectContext) (detail, string) {
 	project := loaded.Project
 	out := detail{
 		Project: detailProject{
@@ -293,6 +307,13 @@ func buildDetail(loaded memory.ProjectContext) (detail, string) {
 		Memories: []detailMemory{},
 		Shared:   []detailShared{},
 	}
+	if raw, err := os.ReadFile(memory.PendingPath(storeDir, project.Slug)); err == nil {
+		out.PendingFile = string(raw)
+		if len(out.PendingFile) > pendingBudget {
+			out.PendingFile, out.PendingTruncated = out.PendingFile[:pendingBudget], true
+		}
+	}
+
 	// Every unchecked item comes back, always: they are the work. Ticked ones
 	// are capped, counting from the end of the file, which is where the recent
 	// ones are.
@@ -352,6 +373,10 @@ func buildDetail(loaded memory.ProjectContext) (detail, string) {
 		left = append(left, fmt.Sprintf(
 			"%d of %d memories came back without their body, and %d shared file(s) were cut. "+
 				"Read any of them in full with mnemo_read_memory.", withoutBody, len(out.Memories), cut))
+	}
+	if out.PendingTruncated {
+		left = append(left, "pending.md was too long to send back in full, so `pending_file` is cut. Do not rebuild "+
+			"the file from it: tell the user, and leave the pending list alone this time.")
 	}
 	if dropped > 0 {
 		left = append(left, fmt.Sprintf(

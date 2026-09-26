@@ -1,11 +1,11 @@
-Breaks: writes do not take the store lock, so two saves at once collide in git's index.
-Must fail: go test ./internal/store -run '^TestConcurrentSavesDoNotCollideInGit$'
+Breaks: waiting too long for the store's lock is reported as mnemo failing, so an agent that only needed to wait a moment and retry stops instead.
+Must fail: go test ./internal/store -run '^TestWaitingTooLongForTheLockIsAdvice$'
 
 diff --git a/internal/store/store.go b/internal/store/store.go
-index 4986408..2158d76 100644
+index 4986408..1763614 100644
 --- a/internal/store/store.go
 +++ b/internal/store/store.go
-@@ -113,12 +113,8 @@ func (s *Store) Today() string { return s.now().Format("2006-01-02") }
+@@ -113,12 +113,7 @@ func (s *Store) Today() string { return s.now().Format("2006-01-02") }
  // thing to do. Reported as an unexpected failure it would read as mnemo being
  // broken, and the caller would stop instead of retrying.
  func (s *Store) hold(ctx context.Context, fn func() error) error {
@@ -15,8 +15,7 @@ index 4986408..2158d76 100644
 -			"Something else is saving right now: wait a moment and try again.", err)
 -	}
 -	return err
-+	_ = ctx
-+	return fn()
++	return s.locker.Hold(ctx, s.Dir, fn)
  }
  
  // tempPrefix marks the files an interrupted write leaves behind. It starts with

@@ -78,8 +78,14 @@ func (s *Store) WriteMemory(ctx context.Context, in MemoryInput) (MemoryResult, 
 		existing, err := os.ReadFile(path)
 		exists := err == nil
 		if exists && !in.Overwrite {
-			return refuse("A memory '%s' already exists. Read it with mnemo_read_memory, merge what you want to keep, "+
-				"and write it again with overwrite: true. Writing a fresh body would drop whatever it already holds.", in.ID)
+			// Both ways out are named. The refusal used to offer only overwrite,
+			// which is the wrong one whenever the fact itself changed, and it is
+			// the one an agent reaches for because it is the one it was told.
+			return refuse("A memory '%s' already exists. If the note is still true and you are only correcting "+
+				"it, read it with mnemo_read_memory, merge what you want to keep, and write it again with "+
+				"overwrite: true — a fresh body drops whatever it already holds. If the fact has CHANGED, do not "+
+				"overwrite: write a new memory under a new id with supersedes: '%s', so both versions survive and "+
+				"someone asking why the answer changed can see it.", in.ID, in.ID)
 		}
 
 		if in.Supersedes != "" {

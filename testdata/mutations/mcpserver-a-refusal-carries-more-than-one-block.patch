@@ -1,0 +1,17 @@
+Breaks: a handler that keeps writing after a failure sends a refusal with several blocks, the later ones describing a success that did not happen.
+Must fail: go test ./internal/mcpserver -run '^TestAFailedAnswerAcceptsNothingMore$'
+
+diff --git a/internal/mcpserver/render.go b/internal/mcpserver/render.go
+index de03af3..f8640dd 100644
+--- a/internal/mcpserver/render.go
++++ b/internal/mcpserver/render.go
+@@ -31,9 +31,6 @@ type answer struct {
+ // usual shape, `a.data(x).say(y)` — would send a refusal with three blocks, the
+ // last two describing a success that did not happen.
+ func (a *answer) say(format string, args ...any) *answer {
+-	if a.failed {
+-		return a
+-	}
+ 	if len(args) == 0 {
+ 		a.blocks = append(a.blocks, format)
+ 		return a

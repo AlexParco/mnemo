@@ -1,0 +1,20 @@
+Breaks: with no home directory mnemo serves anyway, so every store path is relative and the user's memory is created inside whatever repository the agent was started in — and with a hub set, the whole of it is cloned in there.
+Must fail: go test ./internal/cli -run '^TestWithNowhereToPutTheStoreItRefusesToServe$'
+
+diff --git a/internal/cli/cli.go b/internal/cli/cli.go
+index b74f95d..f004757 100644
+--- a/internal/cli/cli.go
++++ b/internal/cli/cli.go
+@@ -94,12 +94,6 @@ func serveCommand() *cobra.Command {
+ 			if err != nil {
+ 				return err
+ 			}
+-			// Refuse rather than serve against nowhere. Serving would answer
+-			// every call successfully while writing into the directory the
+-			// agent was started in.
+-			if _, err := resolved.RequireStore(); err != nil {
+-				return err
+-			}
+ 			// The store is not created here. A chat that only reads gets an
+ 			// answer saying there is nothing saved yet, which is true, and the
+ 			// first write is what brings a store into being.

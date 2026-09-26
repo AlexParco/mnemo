@@ -7,6 +7,7 @@ import (
 	"github.com/AlexParco/mnemo/internal/config"
 	"github.com/AlexParco/mnemo/internal/gitx"
 	"github.com/AlexParco/mnemo/internal/memory"
+	"github.com/AlexParco/mnemo/internal/store"
 )
 
 // Call is the context one tool call runs in: whose files, which machine, which
@@ -33,11 +34,18 @@ type Call struct {
 	// ServedBy names the machine hosting the store when the call came over HTTP,
 	// and is empty for a local call.
 	ServedBy string
+
+	// store is what the write tools act through. It is built by whoever builds
+	// the call — the command locally, the server for a request — because
+	// building one means choosing where the lock lives, and that is a decision
+	// about the machine rather than about the tools.
+	store *store.Store
 }
 
 // Local builds the context of a call answered by this machine on its own files.
-func Local(settings config.Settings) *Call {
+func Local(settings config.Settings, writable *store.Store) *Call {
 	return &Call{
+		store:    writable,
 		StoreDir: settings.Paths.Store,
 		Machine:  settings.Machine,
 		Agent:    settings.Agent,
@@ -46,6 +54,19 @@ func Local(settings config.Settings) *Call {
 		Remote:   settings.Remote,
 		Autopush: settings.Autopush,
 	}
+}
+
+// writable is the store, or a refusal for a caller that has none. A read-only
+// context is a real state — the relay builds one for a client that may not
+// write — and the tools have to say so rather than crash.
+func (c *Call) writable() (*store.Store, error) {
+	if c.store == nil {
+		return nil, errNotWritable
+	}
+	if c.store.Dir == "" {
+		return nil, errNowhere
+	}
+	return c.store, nil
 }
 
 // repo answers git questions about the store.
@@ -101,6 +122,36 @@ func (a Args) num(name string, fallback int) int {
 		}
 	}
 	return fallback
+}
+
+// has reports whether the caller sent this argument at all, which is not the
+// same as sending it empty: a description set to "" clears it, and a description
+// left out leaves it alone.
+func (a Args) has(name string) bool {
+	_, given := a[name]
+	return given
+}
+
+func (a Args) flag(name string) bool {
+	value, _ := a[name].(bool)
+	return value
+}
+
+// list reads an array of strings. Absent comes back nil and empty comes back
+// empty, because the store tells those apart: nil leaves a field alone, an
+// empty list clears it.
+func (a Args) list(name string) []string {
+	raw, ok := a[name].([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]string, 0, len(raw))
+	for _, value := range raw {
+		if text, ok := value.(string); ok {
+			out = append(out, text)
+		}
+	}
+	return out
 }
 
 // choice reads a string that the schema constrains to a small set, falling back

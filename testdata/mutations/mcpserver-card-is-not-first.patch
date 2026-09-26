@@ -2,19 +2,19 @@ Breaks: the detail block is put before the card, so an agent told to print the f
 Must fail: go test ./internal/mcpserver -run '^TestTheCardComesFirst$'
 
 diff --git a/internal/mcpserver/read.go b/internal/mcpserver/read.go
-index e7abe27..4cdb53b 100644
+index 972c7c5..37b3617 100644
 --- a/internal/mcpserver/read.go
 +++ b/internal/mcpserver/read.go
-@@ -262,8 +262,6 @@ func handleLoadProject(ctx context.Context, call *Call, args Args) *answer {
+@@ -276,8 +276,6 @@ func handleLoadProject(ctx context.Context, call *Call, args Args) *answer {
  	if !ok {
  		return a.refuse("%s", unknownProject(call.StoreDir, slug))
  	}
 -	a.block(loaded.Card)
 -
  	if args.choice("detail", "full") == "full" {
- 		body, omitted := buildDetail(loaded)
+ 		body, omitted := buildDetail(call.StoreDir, loaded)
  		// The label and the JSON are one block, so that what was left out can be
-@@ -277,6 +275,7 @@ func handleLoadProject(ctx context.Context, call *Call, args Args) *answer {
+@@ -291,6 +289,7 @@ func handleLoadProject(ctx context.Context, call *Call, args Args) *answer {
  		a.block("Detail (do not print unless asked):\n" + encoded)
  		a.block(omitted)
  	}

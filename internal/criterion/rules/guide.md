@@ -15,6 +15,10 @@ rather than guessing one. Before answering "what did we decide about X", search 
 
 {{PENDING_CRITERION}}
 
+Write each fact with `mnemo_write_memory`, one fact per call, and the project's living state with
+`mnemo_write_pending`. Read an existing note with `mnemo_read_memory` before replacing it. A project the user has
+confirmed is created with `mnemo_upsert_project`: a write to a slug that does not exist is refused, never created.
+
 Writes are not committed as they happen. Write what the session produced, then call `mnemo_commit` once, so one
 session is one commit. Pushing is separate again: until `mnemo_push` runs, the memory is only on this machine.
 
