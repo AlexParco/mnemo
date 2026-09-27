@@ -1,0 +1,14 @@
+{
+  "name": "mnemo",
+  "owner": {
+    "name": "AlexParco",
+    "url": "https://github.com/AlexParco"
+  },
+  "plugins": [
+    {
+      "name": "mnemo",
+      "source": "./plugin",
+      "description": "Shared memory and a mailbox for coding agents: plain-text notes in a git store, synced across your machines."
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+Breaks: a tool's config file is written straight to its destination, so a tool reading it at that moment sees an empty or half-written file.
+Must fail: go test ./internal/integration -run '^TestEditsReplaceTheFileByRenaming$'
+
+diff --git a/internal/integration/integration.go b/internal/integration/integration.go
+index 9cc8185..1ab9b29 100644
+--- a/internal/integration/integration.go
++++ b/internal/integration/integration.go
+@@ -132,17 +132,8 @@ func write(path string, content []byte) error {
+ 	if err := os.MkdirAll(dir, 0o755); err != nil {
+ 		return fmt.Errorf("creating %s: %w", dir, err)
+ 	}
+-	suffix := make([]byte, 6)
+-	rand.Read(suffix)
+-	temp := filepath.Join(dir, "."+filepath.Base(path)+".mnemo-tmp-"+hex.EncodeToString(suffix))
+-	if err := os.WriteFile(temp, content, 0o644); err != nil {
+-		return fmt.Errorf("writing %s: %w", temp, err)
+-	}
+-	if err := os.Rename(temp, path); err != nil {
+-		os.Remove(temp)
+-		return fmt.Errorf("replacing %s: %w", path, err)
+-	}
+-	return nil
++	_, _ = rand.Read, hex.EncodeToString
++	return os.WriteFile(path, content, 0o644)
+ }
+ 
+ func read(path string) (string, bool, error) {

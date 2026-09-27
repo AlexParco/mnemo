@@ -39,7 +39,7 @@ func Execute(ctx context.Context) int {
 	root.PersistentFlags().StringVar(&flags.Machine, "machine", "", "label for this machine")
 	root.PersistentFlags().StringVar(&flags.Lang, "lang", "", "language for the card: en or es")
 
-	root.AddCommand(serveCommand(), versionCommand())
+	root.AddCommand(configCommand(), mcpCommand(), serveCommand(), versionCommand())
 
 	if err := root.ExecuteContext(ctx); err != nil {
 		fmt.Fprintln(os.Stderr, "mnemo:", err)

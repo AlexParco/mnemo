@@ -1,0 +1,16 @@
+Breaks: `mnemo config` prints the server token, putting a credential into terminals, transcripts and screenshots.
+Must fail: go test ./internal/cli -run '^TestConfigSaysWhereEveryValueCameFrom$'
+
+diff --git a/internal/cli/config.go b/internal/cli/config.go
+index 789c0aa..52d1f41 100644
+--- a/internal/cli/config.go
++++ b/internal/cli/config.go
+@@ -62,7 +62,7 @@ func showConfig(out io.Writer, file *config.File, resolved config.Settings) erro
+ 	// transcripts and screenshots.
+ 	if file.Server.Token != "" || file.Server.Port != 0 {
+ 		rows = append(rows, [3]string{"server.port", fmt.Sprintf("%d", file.Server.Port), "config file"})
+-		rows = append(rows, [3]string{"server.token", config.Mask(file.Server.Token), "config file"})
++		rows = append(rows, [3]string{"server.token", file.Server.Token, "config file"})
+ 	}
+ 	for _, remote := range file.Remotes {
+ 		state := "disconnected"

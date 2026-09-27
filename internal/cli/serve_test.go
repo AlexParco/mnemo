@@ -86,6 +86,9 @@ func machine(t *testing.T, withStore bool) (home string, env []string) {
 
 func write(t *testing.T, path, body string) {
 	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -438,5 +441,94 @@ func TestTheBinaryServesEveryMemoryTool(t *testing.T) {
 			names = append(names, name)
 		}
 		t.Errorf("%d tools served, want the 17 of the memory half: %q", len(listed.Tools), names)
+	}
+}
+
+// `mnemo config` answers one question: why is my memory where it is. So every
+// line has to say where the value came from, and the token must never appear.
+func TestConfigSaysWhereEveryValueCameFrom(t *testing.T) {
+	home, env := machine(t, false)
+	configFile := filepath.Join(home, "config", "mnemo", "config.toml")
+	write(t, configFile, "lang = \"es\"\n\n[store]\nremote = \"user@hub:mnemo.git\"\n\n[server]\nport = 7433\ntoken = \"not-a-real-token\"\n")
+
+	run := func(args ...string) string {
+		t.Helper()
+		command := exec.Command(built(t), args...)
+		command.Env = env
+		out, err := command.CombinedOutput()
+		if err != nil {
+			t.Fatalf("mnemo %v: %v\n%s", args, err, out)
+		}
+		return string(out)
+	}
+
+	out := run("config")
+	for _, want := range []string{
+		"machine", "testbox", "environment (MNEMO_MACHINE)",
+		"lang", "es", "config file",
+		"store.remote", "user@hub:mnemo.git",
+		"store.autopush", "false", "default",
+		"config file", configFile,
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("config does not mention %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "not-a-real-token") {
+		t.Errorf("the token was printed:\n%s", out)
+	}
+	if !strings.Contains(out, "server.token") || !strings.Contains(out, "set") {
+		t.Errorf("the token is not reported as set:\n%s", out)
+	}
+
+	// Setting says the change does not reach a chat that is already open, which
+	// is the surprise that otherwise arrives much later.
+	setting := run("config", "set", "machine", "Other Box")
+	if !strings.Contains(setting, "already open keeps the old value") {
+		t.Errorf("set does not warn about open chats:\n%s", setting)
+	}
+	if body := read(t, configFile); !strings.Contains(body, "other-box") {
+		t.Errorf("the label was not stored normalised:\n%s", body)
+	}
+}
+
+func read(t *testing.T, path string) string {
+	t.Helper()
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("reading %s: %v", path, err)
+	}
+	return string(body)
+}
+
+// Registering is editing a file somebody else owns, so the binary has to leave
+// everything it did not write exactly as it was.
+func TestTheBinaryRegistersItselfWithoutDamagingTheFile(t *testing.T) {
+	_, env := machine(t, false)
+	work := t.TempDir()
+	codex := filepath.Join(work, "codex", "config.toml")
+	write(t, codex, "# keep me\nmodel = \"a-model\"\n")
+
+	command := exec.Command(built(t), "mcp", "add", "codex")
+	command.Env = append(env, "CODEX_HOME="+filepath.Join(work, "codex"))
+	out, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("mcp add codex: %v\n%s", err, out)
+	}
+	if !strings.Contains(string(out), "added") {
+		t.Errorf("the output reads:\n%s", out)
+	}
+
+	after := read(t, codex)
+	if !strings.Contains(after, "# keep me") {
+		t.Errorf("the comment was lost:\n%s", after)
+	}
+	if !strings.Contains(after, "[mcp_servers.mnemo]") {
+		t.Errorf("the entry is not there:\n%s", after)
+	}
+	// The entry points at a real mnemo, absolutely: a tool started from a
+	// desktop launcher may not have ~/.local/bin on its PATH.
+	if !strings.Contains(after, built(t)) {
+		t.Errorf("the entry does not point at this binary:\n%s", after)
 	}
 }

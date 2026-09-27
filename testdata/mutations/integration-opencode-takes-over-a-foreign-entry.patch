@@ -1,0 +1,16 @@
+Breaks: an mcp.mnemo a person wrote themselves is overwritten instead of reported.
+Must fail: go test ./internal/integration -run '^TestOpencode$'
+
+diff --git a/internal/integration/opencode.go b/internal/integration/opencode.go
+index 2a3c3c3..894816f 100644
+--- a/internal/integration/opencode.go
++++ b/internal/integration/opencode.go
+@@ -64,7 +64,7 @@ func AddOpencode(path, mnemo string) (Result, error) {
+ 		return result, nil
+ 	}
+ 
+-	if existing := gjson.Get(content, "mcp.mnemo"); existing.Exists() && !oursOpencode(existing, mnemo) {
++	if false {
+ 		result.Outcome = Refused
+ 		result.Advice = "There is already an mcp.mnemo in this file that does not look like mnemo's.\n" +
+ 			"Remove it and run this again."

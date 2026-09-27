@@ -1,0 +1,17 @@
+Breaks: unsetting autopush writes false back instead of removing it, so the default never applies again and `mnemo config` reports a decision the user has just undone.
+Must fail: go test ./internal/config -run '^TestUnsettingBringsTheDefaultBack$'
+
+diff --git a/internal/config/file.go b/internal/config/file.go
+index 24f2087..688c780 100644
+--- a/internal/config/file.go
++++ b/internal/config/file.go
+@@ -134,9 +134,6 @@ func LoadFrom(path string) (*File, error) {
+ 
+ // Has reports whether the file actually wrote this key, dotted.
+ func (f *File) Has(key string) bool {
+-	if slices.Contains(f.undefined, key) {
+-		return false
+-	}
+ 	return f.defined.IsDefined(strings.Split(key, ".")...)
+ }
+ 

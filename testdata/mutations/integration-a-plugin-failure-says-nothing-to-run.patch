@@ -1,0 +1,15 @@
+Breaks: when installing the plugin fails, the user is left without the two commands they could run themselves, and without what the tool said went wrong.
+Must fail: go test ./internal/integration -run '^TestClaudePluginFailuresSayWhatToRun$'
+
+diff --git a/internal/integration/claude.go b/internal/integration/claude.go
+index 8c6faea..c0afe7e 100644
+--- a/internal/integration/claude.go
++++ b/internal/integration/claude.go
+@@ -57,7 +57,6 @@ func AddClaude(run func(args ...string) (string, error)) (Result, error) {
+ 	}
+ 	if err != nil {
+ 		result.Outcome, result.Detail = Refused, "installing the plugin failed"
+-		result.Advice = strings.TrimSpace(out) + "\nRun these by hand:\n" + ClaudeCommands()
+ 		return result, nil
+ 	}
+ 	result.Outcome, result.Detail = Added, PluginRef

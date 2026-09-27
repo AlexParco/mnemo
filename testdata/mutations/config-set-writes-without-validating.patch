@@ -1,0 +1,20 @@
+Breaks: a setting is written unvalidated, so a language mnemo cannot render, or an autopush that is neither true nor false, is read by every later command as if it were meant.
+Must fail: go test ./internal/config -run '^TestSettingIsValidatedBeforeItIsWritten$'
+
+diff --git a/internal/config/file.go b/internal/config/file.go
+index 24f2087..ea8ccac 100644
+--- a/internal/config/file.go
++++ b/internal/config/file.go
+@@ -345,11 +345,7 @@ func (f *File) Set(key, value string) error {
+ 		// Stored normalised, so what the file says is what every command reads.
+ 		f.Machine = label
+ 	case "lang":
+-		lang := strings.ToLower(strings.TrimSpace(value))
+-		if !slices.Contains(languages, lang) {
+-			return fmt.Errorf("lang must be one of %s, not %q", strings.Join(languages, ", "), value)
+-		}
+-		f.Lang = lang
++		f.Lang = value
+ 	case "store.dir":
+ 		f.Store.Dir = value
+ 	case "store.remote":

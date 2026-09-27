@@ -307,6 +307,39 @@ The state a sync leaves behind, and the one where a wrong move loses a session.
   broken server.
 - A handler that panics is one refusal reading `mnemo failed unexpectedly: ...`, not a dead server.
 
+### Registering mnemo in a tool
+
+Every one of these is a way to damage a file mnemo did not write.
+
+- Codex keeps its comments, its own settings and its trailing comments; the edit is textual for
+  exactly that reason, and what is written parses as TOML and says what it should before anything
+  reaches the disk.
+- Adding twice says nothing changed. A binary that moved rewrites the one entry and does not
+  duplicate it. Removing leaves the person's own settings and says nothing to remove the second
+  time.
+- An entry mnemo did not write is refused, named, and left byte-identical — for Codex and for
+  opencode, adding and removing alike.
+- An opencode file that is not plain JSON is left alone, and the refusal shows the entry to paste.
+  A missing file is created with its schema.
+- The copy kept before the first change is of the file as the person wrote it, and a later run does
+  not replace it with mnemo's own output: the run that needs it is usually the one after the one
+  that made it.
+- Every file is replaced by a rename, proved with a hard link.
+- The `.mcp.json` route says what it does not give: no mailbox monitor, no `/mnemo:*` commands.
+- A plugin install that fails hands back what the tool said and the two commands to run by hand.
+  A marketplace that is already added counts as success.
+
+### Settings, from the terminal
+
+- `mnemo config` names where every value came from, prints the token as `set` and never as itself,
+  and names the config file.
+- `config set` validates before writing: a language mnemo cannot render, an autopush that is
+  neither true nor false, and a machine label that normalises to nothing are all refused. A label
+  is stored normalised. A section another command owns is refused by name.
+- A key that is not a setting is refused and the answer lists the ones that are.
+- `config unset` really removes the key, so the default applies again and the origin says so.
+- `set` says the change does not reach a chat that is already open.
+
 ### Card
 
 - The render equals its expected file, byte for byte, for every fixture project, in both languages,

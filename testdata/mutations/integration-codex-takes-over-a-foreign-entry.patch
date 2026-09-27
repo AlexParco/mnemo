@@ -1,0 +1,16 @@
+Breaks: an mcp_servers.mnemo a person wrote themselves is replaced, so a configuration mnemo did not make is silently changed under them.
+Must fail: go test ./internal/integration -run '^TestCodexWillNotTakeOverSomebodyElsesEntry$'
+
+diff --git a/internal/integration/codex.go b/internal/integration/codex.go
+index b556989..2790e21 100644
+--- a/internal/integration/codex.go
++++ b/internal/integration/codex.go
+@@ -49,7 +49,7 @@ func AddCodex(path, mnemo string) (Result, error) {
+ 
+ 	entry := codexEntry(mnemo)
+ 	before, after, marked := split(content)
+-	if !marked && mentionsCodexMnemo(content) {
++	if false {
+ 		// Somebody else's entry. Rewriting it would silently take over a
+ 		// configuration mnemo did not make.
+ 		result.Outcome, result.Detail = Refused, path

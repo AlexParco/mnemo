@@ -1,0 +1,22 @@
+Breaks: Codex's config is rewritten by a TOML encoder, so every comment and the file's own ordering are lost — a person finds their configuration reflowed and their notes gone because mnemo added one entry.
+Must fail: go test ./internal/integration -run '^TestCodexKeepsWhatThePersonWrote$'
+
+diff --git a/internal/integration/codex.go b/internal/integration/codex.go
+index b556989..197ad8d 100644
+--- a/internal/integration/codex.go
++++ b/internal/integration/codex.go
+@@ -59,7 +59,13 @@ func AddCodex(path, mnemo string) (Result, error) {
+ 	}
+ 
+ 	updated := entry + "\n"
+-	if marked {
++	if true {
++		var parsed map[string]any
++		toml.Decode(content, &parsed)
++		var out strings.Builder
++		toml.NewEncoder(&out).Encode(parsed)
++		updated = out.String() + "\n" + entry + "\n"
++	} else if marked {
+ 		if strings.TrimSpace(middleOf(content)) == strings.TrimSpace(entry) {
+ 			result.Outcome = Current
+ 			return result, nil

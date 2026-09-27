@@ -1,0 +1,19 @@
+Breaks: a textual edit that produced invalid TOML is written anyway, so Codex cannot start and the cause is a file mnemo changed.
+Must fail: go test ./internal/integration -run '^TestCodexKeepsWhatThePersonWrote$'
+
+diff --git a/internal/integration/codex.go b/internal/integration/codex.go
+index b556989..0f8b516 100644
+--- a/internal/integration/codex.go
++++ b/internal/integration/codex.go
+@@ -71,10 +71,7 @@ func AddCodex(path, mnemo string) (Result, error) {
+ 
+ 	// Parsed before anything is written, and checked to say what it should: a
+ 	// textual edit that produced invalid TOML would leave Codex unable to start.
+-	if err := verifyCodex(updated, mnemo); err != nil {
+-		result.Outcome, result.Advice = Refused, err.Error()+"\nNothing was written."
+-		return result, nil
+-	}
++	updated = "this is not toml at all\n" + updated
+ 	if existed {
+ 		if err := backup(path); err != nil {
+ 			return result, err

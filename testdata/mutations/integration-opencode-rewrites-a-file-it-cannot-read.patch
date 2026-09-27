@@ -1,0 +1,21 @@
+Breaks: an opencode config with comments in it — which opencode accepts — is replaced by plain JSON, so everything mnemo did not understand is deleted.
+Must fail: go test ./internal/integration -run '^TestOpencode$'
+
+diff --git a/internal/integration/opencode.go b/internal/integration/opencode.go
+index 2a3c3c3..cb87ab4 100644
+--- a/internal/integration/opencode.go
++++ b/internal/integration/opencode.go
+@@ -56,13 +56,6 @@ func AddOpencode(path, mnemo string) (Result, error) {
+ 		return result, nil
+ 	}
+ 
+-	if !gjson.Valid(content) {
+-		// A file with comments, or JSON5. Rewriting it would destroy something
+-		// opencode accepts and mnemo does not understand.
+-		result.Outcome = Refused
+-		result.Advice = "This file is not plain JSON, so mnemo left it alone. Add this by hand:\n" + string(shown)
+-		return result, nil
+-	}
+ 
+ 	if existing := gjson.Get(content, "mcp.mnemo"); existing.Exists() && !oursOpencode(existing, mnemo) {
+ 		result.Outcome = Refused

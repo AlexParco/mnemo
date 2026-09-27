@@ -1,0 +1,20 @@
+{
+  "name": "mnemo",
+  "version": "0.5.0",
+  "description": "Persistent per-project memory for coding agents. Plain-text notes in a git store of your own, shared across your machines.",
+  "author": {
+    "name": "AlexParco",
+    "url": "https://github.com/AlexParco"
+  },
+  "homepage": "https://github.com/AlexParco/mnemo",
+  "repository": "https://github.com/AlexParco/mnemo",
+  "license": "MIT",
+  "keywords": ["memory", "mcp", "context", "git"],
+  "mcpServers": {
+    "mnemo": {
+      "command": "mnemo",
+      "args": ["serve"],
+      "env": { "MNEMO_TOOL": "claude" }
+    }
+  }
+}

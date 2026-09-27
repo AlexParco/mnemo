@@ -6,10 +6,13 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/AlexParco/mnemo/internal/memory"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/BurntSushi/toml"
@@ -38,6 +41,9 @@ type File struct {
 	// touched marks a key a caller set deliberately, which is how `autopush =
 	// false` written on purpose is told from a key that was never there.
 	touched map[string]bool
+	// undefined are keys an unset removed, so Has stops reporting them even
+	// though the parsed file still carries them.
+	undefined []string
 	// extra holds the keys mnemo does not know about. A person may edit this file
 	// by hand, and a setting from a newer version, or a note to themselves, must
 	// survive mnemo rewriting the file. Known keys are stripped out at load so
@@ -128,6 +134,9 @@ func LoadFrom(path string) (*File, error) {
 
 // Has reports whether the file actually wrote this key, dotted.
 func (f *File) Has(key string) bool {
+	if slices.Contains(f.undefined, key) {
+		return false
+	}
 	return f.defined.IsDefined(strings.Split(key, ".")...)
 }
 
@@ -302,4 +311,102 @@ func split(key string) (head, rest string) {
 		}
 	}
 	return key, ""
+}
+
+// settable are the keys `mnemo config set` may write. The rest of the file is
+// written by the commands that own it.
+var settable = []string{"machine", "lang", "store.dir", "store.remote", "store.autopush", "mailbox.dir"}
+
+// managed says which command owns a key a person tried to set by hand.
+var managed = map[string]string{
+	"server":  "mnemo server setup",
+	"remotes": "mnemo connect",
+}
+
+// Settable lists the keys a person may set, in the order they are printed.
+func Settable() []string { return append([]string(nil), settable...) }
+
+// Set writes one key, validated. It does not save; the caller does, so a command
+// that sets several keys writes the file once.
+//
+// Validation happens here rather than in the command, because a value that
+// reaches the file unvalidated is read by every later command as if it were
+// meant: `lang = "fr"` becomes a warning on every connection for ever.
+func (f *File) Set(key, value string) error {
+	if owner, ok := managed[strings.SplitN(key, ".", 2)[0]]; ok {
+		return fmt.Errorf("%s is managed by %s, not by config set", key, owner)
+	}
+	switch key {
+	case "machine":
+		label := memory.NormalizeMachine(value)
+		if label == "" {
+			return fmt.Errorf("%q does not give a usable machine label: it must have letters or digits in it", value)
+		}
+		// Stored normalised, so what the file says is what every command reads.
+		f.Machine = label
+	case "lang":
+		lang := strings.ToLower(strings.TrimSpace(value))
+		if !slices.Contains(languages, lang) {
+			return fmt.Errorf("lang must be one of %s, not %q", strings.Join(languages, ", "), value)
+		}
+		f.Lang = lang
+	case "store.dir":
+		f.Store.Dir = value
+	case "store.remote":
+		f.Store.Remote = value
+	case "store.autopush":
+		on, err := strconv.ParseBool(strings.ToLower(strings.TrimSpace(value)))
+		if err != nil {
+			return fmt.Errorf("store.autopush must be true or false, not %q", value)
+		}
+		f.SetAutopush(on)
+	case "mailbox.dir":
+		f.Mailbox.Dir = value
+	default:
+		return fmt.Errorf("%s is not a setting. The ones you can set are: %s",
+			key, strings.Join(settable, ", "))
+	}
+	return nil
+}
+
+// Unset removes one key, so the default applies again.
+func (f *File) Unset(key string) error {
+	if owner, ok := managed[strings.SplitN(key, ".", 2)[0]]; ok {
+		return fmt.Errorf("%s is managed by %s, not by config unset", key, owner)
+	}
+	if !slices.Contains(settable, key) {
+		return fmt.Errorf("%s is not a setting. The ones you can set are: %s", key, strings.Join(settable, ", "))
+	}
+	switch key {
+	case "machine":
+		f.Machine = ""
+	case "lang":
+		f.Lang = ""
+	case "store.dir":
+		f.Store.Dir = ""
+	case "store.remote":
+		f.Store.Remote = ""
+	case "store.autopush":
+		f.Store.Autopush = false
+		delete(f.touched, "store.autopush")
+		f.forget("store.autopush")
+	case "mailbox.dir":
+		f.Mailbox.Dir = ""
+	}
+	return nil
+}
+
+// forget makes Has report false for a key the file used to carry, so unsetting
+// autopush really removes it rather than writing false back.
+func (f *File) forget(key string) {
+	f.undefined = append(f.undefined, key)
+}
+
+// Mask is what a token looks like when printed. The value never appears: a
+// config listing goes into terminals, transcripts and screenshots.
+func Mask(value string) string {
+	if value == "" {
+		return ""
+	}
+	return "set"
 }

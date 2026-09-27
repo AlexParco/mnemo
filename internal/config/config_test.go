@@ -633,3 +633,125 @@ func TestSavingReplacesTheFileByRenaming(t *testing.T) {
 		t.Errorf("the witness holds neither version:\n%s", body)
 	}
 }
+
+// A value that reaches the file unvalidated is read by every later command as
+// if it were meant: `lang = "fr"` becomes a warning on every connection for
+// ever, and nobody remembers typing it.
+func TestSettingIsValidatedBeforeItIsWritten(t *testing.T) {
+	isolate(t)
+	file := write(t, "")
+
+	t.Run("a language mnemo cannot render", func(t *testing.T) {
+		if err := file.Set("lang", "fr"); err == nil {
+			t.Fatal("fr was accepted")
+		} else if !strings.Contains(err.Error(), "en, es") {
+			t.Errorf("the message does not say what is allowed: %v", err)
+		}
+	})
+
+	t.Run("autopush is a yes or a no", func(t *testing.T) {
+		if err := file.Set("store.autopush", "maybe"); err == nil {
+			t.Fatal("maybe was accepted")
+		}
+		if err := file.Set("store.autopush", "false"); err != nil {
+			t.Fatal(err)
+		}
+		// Written, because off chosen is a decision, and reported as one.
+		if err := file.Save(); err != nil {
+			t.Fatal(err)
+		}
+		if body := read(t, file.Path()); !strings.Contains(body, "autopush = false") {
+			t.Errorf("a deliberate off was not written:\n%s", body)
+		}
+	})
+
+	t.Run("a machine label is stored normalised", func(t *testing.T) {
+		if err := file.Set("machine", "My Laptop"); err != nil {
+			t.Fatal(err)
+		}
+		if file.Machine != "my-laptop" {
+			t.Errorf("machine is %q, want it normalised so every command reads the same label", file.Machine)
+		}
+		if err := file.Set("machine", "!!!"); err == nil {
+			t.Error("a label that normalises to nothing was accepted")
+		}
+	})
+
+	t.Run("the sections other commands own", func(t *testing.T) {
+		for key, owner := range map[string]string{
+			"server.token":    "mnemo server setup",
+			"server.port":     "mnemo server setup",
+			"remotes":         "mnemo connect",
+			"remotes.machine": "mnemo connect",
+		} {
+			err := file.Set(key, "x")
+			if err == nil {
+				t.Errorf("%s was accepted", key)
+				continue
+			}
+			if !strings.Contains(err.Error(), owner) {
+				t.Errorf("setting %s does not name %s: %v", key, owner, err)
+			}
+		}
+	})
+
+	t.Run("a key that is not a setting names the ones that are", func(t *testing.T) {
+		err := file.Set("stroe.dir", "/somewhere")
+		if err == nil {
+			t.Fatal("a misspelt key was accepted")
+		}
+		for _, want := range []string{"store.dir", "machine", "lang"} {
+			if !strings.Contains(err.Error(), want) {
+				t.Errorf("the message does not list %s: %v", want, err)
+			}
+		}
+	})
+}
+
+// Unsetting really removes the key, so the default applies again rather than
+// the value being written back as false.
+func TestUnsettingBringsTheDefaultBack(t *testing.T) {
+	isolate(t)
+	file := write(t, "lang = \"es\"\n\n[store]\nautopush = true\nremote = \"somewhere\"\n")
+
+	for _, key := range []string{"lang", "store.autopush", "store.remote"} {
+		if err := file.Unset(key); err != nil {
+			t.Fatalf("unsetting %s: %v", key, err)
+		}
+	}
+	if err := file.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	body := read(t, file.Path())
+	for _, gone := range []string{"lang", "autopush", "remote"} {
+		if strings.Contains(body, gone) {
+			t.Errorf("%s survived the unset:\n%s", gone, body)
+		}
+	}
+	again, err := LoadFrom(file.Path())
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolved := Resolve(again, Overrides{})
+	if resolved.Lang != "en" || resolved.Autopush || resolved.Remote != "" {
+		t.Errorf("settings = %+v, want the defaults back", resolved)
+	}
+	if s := resolved.Source("autopush"); s.String() != "default" {
+		t.Errorf("autopush still claims to come from %s", s)
+	}
+
+	if err := file.Unset("server.token"); err == nil {
+		t.Error("a managed key was unset")
+	}
+}
+
+// A config listing goes into terminals, transcripts and screenshots.
+func TestATokenIsNeverItsOwnValue(t *testing.T) {
+	if got := Mask("a-real-looking-token"); got == "a-real-looking-token" || got == "" {
+		t.Errorf("a token masks to %q", got)
+	}
+	if got := Mask(""); got != "" {
+		t.Errorf("nothing masks to %q, want nothing", got)
+	}
+}

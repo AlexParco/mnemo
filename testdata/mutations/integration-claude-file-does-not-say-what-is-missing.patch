@@ -1,0 +1,16 @@
+Breaks: writing an .mcp.json by hand gives the tools and nothing else, and says nothing about it, so the user never learns why they have no /mnemo commands and no mailbox notice.
+Must fail: go test ./internal/integration -run '^TestClaudeFileGivesTheToolsAndSaysWhatItDoesNot$'
+
+diff --git a/internal/integration/claude.go b/internal/integration/claude.go
+index 8c6faea..97aa99a 100644
+--- a/internal/integration/claude.go
++++ b/internal/integration/claude.go
+@@ -111,8 +111,6 @@ func AddClaudeFile(path, mnemo string) (Result, error) {
+ 			return result, err
+ 		}
+ 		result.Outcome = Added
+-		result.Advice = "This gives the tools only: no mailbox monitor and no /mnemo:* commands. " +
+-			"For those, install the plugin with: " + ClaudeCommands()
+ 		return result, nil
+ 	}
+ 	if !gjson.Valid(content) {

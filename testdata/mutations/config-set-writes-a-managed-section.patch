@@ -1,0 +1,17 @@
+Breaks: `config set` writes the sections other commands own, so a token or a remote entry can be half-written by hand and the command that manages it finds a state it did not make.
+Must fail: go test ./internal/config -run '^TestSettingIsValidatedBeforeItIsWritten$'
+
+diff --git a/internal/config/file.go b/internal/config/file.go
+index 24f2087..e0cae37 100644
+--- a/internal/config/file.go
++++ b/internal/config/file.go
+@@ -333,9 +333,6 @@ func Settable() []string { return append([]string(nil), settable...) }
+ // reaches the file unvalidated is read by every later command as if it were
+ // meant: `lang = "fr"` becomes a warning on every connection for ever.
+ func (f *File) Set(key, value string) error {
+-	if owner, ok := managed[strings.SplitN(key, ".", 2)[0]]; ok {
+-		return fmt.Errorf("%s is managed by %s, not by config set", key, owner)
+-	}
+ 	switch key {
+ 	case "machine":
+ 		label := memory.NormalizeMachine(value)
