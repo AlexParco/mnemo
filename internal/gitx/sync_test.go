@@ -343,3 +343,33 @@ func TestTheScanRunsOnAFirstPushToo(t *testing.T) {
 		t.Errorf("the first push gave %+v, want the scan to stop it", got)
 	}
 }
+
+// A symlink inside the store defeats a check made on the path alone: the path
+// stays inside, and the write follows the link out.
+//
+// What actually stops it today is the conflicted-file check, which comes first,
+// so the symlink guard behind it has no control of its own — see
+// docs/specs/testing.md. Both are kept: git tracks symlinks, so one can arrive
+// from the hub, and the day the first check changes shape this is the one left
+// standing.
+func TestResolveConflictWillNotFollowASymlinkOutOfTheStore(t *testing.T) {
+	repo := withIdentity(t, newRepo(t))
+	write(t, repo, "memories/a.md", "a\n")
+	commit(t, repo, "save: one")
+
+	outside := t.TempDir()
+	if err := os.Symlink(outside, filepath.Join(repo.Dir, "link")); err != nil {
+		t.Skipf("this filesystem has no symlinks: %v", err)
+	}
+
+	_, err := repo.ResolveConflict("link/through-a-symlink.md", "written out of bounds\n")
+	if err == nil {
+		t.Fatal("a write through a symlink was accepted")
+	}
+	if !errors.Is(err, ErrOutsideRepo) && !errors.Is(err, ErrNotConflicted) {
+		t.Errorf("the error is %v, want one that names the reason", err)
+	}
+	if _, statErr := os.Stat(filepath.Join(outside, "through-a-symlink.md")); !os.IsNotExist(statErr) {
+		t.Error("the file was written outside the store")
+	}
+}

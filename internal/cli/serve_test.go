@@ -405,3 +405,38 @@ func TestALoadCarriesThePendingFileItself(t *testing.T) {
 		t.Error("the full item text is not in the answer, so a rewrite would truncate it")
 	}
 }
+
+// Every tool the spec's memory half defines is actually served by the binary.
+// The rule texts an agent reads name these by hand, so one that is specced and
+// missing is an instruction to call something that is not there.
+func TestTheBinaryServesEveryMemoryTool(t *testing.T) {
+	_, env := machine(t, true)
+	session, complaints := serve(t, env)
+
+	listed, err := session.ListTools(t.Context(), nil)
+	if err != nil {
+		t.Fatalf("listing tools: %v\nstderr:\n%s", err, complaints)
+	}
+	served := map[string]bool{}
+	for _, tool := range listed.Tools {
+		served[tool.Name] = true
+	}
+
+	for _, want := range []string{
+		"mnemo_status", "mnemo_list_projects", "mnemo_load_project", "mnemo_search_memories",
+		"mnemo_read_memory", "mnemo_bootstrap", "mnemo_upsert_project", "mnemo_write_memory",
+		"mnemo_write_pending", "mnemo_commit", "mnemo_sync", "mnemo_resolve_conflict",
+		"mnemo_rebase", "mnemo_push", "mnemo_rename", "mnemo_forget", "mnemo_guide",
+	} {
+		if !served[want] {
+			t.Errorf("%s is in the spec and not served", want)
+		}
+	}
+	if len(listed.Tools) != 17 {
+		var names []string
+		for name := range served {
+			names = append(names, name)
+		}
+		t.Errorf("%d tools served, want the 17 of the memory half: %q", len(listed.Tools), names)
+	}
+}

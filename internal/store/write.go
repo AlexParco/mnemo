@@ -70,6 +70,9 @@ func (s *Store) WriteMemory(ctx context.Context, in MemoryInput) (MemoryResult, 
 		if _, err := s.ensure(); err != nil {
 			return err
 		}
+		if err := s.requireSettled(); err != nil {
+			return err
+		}
 		if err := s.requireProjects(in.Projects); err != nil {
 			return err
 		}
@@ -279,6 +282,9 @@ func (s *Store) WritePending(ctx context.Context, slug, content string) (Pending
 		if _, err := s.ensure(); err != nil {
 			return err
 		}
+		if err := s.requireSettled(); err != nil {
+			return err
+		}
 		if !memory.ProjectExists(s.Dir, slug) {
 			return s.requireProjects([]string{slug})
 		}
@@ -347,6 +353,9 @@ func (s *Store) UpsertProject(ctx context.Context, in ProjectInput) (ProjectResu
 	err := s.hold(ctx, func() error {
 		report, err := s.ensure()
 		if err != nil {
+			return err
+		}
+		if err := s.requireSettled(); err != nil {
 			return err
 		}
 		result.Report = report
@@ -441,6 +450,9 @@ func (s *Store) commit(message string) (CommitResult, error) {
 	var result CommitResult
 	if _, err := s.ensure(); err != nil {
 		return result, err
+	}
+	if err := s.requireSettled(); err != nil {
+		return CommitResult{}, err
 	}
 
 	if _, ok := s.repo.Identity(); !ok {

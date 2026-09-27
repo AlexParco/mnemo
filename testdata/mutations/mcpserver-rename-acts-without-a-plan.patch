@@ -1,0 +1,16 @@
+Breaks: renaming happens on the first call, before anyone has seen what it would change, so a project's identity moves across the whole store on the agent's word alone.
+Must fail: go test ./internal/mcpserver -run '^TestRenamePlansBeforeItActs$'
+
+diff --git a/internal/mcpserver/destructive.go b/internal/mcpserver/destructive.go
+index d8f6fc2..0652bfd 100644
+--- a/internal/mcpserver/destructive.go
++++ b/internal/mcpserver/destructive.go
+@@ -32,7 +32,7 @@ func handleRename(ctx context.Context, call *Call, args Args) *answer {
+ 	}
+ 	from, to, confirm := args.str("from"), args.str("to"), args.str("confirm")
+ 
+-	if confirm == "" {
++	if false {
+ 		plan, err := writable.PlanRename(ctx, from, to)
+ 		if err != nil {
+ 			return a.from(err)

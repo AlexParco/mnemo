@@ -1,0 +1,18 @@
+Breaks: a project loads from files that carry conflict markers, and the card an agent is told to print verbatim shows the user half a merge as fact.
+Must fail: go test ./internal/mcpserver -run '^TestNothingIsReadWhileTheStoreIsHalfMerged$'
+
+diff --git a/internal/mcpserver/read.go b/internal/mcpserver/read.go
+index 3966c3a..4338205 100644
+--- a/internal/mcpserver/read.go
++++ b/internal/mcpserver/read.go
+@@ -36,9 +36,7 @@ const midMerge = "This store is mid-merge: a sync left a rebase in progress, so
+ 
+ // settled reports whether the store can be read from, and the refusal when not.
+ func (c *Call) settled() (bool, string) {
+-	if c.storeExists() && c.repo().Status().Rebasing {
+-		return false, midMerge
+-	}
++
+ 	return true, ""
+ }
+ 

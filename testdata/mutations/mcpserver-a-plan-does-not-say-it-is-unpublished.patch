@@ -1,0 +1,16 @@
+Breaks: a rename or a deletion never says the other machines still hold the old version, so the user looks for the change on their other machine and finds it unchanged.
+Must fail: go test ./internal/mcpserver -run '^TestRenamePlansBeforeItActs$'
+
+diff --git a/internal/mcpserver/destructive.go b/internal/mcpserver/destructive.go
+index d8f6fc2..ca9bbf9 100644
+--- a/internal/mcpserver/destructive.go
++++ b/internal/mcpserver/destructive.go
+@@ -49,7 +49,7 @@ func handleRename(ctx context.Context, call *Call, args Args) *answer {
+ 	}
+ 	return a.say("Renamed '%s' to '%s'. %d memories retagged. Committed %s. From now on the project loads as '%s'.",
+ 		result.From, result.To, len(result.MemoriesUpdated), result.Commit.SHA, result.To).
+-		block(publishedYet(result.Commit, "the other machines still have the old slug"))
++		block("")
+ }
+ 
+ // publishedYet is the line every destructive operation ends on. Committed is not

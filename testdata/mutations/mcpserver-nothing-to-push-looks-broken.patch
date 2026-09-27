@@ -1,0 +1,18 @@
+Breaks: publishing when everything is already published is reported as a failure, so the agent tells the user something went wrong when nothing did.
+Must fail: go test ./internal/mcpserver -run '^TestPushingWhenThereIsNothingToPush$'
+
+diff --git a/internal/mcpserver/sync.go b/internal/mcpserver/sync.go
+index 8a72080..355a66f 100644
+--- a/internal/mcpserver/sync.go
++++ b/internal/mcpserver/sync.go
+@@ -126,10 +126,6 @@ func handlePush(ctx context.Context, call *Call, args Args) *answer {
+ 			return a.refuse("Nothing was published, so the user's other machines still cannot see this. %s",
+ 				result.Detail)
+ 		}
+-	case gitx.RefusedNothingToPush:
+-		// Nothing to do is not something gone wrong: the agent asked for the
+-		// work to be published and it already is.
+-		return a.block(result.Detail)
+ 	case gitx.RefusedSecrets, gitx.RefusedBadAcknowledge:
+ 		// Three blocks: what happened, what was found, and what to do. The
+ 		// excerpts never carry the value, so showing them to the user is safe.

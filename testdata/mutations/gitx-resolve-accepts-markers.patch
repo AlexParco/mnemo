@@ -1,16 +1,17 @@
-Breaks: a half-merged file with conflict markers is accepted as resolved and committed.
+Breaks: content that still carries conflict markers is written and staged, so half a merge is committed as resolved and the next session reads the markers as the user's own words.
 Must fail: go test ./internal/gitx -run '^TestResolveRefusesWhatWouldMakeThingsWorse$'
 
 diff --git a/internal/gitx/sync.go b/internal/gitx/sync.go
-index 248daec..57582d5 100644
+index 1c3dbc2..c884c59 100644
 --- a/internal/gitx/sync.go
 +++ b/internal/gitx/sync.go
-@@ -103,7 +103,7 @@ func (r *Repo) ResolveConflict(file, content string) ([]string, error) {
+@@ -111,9 +111,6 @@ func (r *Repo) ResolveConflict(file, content string) ([]string, error) {
  	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
  		return nil, fmt.Errorf("%w: %s", ErrOutsideRepo, file)
  	}
 -	if markerLine.MatchString(content) {
-+	if false && markerLine.MatchString(content) {
- 		return nil, fmt.Errorf("%w: %s", ErrConflictMarkers, file)
+-		return nil, fmt.Errorf("%w: %s", ErrConflictMarkers, file)
+-	}
+ 	if !slices.Contains(r.ConflictedFiles(), rel) {
+ 		return nil, fmt.Errorf("%w: %s", ErrNotConflicted, file)
  	}
- 

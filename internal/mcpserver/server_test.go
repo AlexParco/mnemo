@@ -52,14 +52,20 @@ var annotated = map[string]struct {
 	idempotent  bool
 	destructive *bool
 }{
-	"mnemo_status":          {readOnly: true},
-	"mnemo_list_projects":   {readOnly: true},
-	"mnemo_load_project":    {readOnly: true},
-	"mnemo_search_memories": {readOnly: true},
-	"mnemo_read_memory":     {readOnly: true},
-	"mnemo_guide":           {readOnly: true},
-	"mnemo_bootstrap":       {idempotent: true},
-	"mnemo_upsert_project":  {idempotent: true},
+	"mnemo_status":           {readOnly: true},
+	"mnemo_list_projects":    {readOnly: true},
+	"mnemo_load_project":     {readOnly: true},
+	"mnemo_search_memories":  {readOnly: true},
+	"mnemo_read_memory":      {readOnly: true},
+	"mnemo_guide":            {readOnly: true},
+	"mnemo_bootstrap":        {idempotent: true},
+	"mnemo_sync":             {idempotent: true},
+	"mnemo_resolve_conflict": {destructive: truth(true)},
+	"mnemo_rebase":           {destructive: truth(true)},
+	"mnemo_push":             {destructive: truth(false)},
+	"mnemo_rename":           {destructive: truth(true)},
+	"mnemo_forget":           {destructive: truth(true)},
+	"mnemo_upsert_project":   {idempotent: true},
 	// write_memory takes `overwrite`, which replaces a file. The hint is static
 	// per tool, so it has to describe the worst the tool can do: a client that
 	// skips confirmation for non-destructive calls would otherwise approve it.

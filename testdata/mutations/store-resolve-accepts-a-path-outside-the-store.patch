@@ -1,0 +1,17 @@
+Breaks: a merged file aimed outside the store is reported as resolved although nothing was written, so the agent believes the conflict is handled and continues the rebase with the real file untouched.
+Must fail: go test ./internal/mcpserver -run '^TestTwoMachinesCollideAndTheMergeGoesThrough$'
+
+diff --git a/internal/store/sync.go b/internal/store/sync.go
+index 74c52c9..0db0c47 100644
+--- a/internal/store/sync.go
++++ b/internal/store/sync.go
+@@ -58,8 +58,7 @@ func (s *Store) ResolveConflict(ctx context.Context, file, content string) ([]st
+ 		remaining, err = s.repo.ResolveConflict(file, content)
+ 		switch {
+ 		case errors.Is(err, gitx.ErrOutsideRepo):
+-			return refuse("'%s' is not inside the store. Use the path mnemo_sync reported, exactly as it "+
+-				"reported it. Nothing was written.", file)
++			return nil
+ 		case errors.Is(err, gitx.ErrNotConflicted):
+ 			return refuse("'%s' is not one of the files a sync left conflicted. This tool is only for those: "+
+ 				"call mnemo_sync to see which they are. Nothing was written. To change a memory, use "+

@@ -442,7 +442,9 @@ Description:
 > "abort" to put the store back exactly as it was before the sync and tell the user — the safe way
 > out when a merge is going wrong.
 
-Output: the detail from [sync.md](sync.md#continue-or-abort-the-rebase).
+Output: the detail from [sync.md](sync.md#continue-or-abort-the-rebase). A `continue` that could not
+finish is a refusal: the store is still mid-rebase, which is the one state where an agent wandering
+off leaves the memory half-merged, so it must not read as success.
 
 ### `mnemo_push`
 
@@ -458,7 +460,10 @@ Description:
 `acknowledge`: "The value returned with a secret-scan refusal, passed back after the user
 confirmed a false positive."
 
-Output: the detail; or, for a `secrets` or `bad-acknowledgement` refusal, three blocks:
+Output: the detail. Nothing to push is not a refusal — the work is already published. No hub, and a
+rebase still in progress, are refusals: nothing was published and there is something to fix first. A
+`secrets` or `bad-acknowledgement` refusal is not an error result either, because the agent has a
+defined next step and needs all three blocks to take it:
 
 1. The detail: `<n> possible secret(s) in what would be published. Nothing was pushed.`, or
    `That acknowledgement does not match these findings — they changed, or it was not the one
@@ -507,7 +512,8 @@ Description:
 > the user says 'delete X' without making clear whether X is a project or a memory, ask; do not
 > guess what to remove.
 
-Inputs: `target` "Project slug, or memory id."; `confirm` as in `mnemo_rename`.
+Inputs: `kind` "Whether the target is a project or a single memory."; `target` "Project slug, or
+memory id."; `confirm` as in `mnemo_rename`.
 
 Output of a memory plan:
 

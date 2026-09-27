@@ -10,12 +10,14 @@
 package gitx
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Error is a git command that failed, carrying git's own explanation.
@@ -35,10 +37,41 @@ func (e *Error) Error() string {
 // A Repo is a directory git commands run against.
 type Repo struct {
 	Dir string
+	// ctx bounds how long git may run. A hub that accepts a connection and never
+	// answers would otherwise hang the command for ever, and because the store's
+	// lock is held for the whole operation, every other agent on that store is
+	// locked out for as long as git waits — which is also for ever.
+	ctx context.Context
 }
 
 // New returns a Repo for a directory, which need not exist yet.
 func New(dir string) *Repo { return &Repo{Dir: dir} }
+
+// With returns the same repository bounded by a context. It is a copy, so a
+// caller cannot change the deadline of an operation already running.
+func (r *Repo) With(ctx context.Context) *Repo {
+	return &Repo{Dir: r.Dir, ctx: ctx}
+}
+
+// NetworkTimeout is how long an operation that talks to the hub may take when
+// the caller set no deadline of its own.
+const NetworkTimeout = 60 * time.Second
+
+// Reaching bounds a command that talks to the hub. The caller releases it.
+func (r *Repo) Reaching() (*Repo, func()) { return r.reaching() }
+
+// reaching bounds a command that talks to the hub.
+func (r *Repo) reaching() (*Repo, func()) {
+	base := r.ctx
+	if base == nil {
+		base = context.Background()
+	}
+	if _, ok := base.Deadline(); ok {
+		return &Repo{Dir: r.Dir, ctx: base}, func() {}
+	}
+	ctx, cancel := context.WithTimeout(base, NetworkTimeout)
+	return &Repo{Dir: r.Dir, ctx: ctx}, cancel
+}
 
 // env is the environment every git command runs with. Git must never stop to
 // ask a person something: this runs with no terminal attached, and a prompt
@@ -48,7 +81,11 @@ func (r *Repo) env() []string {
 }
 
 func (r *Repo) command(args []string) *exec.Cmd {
-	cmd := exec.Command("git", append([]string{"-C", r.Dir}, args...)...)
+	ctx := r.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	cmd := exec.CommandContext(ctx, "git", append([]string{"-C", r.Dir}, args...)...)
 	cmd.Env = r.env()
 	return cmd
 }

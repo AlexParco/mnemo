@@ -1,0 +1,19 @@
+Breaks: a rebase that could not finish reports success, so the agent moves on and leaves the user's memory half-merged.
+Must fail: go test ./internal/mcpserver -run '^TestContinuingTooEarlyIsRefused$'
+
+diff --git a/internal/mcpserver/sync.go b/internal/mcpserver/sync.go
+index 8a72080..8135d2d 100644
+--- a/internal/mcpserver/sync.go
++++ b/internal/mcpserver/sync.go
+@@ -84,11 +84,6 @@ func handleRebase(ctx context.Context, call *Call, args Args) *answer {
+ 	if err != nil {
+ 		return a.from(err)
+ 	}
+-	if !result.OK {
+-		// Continuing with files still conflicted is the common mistake, and the
+-		// detail names them. It is advice, not a fault.
+-		return a.refuse("%s", result.Detail)
+-	}
+ 	if gitx.RebaseAction(args.str("action")) == gitx.Abort {
+ 		// "The store is as it was" is true of the state before the sync and a lie
+ 		// about the session: the hub's memory is still unmerged and the same

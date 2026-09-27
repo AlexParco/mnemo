@@ -101,7 +101,12 @@ func (s *Store) wireRemote(report *Report) error {
 	report.WiredRemote = s.remote
 
 	// An unreachable hub must not stop a local store from working.
-	if _, ok := s.repo.Try("fetch", "-q", "origin"); !ok {
+	// Bounded: a hub that accepts a connection and never answers would otherwise
+	// hold the store's lock for ever, locking out every other agent on it.
+	reaching, done := s.repo.Reaching()
+	_, ok := reaching.Try("fetch", "-q", "origin")
+	done()
+	if !ok {
 		return nil
 	}
 	if _, ok := s.repo.Try("rev-parse", "-q", "--verify", "origin/main"); !ok {

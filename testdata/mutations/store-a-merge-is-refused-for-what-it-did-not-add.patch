@@ -1,0 +1,16 @@
+Breaks: a merge is refused for a flagged value that was already in the conflicted file, so the only merge that keeps both sides is impossible and that machine can never take in the hub's memory again.
+Must fail: go test ./internal/mcpserver -run '^TestAMergeIsNotRefusedForASecretThatIsAlreadyInTheFile$'
+
+diff --git a/internal/store/sync.go b/internal/store/sync.go
+index 74c52c9..1fe50ed 100644
+--- a/internal/store/sync.go
++++ b/internal/store/sync.go
+@@ -46,7 +46,7 @@ func (s *Store) ResolveConflict(ctx context.Context, file, content string) ([]st
+ 		// from the hub, which is already saved on another machine, so "keep the
+ 		// value where secrets belong and save a note instead" reads as an
+ 		// instruction to delete a memory in order to make the call succeed.
+-		if findings := newFindings(s.Dir, file, content); len(findings) > 0 {
++		if findings := gitx.ScanContent(file, content); len(findings) > 0 {
+ 			return refuse("'%s' was not written: line %d of the merged text matches %s. That text may have come "+
+ 				"in from the hub, in which case it is already saved on another machine — deleting it here would "+
+ 				"destroy a memory, not protect a secret. Do NOT remove the line to make this call succeed. Stop "+

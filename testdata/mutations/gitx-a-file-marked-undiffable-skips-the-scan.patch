@@ -1,0 +1,16 @@
+Breaks: a .gitattributes entry that stops git diffing a file as text carries a credential past the secret scan and onto the hub, with no finding and no acknowledgement.
+Must fail: go test ./internal/gitx -run '^TestAFileMarkedUndiffableIsStillScanned$'
+
+diff --git a/internal/gitx/secrets.go b/internal/gitx/secrets.go
+index 438c158..0160be7 100644
+--- a/internal/gitx/secrets.go
++++ b/internal/gitx/secrets.go
+@@ -161,7 +161,7 @@ func (r *Repo) ScanRange() []Finding {
+ 	if !ok {
+ 		return nil
+ 	}
+-	diff, ok := r.Try("diff", "--no-color", "--no-ext-diff", "--text", base, "HEAD")
++	diff, ok := r.Try("diff", "--no-color", "--no-ext-diff", base, "HEAD")
+ 	if !ok || diff == "" {
+ 		return nil
+ 	}

@@ -21,6 +21,27 @@ const noStore = "There is no mnemo store yet. It is created by the first save (s
 	"To adopt an existing store from another machine, set the hub remote with mnemo config set store.remote <url> " +
 	"before the first save."
 
+// midMerge is what the tools that return memory say while a rebase is in
+// progress.
+//
+// They refuse rather than answer. The files on disk carry conflict markers at
+// that point, and the parsers read them as ordinary markdown — so a card an
+// agent is told to print verbatim could show a user half a merge as fact. It is
+// also what makes the sync tool's promise true: until the rebase is finished,
+// nothing else works.
+const midMerge = "This store is mid-merge: a sync left a rebase in progress, so the files carry conflict markers " +
+	"and anything read from them now would be half a merge. Call mnemo_sync to get the conflicted files with " +
+	"their contents, send each one back merged with mnemo_resolve_conflict, then call mnemo_rebase with action " +
+	"\"continue\". mnemo_status says where things stand."
+
+// settled reports whether the store can be read from, and the refusal when not.
+func (c *Call) settled() (bool, string) {
+	if c.storeExists() && c.repo().Status().Rebasing {
+		return false, midMerge
+	}
+	return true, ""
+}
+
 // unknownProject names the slugs that do exist. An agent that guessed a slug
 // needs the real ones, and an agent that invented one needs to be stopped.
 func unknownProject(storeDir, slug string) string {
@@ -64,7 +85,12 @@ func handleStatus(ctx context.Context, call *Call, args Args) *answer {
 			lines = append(lines, "unpushed commits: unknown (no upstream)")
 		}
 		if status.Rebasing {
-			lines = append(lines, "warning: a rebase is in progress; the store is mid-merge and needs resolving")
+			// The one line that tells a fresh session it has to finish something
+			// before anything else works, so it names what to call.
+			lines = append(lines, "warning: a rebase is in progress — this store is half-merged and what you "+
+				"read from it may contain conflict markers. Call mnemo_sync for the conflicted files with their "+
+				"contents, send each one back with mnemo_resolve_conflict, then call mnemo_rebase with action "+
+				"\"continue\". Nothing can be written until that finishes.")
 		}
 		overview := memory.BuildOverview(call.StoreDir)
 		lines = append(lines, fmt.Sprintf("projects: %d · memories: %d",
@@ -74,7 +100,7 @@ func handleStatus(ctx context.Context, call *Call, args Args) *answer {
 	if call.Autopush {
 		lines = append(lines, "autopush: on — the user has opted into pushing without being asked each time")
 	} else {
-		lines = append(lines, "autopush: off — confirm with the user before publishing to the hub")
+		lines = append(lines, "autopush: off — confirm with the user before calling mnemo_push")
 	}
 	if !exists {
 		lines = append(lines, "", noStore)
@@ -266,6 +292,9 @@ type detail struct {
 
 func handleLoadProject(ctx context.Context, call *Call, args Args) *answer {
 	a := &answer{}
+	if settled, why := call.settled(); !settled {
+		return a.refuse("%s", why)
+	}
 	if !call.storeExists() {
 		return a.refuse("%s\nExpected location: %s", noStore, call.StoreDir)
 	}
@@ -426,6 +455,9 @@ type searchHit struct {
 
 func handleSearch(ctx context.Context, call *Call, args Args) *answer {
 	a := &answer{}
+	if settled, why := call.settled(); !settled {
+		return a.refuse("%s", why)
+	}
 	if !call.storeExists() {
 		return a.refuse("%s\nExpected location: %s", noStore, call.StoreDir)
 	}
@@ -472,6 +504,9 @@ type memoryFields struct {
 
 func handleReadMemory(ctx context.Context, call *Call, args Args) *answer {
 	a := &answer{}
+	if settled, why := call.settled(); !settled {
+		return a.refuse("%s", why)
+	}
 	id := args.str("id")
 	if !call.storeExists() {
 		return a.refuse("%s\nExpected location: %s", noStore, call.StoreDir)

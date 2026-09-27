@@ -239,3 +239,25 @@ func TestAcknowledgeTokenIsBoundToTheStateItWasIssuedFor(t *testing.T) {
 		t.Error("the token survived a new commit; it must stop working when the content changes")
 	}
 }
+
+// A file git will not diff as text cannot be a way past the scan. `*.md -diff`
+// in .gitattributes makes git print "Binary files differ" and a scan that reads
+// the textual diff sees nothing to scan — so a credential goes to the hub with
+// no finding and no acknowledgement.
+func TestAFileMarkedUndiffableIsStillScanned(t *testing.T) {
+	repo := withIdentity(t, newRepo(t))
+	write(t, repo, ".gitattributes", "*.md -diff\n")
+	write(t, repo, "memories/leak.md", "aws key AKIA"+strings.Repeat("Z", 16)+"\n")
+	commit(t, repo, "save: with a gitattributes")
+
+	findings := repo.ScanRange()
+	if len(findings) == 0 {
+		t.Fatal("a file marked -diff carried a secret past the scan")
+	}
+	if findings[0].File != "memories/leak.md" {
+		t.Errorf("the finding names %q", findings[0].File)
+	}
+	if strings.Contains(findings[0].Excerpt, "AKIA"+strings.Repeat("Z", 16)) {
+		t.Error("the finding repeated the secret")
+	}
+}

@@ -1,0 +1,32 @@
+Breaks: links left pointing at a deleted memory are not reported, so the gap is discovered months later by whoever follows one.
+Must fail: go test ./internal/mcpserver -run '^TestForgettingAProjectKeepsWhatIsShared$|^TestForgettingOneMemory$'
+
+diff --git a/internal/mcpserver/destructive.go b/internal/mcpserver/destructive.go
+index d8f6fc2..32c82cc 100644
+--- a/internal/mcpserver/destructive.go
++++ b/internal/mcpserver/destructive.go
+@@ -109,12 +109,7 @@ func planForgetMemory(ctx context.Context, a *answer, writable *store.Store, id
+ 	}
+ 	a.say("Deleting memory '%s' — tagged with %s.\n%q", id, tagged, plan.Summary)
+ 	a.data(forgetMemoryPlan{BrokenLinks: nonNil(plan.BrokenLinks), Confirm: plan.Confirm})
+-	if len(plan.BrokenLinks) > 0 {
+-		// Reported, never repaired: a link that now goes nowhere is the user's to
+-		// decide about, and editing their prose to hide the gap would be worse.
+-		return a.say("%d file(s) link to it with [[%s]] and would be left dangling; they are NOT fixed silently. %s",
+-			len(plan.BrokenLinks), id, criterion.ConfirmNote)
+-	}
++
+ 	return a.block(criterion.ConfirmNote)
+ }
+ 
+@@ -167,9 +162,7 @@ func applyForget(ctx context.Context, a *answer, writable *store.Store, target,
+ 		}
+ 		lines = append(lines, "Kept: "+strings.Join(kept, "; "))
+ 	}
+-	if len(result.BrokenLinks) > 0 {
+-		lines = append(lines, "Now dangling, left as they are: "+strings.Join(result.BrokenLinks, ", "))
+-	}
++
+ 	if result.Commit.HasRemote {
+ 		lines = append(lines, "Local only — the other machines keep what was deleted until this is pushed.")
+ 	}

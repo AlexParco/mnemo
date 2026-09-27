@@ -1,0 +1,16 @@
+Breaks: resolving the last conflicted file does not say to call mnemo_rebase, so the agent stops and the store is left mid-rebase with nothing else able to work.
+Must fail: go test ./internal/mcpserver -run '^TestTwoMachinesCollideAndTheMergeGoesThrough$'
+
+diff --git a/internal/mcpserver/sync.go b/internal/mcpserver/sync.go
+index e7d9676..d4133f9 100644
+--- a/internal/mcpserver/sync.go
++++ b/internal/mcpserver/sync.go
+@@ -63,7 +63,7 @@ func handleResolveConflict(ctx context.Context, call *Call, args Args) *answer {
+ 	}
+ 
+ 	if len(remaining) == 0 {
+-		return a.say("Resolved '%s'. Nothing left conflicted — call mnemo_rebase with action \"continue\".", file)
++		return a.say("Resolved '%s'.", file)
+ 	}
+ 	return a.say("Resolved '%s'. Still conflicted: %s.", file, strings.Join(remaining, ", "))
+ }

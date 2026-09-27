@@ -2,7 +2,7 @@ Breaks: waiting too long for the store's lock is reported as mnemo failing, so a
 Must fail: go test ./internal/store -run '^TestWaitingTooLongForTheLockIsAdvice$'
 
 diff --git a/internal/store/store.go b/internal/store/store.go
-index 4986408..1763614 100644
+index d17448c..632404d 100644
 --- a/internal/store/store.go
 +++ b/internal/store/store.go
 @@ -113,12 +113,7 @@ func (s *Store) Today() string { return s.now().Format("2006-01-02") }
@@ -18,4 +18,4 @@ index 4986408..1763614 100644
 +	return s.locker.Hold(ctx, s.Dir, fn)
  }
  
- // tempPrefix marks the files an interrupted write leaves behind. It starts with
+ // requireSettled refuses to change the store while a merge is half-applied.

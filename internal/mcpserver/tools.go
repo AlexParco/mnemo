@@ -190,6 +190,42 @@ func memoryTools() []Definition {
 		},
 		{
 			Tool: &mcp.Tool{
+				Name: "mnemo_rename",
+				Description: "Change a project's slug — its identity — across the whole store: the directory, " +
+					"INDEX.md, and the `projects` field of every memory tagged with it, overlap preserved. Called " +
+					"without `confirm` it only reports what would change and returns a confirmation value; nothing " +
+					"is touched until you call it again with that value. To change only the readable NAME, this is " +
+					"the wrong tool: that is a one-field edit via mnemo_upsert_project. Renaming onto an existing " +
+					"slug is refused — that would be a merge, which this does not do.",
+				Annotations: destructive(),
+				InputSchema: object([]string{"from", "to"}, schema{
+					"from":    text("Current slug."),
+					"to":      text("New slug, kebab-case. Must not already exist."),
+					"confirm": text("The confirmation value from the planning call, after the user agreed."),
+				}),
+			},
+			Handle: handleRename,
+		},
+		{
+			Tool: &mcp.Tool{
+				Name: "mnemo_forget",
+				Description: "Delete a whole project or a single memory from the store. Called without `confirm` " +
+					"it only reports what would go and returns a confirmation value; nothing is deleted until you " +
+					"call it again with that value. Deleting a project deletes only the memories tagged with it " +
+					"ALONE — memories it shares with other projects are untagged and survive, and the report says " +
+					"which. If the user says 'delete X' without making clear whether X is a project or a memory, " +
+					"ask; do not guess what to remove.",
+				Annotations: destructive(),
+				InputSchema: object([]string{"kind", "target"}, schema{
+					"kind":    choice("Whether the target is a project or a single memory.", "project", "memory"),
+					"target":  text("Project slug, or memory id."),
+					"confirm": text("The confirmation value from the planning call, after the user agreed."),
+				}),
+			},
+			Handle: handleForget,
+		},
+		{
+			Tool: &mcp.Tool{
 				Name: "mnemo_guide",
 				Description: "Return mnemo's usage criterion as markdown, for the user to paste into their agent's " +
 					"rules file (AGENTS.md, CLAUDE.md). Use it when the user is setting mnemo up, or when they ask " +
@@ -289,6 +325,68 @@ func memoryTools() []Definition {
 				}),
 			},
 			Handle: handleWritePending,
+		},
+		{
+			Tool: &mcp.Tool{
+				Name: "mnemo_sync",
+				Description: "Bring in memory saved from the user's other machines (git pull --rebase " +
+					"--autostash). Run it BEFORE writing anything, so a save does not land on top of a stale " +
+					"version, and whenever the user asks what is new. If it comes back with conflicts, resolve " +
+					"each one with mnemo_resolve_conflict and then call mnemo_rebase — the store is mid-rebase " +
+					"until you do, and nothing else will work.",
+				Annotations: idempotent(),
+				InputSchema: object(nil, schema{}),
+			},
+			Handle: handleSync,
+		},
+		{
+			Tool: &mcp.Tool{
+				Name: "mnemo_resolve_conflict",
+				Description: "Write the merged version of a file left conflicted by mnemo_sync, and stage it. " +
+					"Send the complete file with the conflict markers gone and both sides' content preserved; " +
+					"content that still carries markers is refused.",
+				Annotations: destructive(),
+				InputSchema: object([]string{"file", "content"}, schema{
+					"file":    text("Store-relative path, as reported by mnemo_sync."),
+					"content": text("The complete merged file."),
+				}),
+			},
+			Handle: handleResolveConflict,
+		},
+		{
+			Tool: &mcp.Tool{
+				Name: "mnemo_rebase",
+				Description: "Finish the rebase a sync started. Use \"continue\" once every conflicted file has " +
+					"been sent back with mnemo_resolve_conflict; if it stops at another conflict the store is " +
+					"still mid-rebase and the answer says which files are conflicted now. Use \"abort\" when " +
+					"the two sides contradict each other and the user has not said which one holds, or when the " +
+					"merge is going wrong. Abort is not free: what the hub sent is NOT merged, so the next " +
+					"mnemo_sync raises the same conflict, and anything committed since the sync started is " +
+					"destroyed with it. Say what abort would discard before you call it.",
+				Annotations: destructive(),
+				InputSchema: object([]string{"action"}, schema{
+					"action": choice("What to do with the rebase in progress.", "continue", "abort"),
+				}),
+			},
+			Handle: handleRebase,
+		},
+		{
+			Tool: &mcp.Tool{
+				Name: "mnemo_push",
+				Description: "Publish local commits so the user's other machines can see them. Until this runs, " +
+					"saved memory exists only on this machine. Every push is scanned for secrets first and there " +
+					"is no way around that scan. If it finds something, the push is refused and you get the " +
+					"findings plus an acknowledgement value: SHOW THE FINDINGS TO THE USER and only pass the " +
+					"acknowledgement back if they confirm it is a false positive. Never acknowledge on your own " +
+					"judgement. Unless mnemo_status reports autopush on, confirm with the user before pushing " +
+					"at all.",
+				Annotations: adds(),
+				InputSchema: object(nil, schema{
+					"acknowledge": text("The value returned with a secret-scan refusal, passed back after the " +
+						"user confirmed a false positive."),
+				}),
+			},
+			Handle: handlePush,
 		},
 		{
 			Tool: &mcp.Tool{

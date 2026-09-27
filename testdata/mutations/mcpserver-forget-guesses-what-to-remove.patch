@@ -1,0 +1,18 @@
+Breaks: "forget X" with no kind deletes the project called X, so asking to drop a note can take a whole project with it.
+Must fail: go test ./internal/mcpserver -run '^TestForgettingOneMemory$'
+
+diff --git a/internal/mcpserver/destructive.go b/internal/mcpserver/destructive.go
+index d8f6fc2..e9bd675 100644
+--- a/internal/mcpserver/destructive.go
++++ b/internal/mcpserver/destructive.go
+@@ -87,10 +87,6 @@ func handleForget(ctx context.Context, call *Call, args Args) *answer {
+ 	kind, target, confirm := args.str("kind"), args.str("target"), args.str("confirm")
+ 
+ 	switch {
+-	case kind == "memory" && confirm == "":
+-		return planForgetMemory(ctx, a, writable, target)
+-	case kind == "memory":
+-		return applyForget(ctx, a, writable, target, confirm, false)
+ 	case confirm == "":
+ 		return planForgetProject(ctx, a, writable, target)
+ 	default:

@@ -121,6 +121,26 @@ func (s *Store) hold(ctx context.Context, fn func() error) error {
 	return err
 }
 
+// requireSettled refuses to change the store while a merge is half-applied.
+//
+// Git lets you commit mid-rebase, and says nothing. The commit is folded into
+// the rebase, and `git rebase --abort` then destroys it without a word and
+// without stashing it — so a session's whole memory can vanish because an agent
+// did the two things it was told to do, in the wrong order. On top of that the
+// files on disk carry conflict markers, so anything written on top of them is
+// written onto half a merge.
+//
+// Resolving, rebasing and syncing are exempt: they are the way out.
+func (s *Store) requireSettled() error {
+	if !s.repo.Status().Rebasing {
+		return nil
+	}
+	return refuse("This store is mid-merge: a sync left a rebase in progress, and the files on disk carry " +
+		"conflict markers. Nothing was written, because a change made now would be folded into the rebase and " +
+		"lost if it is aborted. Call mnemo_sync to get the conflicted files with their contents, send each one " +
+		"back merged with mnemo_resolve_conflict, then call mnemo_rebase with action \"continue\".")
+}
+
 // tempPrefix marks the files an interrupted write leaves behind. It starts with
 // a dot and does not end in .md, so a listing of memories never picks one up.
 const tempPrefix = ".mnemo-tmp-"

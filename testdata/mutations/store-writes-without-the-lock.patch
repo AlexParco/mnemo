@@ -2,7 +2,7 @@ Breaks: writes do not take the store lock, so two saves at once collide in git's
 Must fail: go test ./internal/store -run '^TestConcurrentSavesDoNotCollideInGit$'
 
 diff --git a/internal/store/store.go b/internal/store/store.go
-index 4986408..2158d76 100644
+index d17448c..009cf89 100644
 --- a/internal/store/store.go
 +++ b/internal/store/store.go
 @@ -113,12 +113,8 @@ func (s *Store) Today() string { return s.now().Format("2006-01-02") }
@@ -19,4 +19,4 @@ index 4986408..2158d76 100644
 +	return fn()
  }
  
- // tempPrefix marks the files an interrupted write leaves behind. It starts with
+ // requireSettled refuses to change the store while a merge is half-applied.

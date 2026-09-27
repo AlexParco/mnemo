@@ -1,0 +1,16 @@
+Breaks: a plan comes back with no value to confirm it, so an agent cannot complete a rename or a deletion the user agreed to.
+Must fail: go test ./internal/mcpserver -run '^TestRenamePlansBeforeItActs$|^TestForgettingAProjectKeepsWhatIsShared$'
+
+diff --git a/internal/mcpserver/destructive.go b/internal/mcpserver/destructive.go
+index d8f6fc2..c8dc143 100644
+--- a/internal/mcpserver/destructive.go
++++ b/internal/mcpserver/destructive.go
+@@ -39,7 +39,7 @@ func handleRename(ctx context.Context, call *Call, args Args) *answer {
+ 		}
+ 		return a.say("Renaming '%s' to '%s' would rewrite the project directory, its INDEX.md, and the "+
+ 			"`projects` field of %d memories.", from, to, len(plan.Memories)).
+-			data(renamePlan{Memories: nonNil(plan.Memories), Confirm: plan.Confirm}).
++			data(renamePlan{Memories: nonNil(plan.Memories)}).
+ 			block(criterion.ConfirmNote)
+ 	}
+ 

@@ -1,0 +1,16 @@
+Breaks: a memory or a commit lands while a sync has left the store mid-rebase, so the conflict markers are committed as resolved and pushed to the hub, and aborting the rebase destroys the whole session's save without stashing it.
+Must fail: go test ./internal/mcpserver -run '^TestNothingWritesWhileTheStoreIsHalfMerged$'
+
+diff --git a/internal/store/store.go b/internal/store/store.go
+index d17448c..84946fa 100644
+--- a/internal/store/store.go
++++ b/internal/store/store.go
+@@ -132,7 +132,7 @@ func (s *Store) hold(ctx context.Context, fn func() error) error {
+ //
+ // Resolving, rebasing and syncing are exempt: they are the way out.
+ func (s *Store) requireSettled() error {
+-	if !s.repo.Status().Rebasing {
++	if true || !s.repo.Status().Rebasing {
+ 		return nil
+ 	}
+ 	return refuse("This store is mid-merge: a sync left a rebase in progress, and the files on disk carry " +

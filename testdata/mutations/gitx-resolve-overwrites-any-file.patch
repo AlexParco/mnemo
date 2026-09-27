@@ -1,0 +1,17 @@
+Breaks: the merge tool writes and stages any file in the store, not only the ones a sync left conflicted, so a committed memory is replaced wholesale with no confirmation.
+Must fail: go test ./internal/mcpserver -run '^TestResolvingIsOnlyForConflictedFiles$'
+
+diff --git a/internal/gitx/sync.go b/internal/gitx/sync.go
+index 1c3dbc2..0e1ff0f 100644
+--- a/internal/gitx/sync.go
++++ b/internal/gitx/sync.go
+@@ -114,9 +114,6 @@ func (r *Repo) ResolveConflict(file, content string) ([]string, error) {
+ 	if markerLine.MatchString(content) {
+ 		return nil, fmt.Errorf("%w: %s", ErrConflictMarkers, file)
+ 	}
+-	if !slices.Contains(r.ConflictedFiles(), rel) {
+-		return nil, fmt.Errorf("%w: %s", ErrNotConflicted, file)
+-	}
+ 	// A symlink defeats the check above: the path stays inside the store while
+ 	// the write follows the link out of it. Git tracks symlinks, so one can
+ 	// arrive from the hub.

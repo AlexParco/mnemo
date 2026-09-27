@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -69,7 +70,9 @@ func (r *Repo) Pull() SyncResult {
 		}
 	}
 
-	pull := r.Attempt("pull", "--rebase", "--autostash")
+	reaching, done := r.reaching()
+	pull := reaching.Attempt("pull", "--rebase", "--autostash")
+	done()
 	conflicts := r.ReadConflicts()
 	if pull.OK && len(conflicts) == 0 {
 		detail := pull.Stdout
@@ -88,6 +91,11 @@ func (r *Repo) Pull() SyncResult {
 // ErrOutsideRepo is a path that would write outside the store.
 var ErrOutsideRepo = errors.New("the path is outside the store")
 
+// ErrNotConflicted is a file that no sync left conflicted. Resolving is only for
+// the files a merge stopped on; anything else would be a whole-file overwrite of
+// the user's memory with no confirmation and no validation.
+var ErrNotConflicted = errors.New("the file is not conflicted")
+
 // ErrConflictMarkers is content that still carries `<<<<<<<` and its companions.
 // A half-merged memory committed as resolved is worse than a conflict: the
 // conflict is visible, and the bad merge is not.
@@ -105,6 +113,18 @@ func (r *Repo) ResolveConflict(file, content string) ([]string, error) {
 	}
 	if markerLine.MatchString(content) {
 		return nil, fmt.Errorf("%w: %s", ErrConflictMarkers, file)
+	}
+	if !slices.Contains(r.ConflictedFiles(), rel) {
+		return nil, fmt.Errorf("%w: %s", ErrNotConflicted, file)
+	}
+	// A symlink defeats the check above: the path stays inside the store while
+	// the write follows the link out of it. Git tracks symlinks, so one can
+	// arrive from the hub.
+	if resolved, err := filepath.EvalSymlinks(filepath.Dir(target)); err == nil {
+		inside, relErr := filepath.Rel(r.Dir, resolved)
+		if relErr != nil || inside == ".." || strings.HasPrefix(inside, ".."+string(filepath.Separator)) {
+			return nil, fmt.Errorf("%w: %s", ErrOutsideRepo, file)
+		}
 	}
 
 	if !strings.HasSuffix(content, "\n") {
@@ -229,7 +249,9 @@ func (r *Repo) Push(acknowledge string) PushResult {
 		}
 	}
 
-	res := r.Attempt("push", "-q")
+	reaching, done := r.reaching()
+	defer done()
+	res := reaching.Attempt("push", "-q")
 	if _, hasUpstream := r.Upstream(); !hasUpstream {
 		// Nothing tracks this branch yet, which is every store's first push. The
 		// push sets the tracking up, so the next one needs no arguments.
@@ -237,7 +259,7 @@ func (r *Repo) Push(acknowledge string) PushResult {
 		if branch == "" {
 			branch = "main"
 		}
-		res = r.Attempt("push", "-q", "-u", "origin", branch)
+		res = reaching.Attempt("push", "-q", "-u", "origin", branch)
 	}
 	if !res.OK {
 		return PushResult{Commits: commits, Detail: "git push failed: " + res.Detail()}

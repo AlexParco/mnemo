@@ -161,7 +161,7 @@ func (r *Repo) ScanRange() []Finding {
 	if !ok {
 		return nil
 	}
-	diff, ok := r.Try("diff", "--no-color", "--no-ext-diff", base, "HEAD")
+	diff, ok := r.Try("diff", "--no-color", "--no-ext-diff", "--text", base, "HEAD")
 	if !ok || diff == "" {
 		return nil
 	}

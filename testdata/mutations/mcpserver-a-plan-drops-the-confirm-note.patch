@@ -1,0 +1,16 @@
+Breaks: a plan for a destructive operation arrives without the instruction to show it to a person and wait, so an agent confirms on its own judgement and git is the only undo.
+Must fail: go test ./internal/mcpserver -run '^TestRenamePlansBeforeItActs$|^TestForgettingAProjectKeepsWhatIsShared$'
+
+diff --git a/internal/mcpserver/destructive.go b/internal/mcpserver/destructive.go
+index d8f6fc2..14ff2d6 100644
+--- a/internal/mcpserver/destructive.go
++++ b/internal/mcpserver/destructive.go
+@@ -40,7 +40,7 @@ func handleRename(ctx context.Context, call *Call, args Args) *answer {
+ 		return a.say("Renaming '%s' to '%s' would rewrite the project directory, its INDEX.md, and the "+
+ 			"`projects` field of %d memories.", from, to, len(plan.Memories)).
+ 			data(renamePlan{Memories: nonNil(plan.Memories), Confirm: plan.Confirm}).
+-			block(criterion.ConfirmNote)
++			block("")
+ 	}
+ 
+ 	result, err := writable.ApplyRename(ctx, from, to, confirm)

@@ -1,0 +1,17 @@
+Breaks: a conflict comes back without the rule that says to keep both sides, so the agent picks one and a memory the user wrote on another machine is gone for good.
+Must fail: go test ./internal/mcpserver -run '^TestTwoMachinesCollideAndTheMergeGoesThrough$'
+
+diff --git a/internal/mcpserver/sync.go b/internal/mcpserver/sync.go
+index e7d9676..b8df524 100644
+--- a/internal/mcpserver/sync.go
++++ b/internal/mcpserver/sync.go
+@@ -46,8 +46,7 @@ func handleSync(ctx context.Context, call *Call, args Args) *answer {
+ 	// the agent to read: it has to merge them, and a file it fetched separately
+ 	// could already be a different one.
+ 	return a.say("%s\n\n%d conflicted file(s): %s", result.Detail, len(files), strings.Join(files, ", ")).
+-		data(carried).
+-		block(criterion.ConflictRule)
++		data(carried)
+ }
+ 
+ func handleResolveConflict(ctx context.Context, call *Call, args Args) *answer {

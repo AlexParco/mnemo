@@ -1,0 +1,21 @@
+Breaks: a pull that could not reach the hub is reported as success, so the agent saves on top of a stale copy believing it is in step with the other machines.
+Must fail: go test ./internal/mcpserver -run '^TestReachingAHubThatIsGone$'
+
+diff --git a/internal/mcpserver/sync.go b/internal/mcpserver/sync.go
+index 8a72080..7bb5c23 100644
+--- a/internal/mcpserver/sync.go
++++ b/internal/mcpserver/sync.go
+@@ -33,12 +33,7 @@ func handleSync(ctx context.Context, call *Call, args Args) *answer {
+ 	}
+ 
+ 	if len(result.Conflicts) == 0 {
+-		if !result.Pulled && result.HasRemote && !result.Rebasing {
+-			// Git could not reach the hub, or refused. Reported as success the
+-			// agent tells the user their machines are in step when they are not.
+-			return a.refuse("Nothing was pulled, so this machine has not taken in what the others saved. %s",
+-				result.Detail)
+-		}
++
+ 		return a.block(result.Detail)
+ 	}
+ 

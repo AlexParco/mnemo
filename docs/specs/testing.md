@@ -237,6 +237,61 @@ still passing, which is how it was found.
   should try again.
 - A failed answer accepts no further blocks, so a refusal is always exactly one.
 
+### MCP, talking to the hub
+
+Two machines that really collided, one hub, the same line of the same pending list changed on both.
+
+- A sync with conflicts comes back as three blocks: the detail and the file names, the files
+  themselves, and the conflict rule. The files travel with the answer because the agent has to
+  merge them and one it fetched separately could already have moved.
+- Content that still carries conflict markers is refused, and so is a path outside the store.
+- Resolving the last file says to call `mnemo_rebase continue`; resolving an earlier one names what
+  is still conflicted.
+- Continuing too early is a refusal that names the unresolved file. Aborting puts this machine's
+  own work back and leaves no markers behind.
+- After the merge, a third machine adopting from the hub sees both sides. That is the whole point
+  of the rule, and it is checked on the hub rather than locally.
+- A push scans first: the refusal is three blocks, the findings name the file, no block repeats the
+  value, a wrong acknowledgement is rejected and the right one lets it through.
+- No hub is a refusal. Nothing to push is not: the work is already published.
+
+### MCP, the two that can lose memory
+
+- Nothing happens on the first call: the plan reports what would change, carries a confirmation
+  value, and ends on the confirm note. The store is untouched afterwards, checked.
+- A value that was never issued is refused. The same value cannot be used twice, because applying
+  changes the plan it described.
+- Renaming keeps overlap, leaves a longer slug that contains the shorter one alone, and says the
+  other machines still have the old slug until it is pushed.
+- Deleting a project deletes only what was tagged with it alone, and the surviving memories are
+  **named**, not counted: a number does not let anyone check the one promise that makes the
+  operation safe.
+- Links left pointing at a deleted memory are reported and not repaired, and the file that holds
+  one still holds it afterwards.
+- Deleting a memory does not take its project with it, and an unknown target names the real ones.
+
+### Half a merge
+
+The state a sync leaves behind, and the one where a wrong move loses a session.
+
+- Nothing writes while the store is mid-rebase. Git allows it and says nothing, the commit is
+  folded into the rebase, and aborting then destroys it without stashing it — so the whole of a
+  session's memory can go because an agent did the two things it was told to do in the wrong order.
+- Nothing that returns memory is read either: the files carry conflict markers, and the card an
+  agent is told to print verbatim would show a user half a merge as fact.
+- `mnemo_status` still answers, and names what to call: it is how a fresh session finds out at all.
+- Aborting says what it cost — the hub's memory is still unmerged and the same conflict returns —
+  and the store is writable again afterwards.
+- Resolving is only for the files a sync left conflicted. Any other path is refused, and a
+  committed memory is byte-identical afterwards.
+- A merge is not refused for a flagged value that was already in the conflicted file: that value
+  came from a commit on one side, so refusing would make the only correct merge impossible and the
+  machine could never pull again. A value the merge adds is still refused, and the refusal tells the
+  agent not to delete the line to get past it.
+- A hub that is gone is a refusal, for a pull and for a push: reported as success the agent tells
+  the user their memory is somewhere it is not.
+- A file `.gitattributes` marks undiffable is still scanned for secrets.
+
 ### MCP, the server
 
 - A client sees every defined tool, with the same description, and each one's annotations match
@@ -451,6 +506,11 @@ The minimum set. Each control names the behaviour it breaks.
 **Deliberately absent.** Removing the in-process gate breaks nothing on Linux or macOS, where the
 file lock already excludes a second descriptor. It is what keeps a process out of its own lock on
 AIX and Solaris, and nothing here can show that, so no control pretends to.
+
+**Also deliberately absent.** The symlink guard in `ResolveConflict` has no control. Nothing can
+reach it: the check that the file is one a sync left conflicted comes first, and git does not report
+a path through a symlink as conflicted. The guard is kept as the one left standing if that first
+check ever changes shape, and a test asserts the refusal, but no mutation of it can fail.
 
 **Also deliberately absent.** There is no control for the inverse of the refusal classification —
 an internal fault reported as advice the agent could act on. It would need an error out of the
