@@ -1,0 +1,17 @@
+Breaks: the copy kept beside a config is the first snapshot ever and is never refreshed, so by the time somebody reaches for it, it has lost every change they made since the day mnemo first ran.
+Must fail: go test ./internal/integration -run '^TestTheBackupIsTheFileAsItWasJustBefore$'
+
+diff --git a/internal/integration/integration.go b/internal/integration/integration.go
+index 9613fbb..b0ff18c 100644
+--- a/internal/integration/integration.go
++++ b/internal/integration/integration.go
+@@ -119,6 +119,9 @@ const backupSuffix = ".mnemo-backup"
+ // first run has lost every change they made since.
+ func backup(path string) error {
+ 	target := path + backupSuffix
++	if _, err := os.Stat(target); err == nil {
++		return nil
++	}
+ 	content, err := os.ReadFile(path)
+ 	if errors.Is(err, os.ErrNotExist) {
+ 		return nil

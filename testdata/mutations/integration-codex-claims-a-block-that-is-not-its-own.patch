@@ -1,0 +1,20 @@
+Breaks: marker lines inside a multi-line string are treated as mnemo's block, so removing rewrites a value the person wrote and adding damages the string around it.
+Must fail: go test ./internal/integration -run '^TestMarkersInsideAStringAreNotABlock$'
+
+diff --git a/internal/integration/codex.go b/internal/integration/codex.go
+index 537ed63..4341272 100644
+--- a/internal/integration/codex.go
++++ b/internal/integration/codex.go
+@@ -178,12 +178,6 @@ func split(content string) (before, after string, found bool) {
+ 	if start == -1 || end == -1 {
+ 		return content, "", false
+ 	}
+-	// And the block has to look like mnemo's. Marker lines can appear inside a
+-	// multi-line string, where they are whole lines and mean nothing; cutting
+-	// there would change the value the person wrote.
+-	if !strings.Contains(strings.Join(lines[start:end+1], "\n"), "[mcp_servers.mnemo]") {
+-		return content, "", false
+-	}
+ 	return strings.Join(lines[:start], "\n"), strings.Join(lines[end+1:], "\n"), true
+ }
+ 

@@ -26,8 +26,12 @@ add claude` warns when `mnemo` is not found there.
   whose plugin needs `claude` to install.
 - **Adding is idempotent.** Running it again rewrites mnemo's entry with the current path and
   changes nothing else.
-- **Every file is written atomically.** Before the first change to an existing file, a copy is
-  saved next to it as `<file>.mnemo-backup`, unless one already exists.
+- **Every file is written atomically**, keeping the mode the file had and following a symlink rather
+  than replacing it: a config fed from a dotfiles repository keeps being fed from it, and a `0600`
+  file carrying provider keys does not become world-readable.
+- **Before each change, a copy is saved** next to the path given, as `<file>.mnemo-backup`, and it is
+  refreshed every time. The only thing it protects against is the edit mnemo is about to make; a
+  snapshot kept from the first run would have lost every change the person made since.
 
 ### Codex
 
@@ -46,6 +50,13 @@ add claude` warns when `mnemo` is not found there.
 
 - **Editing is textual**, because TOML libraries drop comments when they rewrite a file. An existing
   marked block is replaced in place. Otherwise the block is appended at the end, after a blank line.
+- **Markers are matched as whole lines.** A comment that quotes a marker, or a string value
+  containing one, is not a marker: treating it as one would cut out everything between it and the
+  real end marker.
+- **A begin marker with no end marker** is reported as mnemo's own block having lost its end line,
+  not as somebody else's entry. **Two begin markers** are refused rather than guessed at.
+- **Removing is checked the same way adding is:** what would be left is parsed as TOML, and nothing
+  is written if it does not parse.
 - **An entry mnemo did not write** is a table `mcp_servers.mnemo` outside the markers. Adding
   refuses, says where it is, and asks the user to remove it first.
 - **After editing**, the whole file is parsed as TOML. mnemo checks that `mcp_servers.mnemo.command`
@@ -68,8 +79,9 @@ add claude` warns when `mnemo` is not found there.
 - **A missing file** is created with `"$schema": "https://opencode.ai/config.json"` and the entry.
 - **An existing file** is edited with a JSON path setter that keeps the rest of the file's
   formatting.
-- **An entry mnemo did not write** is an `mcp.mnemo` whose `command` is not a `mnemo` executable
-  followed by `serve`. Adding refuses.
+- **An entry mnemo did not write** is an `mcp.mnemo` whose `command` is not exactly a `mnemo`
+  executable followed by `serve`. One carrying its own flags belongs to whoever wrote it. Adding
+  refuses, and removing leaves it alone.
 - **A file that is not plain JSON**, for instance one with comments, is left alone. Adding prints the
   entry for the user to paste.
 
@@ -82,6 +94,17 @@ add claude` warns when `mnemo` is not found there.
 4. It runs `claude plugin install mnemo@mnemo`. A plugin that is already installed is updated
    instead.
 5. On any failure it shows the command's output and prints the two commands.
+
+**`--path` names one file, so it needs one tool named.** With no tool, each of the three would write
+its own format into the same file and the next would refuse it.
+
+**An `mcpServers.mnemo` mnemo did not write is refused**, in the file route as much as the others: an
+`.mcp.json` is usually committed, so that entry is often a teammate's, with their own store.
+
+**After installing, the plugin's version is checked** against the binary's. A marketplace is a name,
+and a name can serve a different implementation than the one running; installing that and reporting
+success would hand a chat a mnemo that keeps its memory somewhere else. A mismatch is refused, says
+which version was installed, and gives the command to remove it.
 
 **With `--path P`**, the plugin is not installed. The file P, shaped like `.mcp.json`, gets:
 

@@ -72,9 +72,15 @@ func handleStatus(ctx context.Context, call *Call, args Args) *answer {
 	if exists {
 		status := call.repo().Status()
 		lines = append(lines, "git repo: "+yesNo(status.IsRepo))
-		if status.Remote != "" {
+		switch {
+		case status.Remote != "":
 			lines = append(lines, "remote: "+status.Remote)
-		} else {
+		case call.Remote != "":
+			// Configured is not wired. Saying "local only" here would send the
+			// agent to tell the user to set a hub they have already set.
+			lines = append(lines, "remote: "+call.Remote+
+				" — configured but not yet wired into this store; the next save wires it")
+		default:
 			lines = append(lines, "remote: none — this store is local only")
 		}
 		lines = append(lines, "branch: "+orQuestion(status.Branch))

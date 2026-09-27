@@ -1,0 +1,17 @@
+Breaks: with no home directory the tool's config path comes out relative, so mnemo's entry is written inside whatever repository the command was run from, where the tool never looks, and it reports success.
+Must fail: go test ./internal/cli -run '^TestWithNoHomeItRefusesRatherThanWriteIntoTheCurrentDirectory$'
+
+diff --git a/internal/integration/codex.go b/internal/integration/codex.go
+index c76149f..402a456 100644
+--- a/internal/integration/codex.go
++++ b/internal/integration/codex.go
+@@ -24,9 +24,6 @@ func CodexFile() string {
+ 	if dir := strings.TrimSpace(os.Getenv("CODEX_HOME")); dir != "" {
+ 		return filepath.Join(dir, "config.toml")
+ 	}
+-	if home() == "" {
+-		return ""
+-	}
+ 	return filepath.Join(home(), ".codex", "config.toml")
+ }
+ 

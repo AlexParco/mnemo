@@ -1,0 +1,18 @@
+Breaks: a machine label that normalises to nothing is printed as a dash with no warning, although every command that needs one will stop and the cause is invisible.
+Must fail: go test ./internal/cli -run '^TestNoUsableMachineLabelIsSaidOutLoud$'
+
+diff --git a/internal/config/settings.go b/internal/config/settings.go
+index b27874b..25ef94f 100644
+--- a/internal/config/settings.go
++++ b/internal/config/settings.go
+@@ -103,10 +103,6 @@ func Resolve(file *File, flags Overrides) Settings {
+ 		s.source["autopush"] = Source{"default", ""}
+ 	}
+ 
+-	if s.Machine == "" {
+-		s.Ignored = append(s.Ignored, fmt.Sprintf("%s gives no usable machine label, so every command that needs "+
+-			"one will stop. Set one with mnemo config set machine <label>", origin(s.source["machine"])))
+-	}
+ 	// An XDG variable that is not absolute is ignored, per the specification it
+ 	// comes from. Saying so is the difference between a setting that did not
+ 	// apply and a setting the user believes applied.

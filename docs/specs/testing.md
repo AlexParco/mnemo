@@ -314,6 +314,21 @@ Every one of these is a way to damage a file mnemo did not write.
 - Codex keeps its comments, its own settings and its trailing comments; the edit is textual for
   exactly that reason, and what is written parses as TOML and says what it should before anything
   reaches the disk.
+- **Markers are whole lines, and a block only counts as mnemo's when it contains mnemo's entry.** A
+  comment quoting a marker, and marker lines inside a multi-line string, are both left alone —
+  matching them as substrings used to cut out everything between them and the real end marker, which
+  is most of somebody's configuration.
+- A begin marker with no end marker is reported as mnemo's own block having lost its end line, not
+  as an entry mnemo did not write. Two begin markers are refused rather than guessed at.
+- The mode of the file is kept and a symlink is followed rather than replaced: a config fed from a
+  dotfiles repository keeps being fed from it, and a `0600` file carrying provider keys does not
+  become world-readable.
+- The copy kept beside a config is refreshed before each change, not kept from the first run: the
+  only thing it protects against is the edit mnemo is about to make.
+- An `mcpServers.mnemo` in a committed `.mcp.json` that mnemo did not write is refused and never
+  deleted — it is usually a teammate's. An `mcp.mnemo` carrying its own flags is somebody's own.
+- After installing the plugin, its version is checked against the binary's: a marketplace is a name,
+  and a name can serve a different implementation.
 - Adding twice says nothing changed. A binary that moved rewrites the one entry and does not
   duplicate it. Removing leaves the person's own settings and says nothing to remove the second
   time.
@@ -331,6 +346,15 @@ Every one of these is a way to damage a file mnemo did not write.
 
 ### Settings, from the terminal
 
+- Usage errors have their own exit code, so a script can tell a mistyped command from one that ran
+  and failed. A refusal is not a usage error.
+- `mnemo mcp status` says what is registered, where the store is and whether it exists yet, and
+  whether anything leaves this machine.
+- Skipping every tool says why, and says a tool can be named to register it anyway.
+- With no home directory, registering refuses rather than writing into the current directory, and
+  the directory is still empty afterwards.
+- Unsetting a key that was never set says nothing changed.
+- A machine label that normalises to nothing is warned about, with what to type.
 - `mnemo config` names where every value came from, prints the token as `set` and never as itself,
   and names the config file.
 - `config set` validates before writing: a language mnemo cannot render, an autopush that is
@@ -539,6 +563,12 @@ The minimum set. Each control names the behaviour it breaks.
 **Deliberately absent.** Removing the in-process gate breaks nothing on Linux or macOS, where the
 file lock already excludes a second descriptor. It is what keeps a process out of its own lock on
 AIX and Solaris, and nothing here can show that, so no control pretends to.
+
+**Also deliberately absent.** The TOML re-parse after removing mnemo's block from a Codex config has
+no control. Once markers are matched as whole lines *and* a block only counts as mnemo's when it
+contains `[mcp_servers.mnemo]`, every cut is between two whole tables of a file that already parsed,
+so nothing reachable leaves invalid TOML behind. The check is kept as the one left standing if that
+matching ever loosens again, which is exactly how the damage happened the first time.
 
 **Also deliberately absent.** The symlink guard in `ResolveConflict` has no control. Nothing can
 reach it: the check that the file is one a sync left conflicted comes first, and git does not report

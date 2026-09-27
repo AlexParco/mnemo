@@ -1,0 +1,22 @@
+Breaks: a tool's config is written 0644 and a symlink is replaced by a regular file, so a 0600 file carrying provider keys becomes world-readable and a config fed from a dotfiles repository stops being fed from it.
+Must fail: go test ./internal/integration -run '^TestWritingKeepsTheModeAndFollowsASymlink$'
+
+diff --git a/internal/integration/integration.go b/internal/integration/integration.go
+index 9613fbb..d0430a2 100644
+--- a/internal/integration/integration.go
++++ b/internal/integration/integration.go
+@@ -136,13 +136,7 @@ func backup(path string) error {
+ // account on the machine. A symlink is followed rather than replaced, because a
+ // config fed from a dotfiles repository must keep being fed from it.
+ func write(path string, content []byte) error {
+-	mode := os.FileMode(0o600)
+-	if info, err := os.Stat(path); err == nil {
+-		mode = info.Mode().Perm()
+-	}
+-	if resolved, err := filepath.EvalSymlinks(path); err == nil {
+-		path = resolved
+-	}
++	mode := os.FileMode(0o644)
+ 	dir := filepath.Dir(path)
+ 	if err := os.MkdirAll(dir, 0o755); err != nil {
+ 		return fmt.Errorf("creating %s: %w", dir, err)

@@ -4,6 +4,7 @@
     "name": "AlexParco",
     "url": "https://github.com/AlexParco"
   },
+  "description": "mnemo: per-project persistent memory for coding agents, kept as plain text in a git store you own and reachable over MCP.",
   "plugins": [
     {
       "name": "mnemo",

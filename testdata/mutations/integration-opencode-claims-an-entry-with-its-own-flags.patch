@@ -1,0 +1,16 @@
+Breaks: an mcp.mnemo invoked with its own flags and its own store is treated as mnemo's, so adding overwrites it and removing deletes it.
+Must fail: go test ./internal/integration -run '^TestOpencodeWillNotClaimAnEntryWithItsOwnFlags$'
+
+diff --git a/internal/integration/opencode.go b/internal/integration/opencode.go
+index ab41dea..e96d086 100644
+--- a/internal/integration/opencode.go
++++ b/internal/integration/opencode.go
+@@ -152,7 +152,7 @@ func oursOpencode(entry gjson.Result, want string) bool {
+ 	command := entry.Get("command").Array()
+ 	// Exactly two: a mnemo invoked with its own flags, or a wrapper, belongs to
+ 	// whoever wrote it, and overwriting it would take their store away.
+-	if len(command) != 2 || command[1].String() != "serve" {
++	if len(command) < 2 || command[1].String() != "serve" {
+ 		return false
+ 	}
+ 	first := command[0].String()

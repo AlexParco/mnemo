@@ -1,0 +1,23 @@
+Breaks: an mcpServers.mnemo somebody else wrote in a committed .mcp.json is overwritten, and later deleted, so a teammate's store and flags disappear from a file they share.
+Must fail: go test ./internal/integration -run '^TestTheClaudeFileWillNotTakeOverSomebodyElsesEntry$'
+
+diff --git a/internal/integration/claude.go b/internal/integration/claude.go
+index f5917df..f51d486 100644
+--- a/internal/integration/claude.go
++++ b/internal/integration/claude.go
+@@ -181,15 +181,6 @@ func AddClaudeFile(path, mnemo string) (Result, error) {
+ 		result.Advice = "This file is not plain JSON, so mnemo left it alone."
+ 		return result, nil
+ 	}
+-	if existing := gjson.Get(content, "mcpServers.mnemo"); existing.Exists() && !oursClaude(existing) {
+-		// .mcp.json is usually committed, so this entry is often somebody else's
+-		// — with their own store, their own flags.
+-		result.Outcome = Refused
+-		result.Advice = "There is already an mcpServers.mnemo in this file that does not look like mnemo's own " +
+-			"entry: it may be a teammate's, with its own store.\nRemove it and run this again, or leave it and " +
+-			"mnemo will not manage this file."
+-		return result, nil
+-	}
+ 
+ 	updated := content
+ 	for key, value := range map[string]any{

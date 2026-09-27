@@ -1,0 +1,26 @@
+Breaks: a block whose end marker somebody deleted is reported as an entry mnemo did not write, so the user is told to remove something mnemo itself put there, and adding can never succeed again.
+Must fail: go test ./internal/integration -run '^TestCodexSaysWhatIsWrongWithItsOwnBlock$'
+
+diff --git a/internal/integration/codex.go b/internal/integration/codex.go
+index c76149f..952a7c1 100644
+--- a/internal/integration/codex.go
++++ b/internal/integration/codex.go
+@@ -52,18 +52,6 @@ func AddCodex(path, mnemo string) (Result, error) {
+ 
+ 	entry := codexEntry(mnemo)
+ 	before, after, marked := split(content)
+-	if strayBegin(content) {
+-		result.Outcome = Refused
+-		result.Advice = "mnemo's block in this file has lost its `" + codexEnd + "` line, so mnemo cannot tell " +
+-			"where the block ends.\nRestore that line, or delete the block by hand, and run this again."
+-		return result, nil
+-	}
+-	if extraBegin(content) {
+-		result.Outcome = Refused
+-		result.Advice = "This file has more than one `" + codexBegin + "` line. mnemo will not guess which " +
+-			"block is its own.\nLeave one and run this again."
+-		return result, nil
+-	}
+ 	if !marked && mentionsCodexMnemo(content) {
+ 		// Somebody else's entry. Rewriting it would silently take over a
+ 		// configuration mnemo did not make.

@@ -2,17 +2,17 @@ Breaks: a tool's config file is written straight to its destination, so a tool r
 Must fail: go test ./internal/integration -run '^TestEditsReplaceTheFileByRenaming$'
 
 diff --git a/internal/integration/integration.go b/internal/integration/integration.go
-index 9cc8185..1ab9b29 100644
+index 9613fbb..ba44235 100644
 --- a/internal/integration/integration.go
 +++ b/internal/integration/integration.go
-@@ -132,17 +132,8 @@ func write(path string, content []byte) error {
+@@ -147,17 +147,8 @@ func write(path string, content []byte) error {
  	if err := os.MkdirAll(dir, 0o755); err != nil {
  		return fmt.Errorf("creating %s: %w", dir, err)
  	}
 -	suffix := make([]byte, 6)
 -	rand.Read(suffix)
 -	temp := filepath.Join(dir, "."+filepath.Base(path)+".mnemo-tmp-"+hex.EncodeToString(suffix))
--	if err := os.WriteFile(temp, content, 0o644); err != nil {
+-	if err := os.WriteFile(temp, content, mode); err != nil {
 -		return fmt.Errorf("writing %s: %w", temp, err)
 -	}
 -	if err := os.Rename(temp, path); err != nil {
@@ -21,7 +21,7 @@ index 9cc8185..1ab9b29 100644
 -	}
 -	return nil
 +	_, _ = rand.Read, hex.EncodeToString
-+	return os.WriteFile(path, content, 0o644)
++	return os.WriteFile(path, content, mode)
  }
  
  func read(path string) (string, bool, error) {

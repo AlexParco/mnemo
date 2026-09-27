@@ -5,6 +5,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 
@@ -25,24 +26,60 @@ var Version = "dev"
 // editing a file.
 var flags config.Overrides
 
+// usageError marks a failure that is the caller's typing rather than mnemo's
+// doing, so a script can tell them apart.
+type usageError struct{ error }
+
+func usage(format string, args ...any) error { return usageError{fmt.Errorf(format, args...)} }
+
+// exactly is cobra's ExactArgs, reporting a usage error rather than a plain one:
+// the wrong number of arguments is the caller's typing, not mnemo failing.
+func exactly(n int, shape string) cobra.PositionalArgs {
+	return func(_ *cobra.Command, args []string) error {
+		if len(args) == n {
+			return nil
+		}
+		return usage("this takes %s, and %d were given", shape, len(args))
+	}
+}
+
+// noArgs is cobra's NoArgs, as a usage error.
+func noArgs(_ *cobra.Command, args []string) error {
+	if len(args) == 0 {
+		return nil
+	}
+	return usage("this takes no arguments, and %d were given", len(args))
+}
+
 // Execute runs mnemo and returns the process's exit code.
 func Execute(ctx context.Context) int {
 	root := &cobra.Command{
 		Use:   "mnemo",
 		Short: "Shared memory and a mailbox for coding agents",
-		Long: "mnemo keeps a person's project memory as plain text in a git store, shared across their machines, " +
-			"and lets the agents working for them leave each other messages.",
+		Long: "mnemo keeps a person's project memory as plain text in a git store of their own, shared across " +
+			"their machines, and serves it to coding agents over MCP.\n\n" +
+			"Getting started\n" +
+			"  mnemo mcp add                          register mnemo in the tools on this machine\n" +
+			"  mnemo mcp status                       what is registered, and where the store is\n" +
+			"  mnemo config                           where your memory is, and why\n" +
+			"  mnemo config set store.remote <url>    a git hub to share it between machines\n" +
+			"then open a chat in that tool and ask it to save this project's context.",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
 	root.PersistentFlags().StringVar(&flags.Store, "store", "", "use this store instead of the configured one")
 	root.PersistentFlags().StringVar(&flags.Machine, "machine", "", "label for this machine")
-	root.PersistentFlags().StringVar(&flags.Lang, "lang", "", "language for the card: en or es")
+	root.PersistentFlags().StringVar(&flags.Lang, "lang", "", "language mnemo writes in: en or es")
 
 	root.AddCommand(configCommand(), mcpCommand(), serveCommand(), versionCommand())
 
+	root.SetFlagErrorFunc(func(_ *cobra.Command, err error) error { return usageError{err} })
 	if err := root.ExecuteContext(ctx); err != nil {
 		fmt.Fprintln(os.Stderr, "mnemo:", err)
+		var wrong usageError
+		if errors.As(err, &wrong) {
+			return 2
+		}
 		return 1
 	}
 	return 0
@@ -88,7 +125,7 @@ func serveCommand() *cobra.Command {
 		// has to keep working across releases, because a plugin and a binary of
 		// different versions can meet.
 		Hidden: true,
-		Args:   cobra.NoArgs,
+		Args:   noArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			resolved, err := settings()
 			if err != nil {
@@ -113,7 +150,7 @@ func versionCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "version",
 		Short: "Print mnemo's version",
-		Args:  cobra.NoArgs,
+		Args:  noArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			_, err := fmt.Fprintln(cmd.OutOrStdout(), Version)
 			return err

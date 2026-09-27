@@ -532,3 +532,180 @@ func TestTheBinaryRegistersItselfWithoutDamagingTheFile(t *testing.T) {
 		t.Errorf("the entry does not point at this binary:\n%s", after)
 	}
 }
+
+// run is the binary, with its output and its exit code.
+func runMnemo(t *testing.T, env []string, args ...string) (string, int) {
+	t.Helper()
+	command := exec.Command(built(t), args...)
+	command.Env = env
+	out, err := command.CombinedOutput()
+	code := 0
+	if exit, ok := err.(*exec.ExitError); ok {
+		code = exit.ExitCode()
+	} else if err != nil {
+		t.Fatalf("mnemo %v: %v", args, err)
+	}
+	return string(out), code
+}
+
+// A script has to be able to tell "you typed it wrong" from "it did not work".
+func TestUsageErrorsHaveTheirOwnExitCode(t *testing.T) {
+	_, env := machine(t, false)
+
+	for _, args := range [][]string{
+		{"mcp"},
+		{"mcp", "add", "gemini"},
+		{"mcp", "add", "codex", "opencode"},
+		{"config", "foo"},
+		{"config", "set", "store.dir"},
+		{"--nosuchflag"},
+	} {
+		out, code := runMnemo(t, env, args...)
+		if code != 2 {
+			t.Errorf("mnemo %v exited %d, want 2:\n%s", args, code, out)
+		}
+	}
+
+	// A refusal is not a usage error: the command was right and mnemo would not
+	// do it.
+	work := t.TempDir()
+	write(t, filepath.Join(work, "config.toml"), "[mcp_servers.mnemo]\ncommand = \"/mine\"\n")
+	out, code := runMnemo(t, env, "mcp", "add", "codex", "--path", filepath.Join(work, "config.toml"))
+	if code != 1 {
+		t.Errorf("a refusal exited %d, want 1:\n%s", code, out)
+	}
+
+	if out, code := runMnemo(t, env, "config"); code != 0 {
+		t.Errorf("config exited %d:\n%s", code, out)
+	}
+}
+
+// Without this the only way to find out whether registering worked was to open a
+// chat.
+func TestStatusSaysWhatIsRegisteredAndWhereTheStoreIs(t *testing.T) {
+	home, env := machine(t, true)
+
+	out, code := runMnemo(t, env, "mcp", "status")
+	if code != 0 {
+		t.Fatalf("status exited %d:\n%s", code, out)
+	}
+	for _, want := range []string{"claude", "codex", "opencode", "store", filepath.Join(home, "store"), "hub"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("status does not mention %q:\n%s", want, out)
+		}
+	}
+	if !strings.Contains(out, "exists") {
+		t.Errorf("status does not say the store is there:\n%s", out)
+	}
+
+	// A machine that has never saved is told so, rather than left guessing.
+	_, fresh := machine(t, false)
+	out, _ = runMnemo(t, fresh, "mcp", "status")
+	if !strings.Contains(out, "not created yet") {
+		t.Errorf("status on a fresh machine:\n%s", out)
+	}
+	if !strings.Contains(out, "hub        none") {
+		t.Errorf("status does not say nothing leaves this machine:\n%s", out)
+	}
+}
+
+// Three lines saying nothing happened, and nothing about why or what to do, is
+// how somebody spends an evening wondering where their memory is.
+func TestSkippingSaysWhyAndWhatToDo(t *testing.T) {
+	_, env := machine(t, false)
+	// A PATH with none of the three tools on it.
+	trimmed := make([]string, 0, len(env))
+	for _, entry := range env {
+		if !strings.HasPrefix(entry, "PATH=") {
+			trimmed = append(trimmed, entry)
+		}
+	}
+	trimmed = append(trimmed, "PATH=/nonexistent")
+
+	out, code := runMnemo(t, trimmed, "mcp", "add")
+	if code != 0 {
+		t.Errorf("nothing to do exited %d:\n%s", code, out)
+	}
+	for _, want := range []string{
+		"claude is not on the PATH", "codex is not on the PATH",
+		"None of the three tools was found", "mnemo mcp add codex",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("the output does not say %q:\n%s", want, out)
+		}
+	}
+}
+
+// With no home directory mnemo does not know where a tool keeps its config, and
+// an entry written relative to the current directory lands inside whatever
+// repository the command was run from, where the tool never looks.
+func TestWithNoHomeItRefusesRatherThanWriteIntoTheCurrentDirectory(t *testing.T) {
+	work := t.TempDir()
+	command := exec.Command(built(t), "mcp", "add", "codex")
+	command.Dir = work
+	command.Env = []string{"PATH=" + os.Getenv("PATH")}
+	out, _ := command.CombinedOutput()
+
+	if !strings.Contains(string(out), "no home directory") {
+		t.Errorf("the output reads:\n%s", out)
+	}
+	if !strings.Contains(string(out), "--path") {
+		t.Errorf("the output does not offer a way through:\n%s", out)
+	}
+	entries, err := os.ReadDir(work)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 0 {
+		t.Errorf("it wrote into the working directory: %v", entries)
+	}
+}
+
+// Saying a key was removed when it was never there makes a person believe they
+// changed something they did not.
+func TestUnsettingSomethingThatWasNeverSet(t *testing.T) {
+	home, env := machine(t, false)
+	configFile := filepath.Join(home, "config", "mnemo", "config.toml")
+	write(t, configFile, "lang = \"es\"\n")
+
+	out, code := runMnemo(t, env, "config", "unset", "store.dir")
+	if code != 0 {
+		t.Fatalf("exited %d:\n%s", code, out)
+	}
+	if !strings.Contains(out, "was not set") || !strings.Contains(out, "nothing changed") {
+		t.Errorf("the output reads:\n%s", out)
+	}
+
+	// And one that was there really goes.
+	out, _ = runMnemo(t, env, "config", "unset", "lang")
+	if !strings.Contains(out, "Removed lang") {
+		t.Errorf("the output reads:\n%s", out)
+	}
+	if body := read(t, configFile); strings.Contains(body, "lang") {
+		t.Errorf("lang survived:\n%s", body)
+	}
+}
+
+// A machine label that normalises to nothing stops every command that needs one,
+// so printing it as a dash with no warning leaves the cause invisible.
+func TestNoUsableMachineLabelIsSaidOutLoud(t *testing.T) {
+	_, env := machine(t, false)
+	trimmed := make([]string, 0, len(env))
+	for _, entry := range env {
+		if !strings.HasPrefix(entry, "MNEMO_MACHINE=") {
+			trimmed = append(trimmed, entry)
+		}
+	}
+	trimmed = append(trimmed, "MNEMO_MACHINE=---")
+
+	out, code := runMnemo(t, trimmed, "config")
+	if code != 0 {
+		t.Fatalf("exited %d:\n%s", code, out)
+	}
+	if !strings.Contains(out, "no usable machine label") {
+		t.Errorf("nothing warns about it:\n%s", out)
+	}
+	if !strings.Contains(out, "mnemo config set machine") {
+		t.Errorf("the warning does not say what to type:\n%s", out)
+	}
+}

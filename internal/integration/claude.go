@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/tidwall/gjson"
@@ -27,8 +28,56 @@ func ClaudeCommands() string {
 	return "claude plugin marketplace add " + Marketplace + "\nclaude plugin install " + PluginRef
 }
 
-// AddClaude installs the plugin.
-func AddClaude(run func(args ...string) (string, error)) (Result, error) {
+// InstalledVersion is the version of the plugin Claude Code has, and whether it
+// could be worked out at all.
+func InstalledVersion(run func(args ...string) (string, error)) (string, bool) {
+	if run == nil {
+		run = claudeCommand
+	}
+	out, err := run("plugin", "list")
+	if err != nil {
+		return "", false
+	}
+	for _, line := range strings.Split(out, "\n") {
+		if !strings.Contains(line, "mnemo") {
+			continue
+		}
+		// The version is the first thing on the line that looks like one.
+		for _, field := range strings.Fields(strings.NewReplacer("(", " ", ")", " ", ",", " ").Replace(line)) {
+			if version := strings.TrimPrefix(field, "v"); looksLikeVersion(version) {
+				return version, true
+			}
+		}
+	}
+	return "", false
+}
+
+func looksLikeVersion(value string) bool {
+	parts := strings.Split(value, ".")
+	if len(parts) < 2 {
+		return false
+	}
+	for _, part := range parts {
+		if part == "" {
+			return false
+		}
+		for _, r := range part {
+			if r < '0' || r > '9' {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// AddClaude installs the plugin and checks that what got installed is this
+// binary's plugin.
+//
+// The marketplace is a name, and a name can serve a different implementation
+// than the one running here — it does today, while this rewrite is unpublished.
+// Installing that and reporting success would hand a chat a mnemo that keeps its
+// memory somewhere else, and nothing downstream would notice.
+func AddClaude(version string, run func(args ...string) (string, error)) (Result, error) {
 	result := Result{Tool: "claude"}
 	if run == nil {
 		run = claudeCommand
@@ -60,6 +109,15 @@ func AddClaude(run func(args ...string) (string, error)) (Result, error) {
 		result.Advice = strings.TrimSpace(out) + "\nRun these by hand:\n" + ClaudeCommands()
 		return result, nil
 	}
+	if installed, known := InstalledVersion(run); known && version != "dev" && installed != strings.TrimPrefix(version, "v") {
+		result.Outcome, result.Detail = Refused, "the marketplace served plugin "+installed
+		result.Advice = fmt.Sprintf("This binary is %s, and the plugin that was installed is %s — a different "+
+			"implementation, which does not use this binary and does not read the store this binary reads.\n"+
+			"Remove it with: claude plugin uninstall %s\n"+
+			"Then wire this binary into one project instead:\n"+
+			"  mnemo mcp add claude --path <project>/.mcp.json", version, installed, PluginRef)
+		return result, nil
+	}
 	result.Outcome, result.Detail = Added, PluginRef
 	return result, nil
 }
@@ -76,7 +134,10 @@ func RemoveClaude(run func(args ...string) (string, error)) (Result, error) {
 	}
 	out, err := run("plugin", "uninstall", PluginRef)
 	if err != nil {
-		if notThere(out) {
+		// Asked, not guessed from the words in the output: plenty of real
+		// failures contain "not found", and reporting those as nothing to remove
+		// left the plugin installed with nobody the wiser.
+		if !RegisteredClaude(run) {
 			result.Outcome = Nothing
 			return result, nil
 		}
@@ -120,6 +181,15 @@ func AddClaudeFile(path, mnemo string) (Result, error) {
 		result.Advice = "This file is not plain JSON, so mnemo left it alone."
 		return result, nil
 	}
+	if existing := gjson.Get(content, "mcpServers.mnemo"); existing.Exists() && !oursClaude(existing) {
+		// .mcp.json is usually committed, so this entry is often somebody else's
+		// — with their own store, their own flags.
+		result.Outcome = Refused
+		result.Advice = "There is already an mcpServers.mnemo in this file that does not look like mnemo's own " +
+			"entry: it may be a teammate's, with its own store.\nRemove it and run this again, or leave it and " +
+			"mnemo will not manage this file."
+		return result, nil
+	}
 
 	updated := content
 	for key, value := range map[string]any{
@@ -154,8 +224,14 @@ func RemoveClaudeFile(path string) (Result, error) {
 	if err != nil {
 		return result, err
 	}
-	if !existed || !gjson.Valid(content) || !gjson.Get(content, "mcpServers.mnemo").Exists() {
+	existing := gjson.Get(content, "mcpServers.mnemo")
+	if !existed || !gjson.Valid(content) || !existing.Exists() {
 		result.Outcome = Nothing
+		return result, nil
+	}
+	if !oursClaude(existing) {
+		result.Outcome = Nothing
+		result.Advice = "The mcpServers.mnemo in this file does not look like mnemo's own entry, so it was left alone."
 		return result, nil
 	}
 	if err := backup(path); err != nil {
@@ -189,6 +265,19 @@ func RegisteredClaude(run func(args ...string) (string, error)) bool {
 	return false
 }
 
+// oursClaude reports whether an entry looks like one mnemo wrote: a mnemo
+// executable with exactly `serve` and nothing else. Anything with extra flags or
+// a different command belongs to whoever put it there.
+func oursClaude(entry gjson.Result) bool {
+	args := entry.Get("args").Array()
+	if len(args) != 1 || args[0].String() != "serve" {
+		return false
+	}
+	command := entry.Get("command").String()
+	base := filepath.Base(command)
+	return base == "mnemo" || base == "mnemo.exe"
+}
+
 func claudeCommand(args ...string) (string, error) {
 	cmd := exec.Command("claude", args...)
 	out, err := cmd.CombinedOutput()
@@ -200,9 +289,4 @@ func claudeCommand(args ...string) (string, error) {
 func alreadyThere(out string) bool {
 	lower := strings.ToLower(out)
 	return strings.Contains(lower, "already") || strings.Contains(lower, "exists")
-}
-
-func notThere(out string) bool {
-	lower := strings.ToLower(out)
-	return strings.Contains(lower, "not found") || strings.Contains(lower, "not installed")
 }

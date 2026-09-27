@@ -57,6 +57,9 @@ var Names = []string{"claude", "codex", "opencode"}
 // Executables are what has to be on the PATH for a tool to count as installed.
 var executables = map[string]string{"claude": "claude", "codex": "codex", "opencode": "opencode"}
 
+// Executable is what has to be on the PATH for a tool to count as installed.
+func Executable(tool string) string { return executables[tool] }
+
 // Installed reports whether a tool is on this machine.
 func Installed(tool string) bool {
 	_, err := exec.LookPath(executables[tool])
@@ -108,14 +111,14 @@ func OnPath() bool {
 // backupSuffix marks the copy kept before mnemo first changes someone's file.
 const backupSuffix = ".mnemo-backup"
 
-// backup keeps one copy of a file as it was before mnemo touched it, and only
-// one: a second run must not overwrite the user's original with mnemo's own
-// output.
+// backup keeps a copy of the file as it is now, before mnemo changes it.
+//
+// It used to keep the first snapshot for ever and never refresh it, which is the
+// wrong way round: the only thing a backup protects against is the edit mnemo is
+// about to make, and by the time somebody reaches for it, a snapshot from the
+// first run has lost every change they made since.
 func backup(path string) error {
 	target := path + backupSuffix
-	if _, err := os.Stat(target); err == nil {
-		return nil
-	}
 	content, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil
@@ -127,7 +130,19 @@ func backup(path string) error {
 }
 
 // write replaces a file in one step, so a tool reading it never sees half.
+//
+// The mode of the file that was there is kept: Codex's config can carry provider
+// keys, and turning a 0600 file into a 0644 one would publish them to every
+// account on the machine. A symlink is followed rather than replaced, because a
+// config fed from a dotfiles repository must keep being fed from it.
 func write(path string, content []byte) error {
+	mode := os.FileMode(0o600)
+	if info, err := os.Stat(path); err == nil {
+		mode = info.Mode().Perm()
+	}
+	if resolved, err := filepath.EvalSymlinks(path); err == nil {
+		path = resolved
+	}
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("creating %s: %w", dir, err)
@@ -135,7 +150,7 @@ func write(path string, content []byte) error {
 	suffix := make([]byte, 6)
 	rand.Read(suffix)
 	temp := filepath.Join(dir, "."+filepath.Base(path)+".mnemo-tmp-"+hex.EncodeToString(suffix))
-	if err := os.WriteFile(temp, content, 0o644); err != nil {
+	if err := os.WriteFile(temp, content, mode); err != nil {
 		return fmt.Errorf("writing %s: %w", temp, err)
 	}
 	if err := os.Rename(temp, path); err != nil {

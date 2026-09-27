@@ -17,6 +17,9 @@ import (
 
 // OpencodeFile is where opencode keeps its configuration.
 func OpencodeFile() string {
+	if home() == "" {
+		return ""
+	}
 	return filepath.Join(home(), ".config", "opencode", "opencode.json")
 }
 
@@ -147,12 +150,15 @@ func RegisteredOpencode(path string) bool {
 // what removing needs after the binary has moved.
 func oursOpencode(entry gjson.Result, want string) bool {
 	command := entry.Get("command").Array()
-	if len(command) < 2 || command[1].String() != "serve" {
+	// Exactly two: a mnemo invoked with its own flags, or a wrapper, belongs to
+	// whoever wrote it, and overwriting it would take their store away.
+	if len(command) != 2 || command[1].String() != "serve" {
 		return false
 	}
 	first := command[0].String()
-	if want != "" {
-		return first == want || filepath.Base(first) == "mnemo"
+	if want != "" && first == want {
+		return true
 	}
-	return filepath.Base(first) == "mnemo" || filepath.Base(first) == "mnemo.exe"
+	base := filepath.Base(first)
+	return base == "mnemo" || base == "mnemo.exe"
 }

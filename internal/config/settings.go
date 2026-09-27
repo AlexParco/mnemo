@@ -103,6 +103,10 @@ func Resolve(file *File, flags Overrides) Settings {
 		s.source["autopush"] = Source{"default", ""}
 	}
 
+	if s.Machine == "" {
+		s.Ignored = append(s.Ignored, fmt.Sprintf("%s gives no usable machine label, so every command that needs "+
+			"one will stop. Set one with mnemo config set machine <label>", origin(s.source["machine"])))
+	}
 	// An XDG variable that is not absolute is ignored, per the specification it
 	// comes from. Saying so is the difference between a setting that did not
 	// apply and a setting the user believes applied.
@@ -130,6 +134,20 @@ func Resolve(file *File, flags Overrides) Settings {
 		s.source["tool"] = Source{"default", ""}
 	}
 	return s
+}
+
+// origin is how a Source reads in a sentence.
+func origin(source Source) string {
+	switch {
+	case source.Kind == "default" && source.Where != "":
+		return "the " + source.Where
+	case source.Kind == "default":
+		return "the default"
+	case source.Kind == "config":
+		return "the config file's " + source.Where
+	default:
+		return source.Kind + " " + source.Where
+	}
 }
 
 // pick chooses the first source that applies, else the default.

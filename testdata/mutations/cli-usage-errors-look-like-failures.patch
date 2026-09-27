@@ -1,0 +1,18 @@
+Breaks: a mistyped command exits with the same code as a command that ran and failed, so a script cannot tell them apart.
+Must fail: go test ./internal/cli -run '^TestUsageErrorsHaveTheirOwnExitCode$'
+
+diff --git a/internal/cli/cli.go b/internal/cli/cli.go
+index 895baa7..7c072b6 100644
+--- a/internal/cli/cli.go
++++ b/internal/cli/cli.go
+@@ -76,10 +76,6 @@ func Execute(ctx context.Context) int {
+ 	root.SetFlagErrorFunc(func(_ *cobra.Command, err error) error { return usageError{err} })
+ 	if err := root.ExecuteContext(ctx); err != nil {
+ 		fmt.Fprintln(os.Stderr, "mnemo:", err)
+-		var wrong usageError
+-		if errors.As(err, &wrong) {
+-			return 2
+-		}
+ 		return 1
+ 	}
+ 	return 0

@@ -1,0 +1,19 @@
+Breaks: unsetting a key that was never set reports that it was removed, so a person believes they changed something they did not.
+Must fail: go test ./internal/cli -run '^TestUnsettingSomethingThatWasNeverSet$'
+
+diff --git a/internal/cli/config.go b/internal/cli/config.go
+index 8a9994d..b30db8d 100644
+--- a/internal/cli/config.go
++++ b/internal/cli/config.go
+@@ -214,11 +214,6 @@ func configUnsetCommand() *cobra.Command {
+ 			if err := file.Save(); err != nil {
+ 				return err
+ 			}
+-			if !had {
+-				_, err = fmt.Fprintf(cmd.OutOrStdout(), "%s was not set in %s, so nothing changed; its default "+
+-					"already applies.\n", args[0], file.Path())
+-				return err
+-			}
+ 			_, err = fmt.Fprintf(cmd.OutOrStdout(), "Removed %s from %s; its default applies again.\n",
+ 				args[0], file.Path())
+ 			return err

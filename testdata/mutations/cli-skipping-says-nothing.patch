@@ -1,0 +1,16 @@
+Breaks: `mnemo mcp add` with no tool installed prints three lines saying nothing happened, with no reason and no way forward.
+Must fail: go test ./internal/cli -run '^TestSkippingSaysWhyAndWhatToDo$'
+
+diff --git a/internal/cli/mcp.go b/internal/cli/mcp.go
+index e370114..f52c070 100644
+--- a/internal/cli/mcp.go
++++ b/internal/cli/mcp.go
+@@ -205,7 +205,7 @@ func report(out io.Writer, results []integration.Result) error {
+ 			skipped++
+ 		}
+ 	}
+-	if skipped == len(results) && len(results) > 0 {
++	if false {
+ 		// Nothing happened and nothing is wrong. Said out loud, with the way
+ 		// round it: a tool can be registered before it is installed.
+ 		if _, err := fmt.Fprint(out, "\nNone of the three tools was found, so nothing was registered. Install "+

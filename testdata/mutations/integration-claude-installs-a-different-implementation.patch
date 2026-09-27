@@ -1,0 +1,18 @@
+Breaks: the marketplace serves a plugin that is not this binary's, and installing it is reported as success — so a chat gets a mnemo that keeps its memory somewhere else and nothing notices.
+Must fail: go test ./internal/integration -run '^TestClaudeRefusesAPluginThatIsNotThisBinarys$'
+
+diff --git a/internal/integration/claude.go b/internal/integration/claude.go
+index f5917df..13d9dd6 100644
+--- a/internal/integration/claude.go
++++ b/internal/integration/claude.go
+@@ -109,7 +109,9 @@ func AddClaude(version string, run func(args ...string) (string, error)) (Result
+ 		result.Advice = strings.TrimSpace(out) + "\nRun these by hand:\n" + ClaudeCommands()
+ 		return result, nil
+ 	}
+-	if installed, known := InstalledVersion(run); known && version != "dev" && installed != strings.TrimPrefix(version, "v") {
++	if false {
++		installed := ""
++		_ = installed
+ 		result.Outcome, result.Detail = Refused, "the marketplace served plugin "+installed
+ 		result.Advice = fmt.Sprintf("This binary is %s, and the plugin that was installed is %s — a different "+
+ 			"implementation, which does not use this binary and does not read the store this binary reads.\n"+

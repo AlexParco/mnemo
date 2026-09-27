@@ -1,14 +1,15 @@
 Breaks: the file is changed with no copy of what it was, so a person whose configuration mnemo got wrong has nothing to go back to.
-Must fail: go test ./internal/integration -run '^TestCodexKeepsWhatThePersonWrote$'
+Must fail: go test ./internal/integration -run '^TestCodexKeepsWhatThePersonWrote$|^TestTheBackupIsTheFileAsItWasJustBefore$'
 
 diff --git a/internal/integration/integration.go b/internal/integration/integration.go
-index 9cc8185..a7b7e01 100644
+index 9613fbb..c44fff4 100644
 --- a/internal/integration/integration.go
 +++ b/internal/integration/integration.go
-@@ -116,14 +116,7 @@ func backup(path string) error {
- 	if _, err := os.Stat(target); err == nil {
- 		return nil
- 	}
+@@ -118,15 +118,7 @@ const backupSuffix = ".mnemo-backup"
+ // about to make, and by the time somebody reaches for it, a snapshot from the
+ // first run has lost every change they made since.
+ func backup(path string) error {
+-	target := path + backupSuffix
 -	content, err := os.ReadFile(path)
 -	if errors.Is(err, os.ErrNotExist) {
 -		return nil

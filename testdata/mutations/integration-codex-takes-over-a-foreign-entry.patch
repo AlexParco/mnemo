@@ -2,13 +2,13 @@ Breaks: an mcp_servers.mnemo a person wrote themselves is replaced, so a configu
 Must fail: go test ./internal/integration -run '^TestCodexWillNotTakeOverSomebodyElsesEntry$'
 
 diff --git a/internal/integration/codex.go b/internal/integration/codex.go
-index b556989..2790e21 100644
+index 537ed63..f937be5 100644
 --- a/internal/integration/codex.go
 +++ b/internal/integration/codex.go
-@@ -49,7 +49,7 @@ func AddCodex(path, mnemo string) (Result, error) {
- 
- 	entry := codexEntry(mnemo)
- 	before, after, marked := split(content)
+@@ -64,7 +64,7 @@ func AddCodex(path, mnemo string) (Result, error) {
+ 			"block is its own.\nLeave one and run this again."
+ 		return result, nil
+ 	}
 -	if !marked && mentionsCodexMnemo(content) {
 +	if false {
  		// Somebody else's entry. Rewriting it would silently take over a

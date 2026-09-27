@@ -1,0 +1,41 @@
+Breaks: a comment that merely quotes mnemo's marker becomes the start of mnemo's block, so adding or removing cuts out everything between it and the real end marker — most of somebody's Codex configuration, silently.
+Must fail: go test ./internal/integration -run '^TestAQuotedMarkerIsNotAMarker$'
+
+diff --git a/internal/integration/codex.go b/internal/integration/codex.go
+index 537ed63..cf7a41c 100644
+--- a/internal/integration/codex.go
++++ b/internal/integration/codex.go
+@@ -164,27 +164,16 @@ func RegisteredCodex(path string) bool {
+ // start of "mnemo's block", and everything from there to mnemo's real end marker
+ // was cut out. Markers are lines, so they are matched as lines.
+ func split(content string) (before, after string, found bool) {
+-	lines := strings.Split(content, "\n")
+-	start, end := -1, -1
+-	for i, line := range lines {
+-		trimmed := strings.TrimSpace(strings.TrimSuffix(line, "\r"))
+-		switch {
+-		case trimmed == codexBegin && start == -1:
+-			start = i
+-		case trimmed == codexEnd && start != -1 && end == -1:
+-			end = i
+-		}
+-	}
+-	if start == -1 || end == -1 {
++	start := strings.Index(content, codexBegin)
++	if start == -1 {
+ 		return content, "", false
+ 	}
+-	// And the block has to look like mnemo's. Marker lines can appear inside a
+-	// multi-line string, where they are whole lines and mean nothing; cutting
+-	// there would change the value the person wrote.
+-	if !strings.Contains(strings.Join(lines[start:end+1], "\n"), "[mcp_servers.mnemo]") {
++	rest := content[start:]
++	end := strings.Index(rest, codexEnd)
++	if end == -1 {
+ 		return content, "", false
+ 	}
+-	return strings.Join(lines[:start], "\n"), strings.Join(lines[end+1:], "\n"), true
++	return content[:start], rest[end+len(codexEnd):], true
+ }
+ 
+ // strayBegin reports a begin marker with no end marker after it, which is a

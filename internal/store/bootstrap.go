@@ -21,6 +21,9 @@ type Report struct {
 	// WiredRemote is the hub added during this call, empty when there was
 	// nothing to add or one was already there.
 	WiredRemote string
+	// RepointedFrom is the hub the store used to push to, when the configured one
+	// changed under it.
+	RepointedFrom string
 	// AdoptedHistory is true when this store took on memory that was already on
 	// the hub, which is what happens on a second machine.
 	AdoptedHistory bool
@@ -92,7 +95,16 @@ func (s *Store) wireRemote(report *Report) error {
 	if s.remote == "" {
 		return nil
 	}
-	if _, ok := s.repo.Try("remote", "get-url", "origin"); ok {
+	if current, ok := s.repo.Try("remote", "get-url", "origin"); ok {
+		if current == s.remote {
+			return nil
+		}
+		// The hub can be moved. Leaving origin alone meant every push kept going
+		// to the old one while the settings asserted the new, with nothing to see.
+		if _, err := s.repo.Run("remote", "set-url", "origin", s.remote); err != nil {
+			return err
+		}
+		report.WiredRemote, report.RepointedFrom = s.remote, current
 		return nil
 	}
 	if _, err := s.repo.Run("remote", "add", "origin", s.remote); err != nil {

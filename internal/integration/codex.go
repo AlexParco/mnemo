@@ -24,6 +24,9 @@ func CodexFile() string {
 	if dir := strings.TrimSpace(os.Getenv("CODEX_HOME")); dir != "" {
 		return filepath.Join(dir, "config.toml")
 	}
+	if home() == "" {
+		return ""
+	}
 	return filepath.Join(home(), ".codex", "config.toml")
 }
 
@@ -49,6 +52,18 @@ func AddCodex(path, mnemo string) (Result, error) {
 
 	entry := codexEntry(mnemo)
 	before, after, marked := split(content)
+	if strayBegin(content) {
+		result.Outcome = Refused
+		result.Advice = "mnemo's block in this file has lost its `" + codexEnd + "` line, so mnemo cannot tell " +
+			"where the block ends.\nRestore that line, or delete the block by hand, and run this again."
+		return result, nil
+	}
+	if extraBegin(content) {
+		result.Outcome = Refused
+		result.Advice = "This file has more than one `" + codexBegin + "` line. mnemo will not guess which " +
+			"block is its own.\nLeave one and run this again."
+		return result, nil
+	}
 	if !marked && mentionsCodexMnemo(content) {
 		// Somebody else's entry. Rewriting it would silently take over a
 		// configuration mnemo did not make.
@@ -64,7 +79,7 @@ func AddCodex(path, mnemo string) (Result, error) {
 			result.Outcome = Current
 			return result, nil
 		}
-		updated = before + entry + after
+		updated = joinAround(before, entry, after)
 	} else if strings.TrimSpace(content) != "" {
 		updated = strings.TrimRight(content, "\n") + "\n\n" + entry + "\n"
 	}
@@ -105,9 +120,25 @@ func RemoveCodex(path string) (Result, error) {
 	if err := backup(path); err != nil {
 		return result, err
 	}
-	cleaned := strings.TrimRight(before, "\n") + "\n" + strings.TrimLeft(after, "\n")
+	cleaned := strings.TrimRight(before, "\n")
+	if rest := strings.TrimLeft(after, "\n"); rest != "" {
+		cleaned += "\n" + rest
+	}
 	if strings.TrimSpace(cleaned) == "" {
 		cleaned = ""
+	} else if !strings.HasSuffix(cleaned, "\n") {
+		cleaned += "\n"
+	}
+	// Checked the same way adding is. Removing used to write blind, so a cut in
+	// the wrong place left Codex unable to start and nothing said so.
+	if cleaned != "" {
+		var parsed map[string]any
+		if _, err := toml.Decode(cleaned, &parsed); err != nil {
+			result.Outcome = Refused
+			result.Advice = fmt.Sprintf("taking mnemo's block out would leave a file that is not valid TOML "+
+				"(%v).\nNothing was written; remove the block by hand.", err)
+			return result, nil
+		}
 	}
 	if err := write(path, []byte(cleaned)); err != nil {
 		return result, err
@@ -126,26 +157,109 @@ func RegisteredCodex(path string) bool {
 	return marked
 }
 
-// split cuts a file around mnemo's block.
+// split cuts a file around mnemo's block, matching whole lines.
+//
+// A substring search was wrong in a way that destroyed configurations: a comment
+// that merely quotes the marker, or a string value containing it, became the
+// start of "mnemo's block", and everything from there to mnemo's real end marker
+// was cut out. Markers are lines, so they are matched as lines.
 func split(content string) (before, after string, found bool) {
-	start := strings.Index(content, codexBegin)
-	if start == -1 {
+	lines := strings.Split(content, "\n")
+	start, end := -1, -1
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(strings.TrimSuffix(line, "\r"))
+		switch {
+		case trimmed == codexBegin && start == -1:
+			start = i
+		case trimmed == codexEnd && start != -1 && end == -1:
+			end = i
+		}
+	}
+	if start == -1 || end == -1 {
 		return content, "", false
 	}
-	rest := content[start:]
-	end := strings.Index(rest, codexEnd)
-	if end == -1 {
+	// And the block has to look like mnemo's. Marker lines can appear inside a
+	// multi-line string, where they are whole lines and mean nothing; cutting
+	// there would change the value the person wrote.
+	if !strings.Contains(strings.Join(lines[start:end+1], "\n"), "[mcp_servers.mnemo]") {
 		return content, "", false
 	}
-	return content[:start], rest[end+len(codexEnd):], true
+	return strings.Join(lines[:start], "\n"), strings.Join(lines[end+1:], "\n"), true
 }
 
-func middleOf(content string) string {
+// strayBegin reports a begin marker with no end marker after it, which is a
+// block somebody half-deleted. Treating it as a foreign entry would tell the
+// person mnemo did not write something mnemo wrote, for ever.
+func strayBegin(content string) bool {
+	if _, _, found := split(content); found {
+		return false
+	}
+	// Only when it is followed by mnemo's entry and no end marker. A marker line
+	// inside a string is not a half-deleted block.
+	seen := false
+	for _, line := range strings.Split(content, "\n") {
+		trimmed := strings.TrimSpace(strings.TrimSuffix(line, "\r"))
+		switch {
+		case trimmed == codexBegin:
+			seen = true
+		case trimmed == codexEnd:
+			seen = false
+		case seen && trimmed == "[mcp_servers.mnemo]":
+			return true
+		}
+	}
+	return false
+}
+
+// extraBegin reports a second begin marker outside the pair, which means a merge
+// or a paste left two blocks and cutting on the first would eat what is between.
+func extraBegin(content string) bool {
 	before, after, found := split(content)
 	if !found {
+		return false
+	}
+	for _, line := range strings.Split(before+"\n"+after, "\n") {
+		if strings.TrimSpace(strings.TrimSuffix(line, "\r")) == codexBegin {
+			return true
+		}
+	}
+	return false
+}
+
+// joinAround puts the block back between what surrounded it, keeping one blank
+// line's worth of separation and no more.
+func joinAround(before, entry, after string) string {
+	out := strings.TrimRight(before, "\n")
+	if out != "" {
+		out += "\n\n"
+	}
+	out += entry + "\n"
+	if rest := strings.TrimLeft(after, "\n"); rest != "" {
+		out += "\n" + rest
+	}
+	if !strings.HasSuffix(out, "\n") {
+		out += "\n"
+	}
+	return out
+}
+
+// middleOf is mnemo's block as the file currently has it.
+func middleOf(content string) string {
+	lines := strings.Split(content, "\n")
+	start, end := -1, -1
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(strings.TrimSuffix(line, "\r"))
+		switch {
+		case trimmed == codexBegin && start == -1:
+			start = i
+		case trimmed == codexEnd && start != -1 && end == -1:
+			end = i
+		}
+	}
+	if start == -1 || end == -1 {
 		return ""
 	}
-	return content[len(before) : len(content)-len(after)]
+	return strings.Join(lines[start:end+1], "\n")
 }
 
 // mentionsCodexMnemo reports whether the file declares mnemo outside the markers.
