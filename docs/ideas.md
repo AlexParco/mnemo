@@ -40,6 +40,11 @@ Ordered by what they return against what they cost.
 | 13 | Capture commitments, not musings: a written list of what is never a reason to save | the save criterion | text | not started |
 | 14 | Every answer has a cap, and says when it was cut | [specs/mcp.md](specs/mcp.md) | small | written for loading a project and for search |
 | 15 | How old a memory is, from git, shown where it is read | [specs/mcp.md](specs/mcp.md) and [specs/store.md](specs/store.md) | small to moderate | not started |
+| 16 | A handover packet for when the context window runs out: a threshold that fires early, a bounded recap, a named reason when there is none | a new spec, or [specs/mcp.md](specs/mcp.md) | moderate; the plugin's hook already exists | not started |
+| 17 | Every spec names the commit it was last verified against, and a check enforces it | [docs/README.md](README.md) and every spec's frontmatter | small | not started |
+| 18 | A leak scan for instance-private content, not only credentials | [specs/sync.md](specs/sync.md), plus this repository's own checks | small to moderate; the scanner exists | not started |
+| 19 | A send that says it could not wake the recipient, and where the message waits | [specs/mcp.md](specs/mcp.md) | small | not started |
+| 20 | A dry run on anything that edits the user's own files | [specs/integrations.md](specs/integrations.md) | small | not started |
 
 **1. A file about the user.** Other systems keep a profile of the person next to the project notes,
 so the agent knows how they work before it is told. mnemo needs no machinery for this: `shared/`
@@ -148,6 +153,45 @@ needed, which is why it recommends the always-loaded rules file instead. mnemo a
 rules with every connection, in the server's instructions, and that is where these lines go. They
 have to be short, because that text is paid for on every session.
 
+**16. A handover packet.** mnemo's answer to a full context window is that the user notices and runs a
+save. openrig's is a pair of watchdog jobs, one to prepare and one to cut over, and a bounded recap
+handed to the session that takes over. Three parts are worth taking and the rest is theirs: the
+threshold fires before the wall rather than at it, because sampling happens at a turn boundary and a
+threshold tuned close to the limit can only fire once the safe window is already gone; the recap is
+bounded on both axes, so many exchanges and so many characters each, with a visible marker pointing at
+the full record; and every case where no recap could be produced returns a named reason rather than an
+honest silence. The first and third are what mnemo does not have anywhere. This is idea 14 applied to a
+handover instead of to a read. It is not the card: a card lists what is left to do, and a baton says
+where the conversation had got to, which are two documents.
+
+**17. A spec names the commit it was verified against.** [README.md](README.md) already claims that
+every behaviour written in these documents was verified in the code rather than recalled. Nothing
+checks that, and nothing records when it was last true. openrig puts a short sha in the frontmatter of
+every as-built document, paired with the date, and annotates load-bearing claims inline with the file
+and line they were re-confirmed at. It also refuses, in CI, to track any document outside three
+directories, so drafts stay untracked instead of quietly becoming doctrine. The field makes this
+project's own stated rule falsifiable one document at a time, which is what a rule needs to survive.
+
+**18. A leak scan wider than credentials.** Refusing a secret at write time covers a credential. The
+same gate is worth widening: a host name, an absolute home path, a machine label, an agent's name.
+openrig runs exactly this before anything can be distributed, with verdicts for an instance fact, an
+internal path and knowledge belonging to one position, a generated token list and an allow-list of
+contexts where a token is fine. Two places want it here: a memory bound for a hub that might one day
+be shared, and this repository, which is public. The allow-list is not optional — a token list without
+one fires on every mention of the vocabulary that defines it.
+
+**19. A send that admits it could not wake anyone.** Only Claude Code wakes on its own; Codex and
+opencode have to be asked to read. [specs/mailbox.md](specs/mailbox.md) warns when an address has
+never been held, but a message to an agent that is live and unwakeable looks like a success. openrig
+returns a named reason and the exact command that shows what is waiting. mnemo's version is one field
+on the send result and one sentence: delivered, not announced, read it with `mailbox_read`.
+
+**20. A dry run.** `mnemo mcp add` edits three tools' configuration, one of them as text between
+marker comments and one through a JSON setter that preserves formatting. A person finds out those did
+the right thing by looking afterwards. openrig's documented first run is a dry run, and its README
+lists every file it will touch. The integration layer already computes the edits; printing them
+instead of applying them is cheap.
+
 ## Decisions it raises
 
 - **How big may a tool's answer be?** Related to idea 3. It has to be settled before the MCP layer
@@ -201,6 +245,21 @@ have to be short, because that text is paid for on every session.
   spans two projects, and they also filter, which a topic tree does not.
 - **Writing memory in the background** so it does not block the chat. It buys nothing here — the
   writes are local and fast — and it adds failure modes where a save silently did not happen.
+- **Typing into another agent's terminal as the transport.** openrig sends a message with tmux
+  `send-keys` and screen-scrapes the pane to decide whether it is safe to type. Its two worst open
+  issues are both a vendor changing a cosmetic string: a version reported as the pane command, and a
+  prompt drawn as a different character. A message here is a file and a wake is a notification.
+- **Documents that log their own contradictions instead of correcting them.** openrig's architecture
+  notes carry lines like "these two body claims are internally inconsistent with each other — do NOT
+  carry either number". Admirably honest, nearly unreadable. A spec that disagrees with the code is a
+  bug in one of the two; fix one.
+- **Migrations performed by an agent** through a phase grammar of plan, apply, activate, sample,
+  verify and roll back. A data migration is a command with a plan and a confirmation, which is what
+  rename, forget and retiring a store already are. It is not a prompt.
+- **Vocabulary inflation.** Rig, pod, seat, edge, altitude, chain file, lore, canon, rung, baton,
+  custody, effect receipt, walker lease. Several are one idea under three names, and its own docs
+  spend paragraphs on which axis a name belongs to. Tool, agent, project, memory, pending, card, hub
+  is the right number.
 - **Keeping memory inside the project's repository**, committed with the code. Not worse, but a
   different product: it changes who owns the memory. Note for whoever revisits this: mnemo detects a
   store created inside another repository and gives it a repository of its own, which is the
@@ -390,6 +449,54 @@ review workflow, the interfaces, telemetry on by default, and memory inside the 
 **Not verified:** the reviewer did not run it, and did not trace the wiki synthesis pipeline end to
 end. Whether the hosted version exists or is planned could not be told from the repository.
 
+### openrig
+
+<https://github.com/mvschwarz/openrig>
+
+Reviewed from a shallow clone, its documentation, its scripts, its open issues, its releases and the
+package registry. Not run. "Multi-agent harness that runs Claude Code and Codex together as one
+system": a local daemon, a CLI, a terminal UI and an MCP server, all built on tmux. A topology is
+declared in YAML as pods, seats and edges; one command boots the team into tmux sessions; a seat is a
+stable role address held by whichever agent currently occupies it. It adopts sessions that are already
+running, snapshots and restores a whole topology, grows and shrinks a running one, relays into Slack,
+and carries messages between agents with a send, a broadcast and a chatroom. State is one instance
+home holding SQLite for coordination and chat, raw tmux captures for transcripts, and
+markdown-with-frontmatter trees for knowledge: one chain file name repeated at every altitude of two
+trees. Knowledge earned in a seat stays under that seat, deliberately — its own convention says the
+value is the combination of the content and where it was learned, and that copying the bytes into a
+shared library destroys the distinction. There is no git anywhere in it; portability is a
+deterministic tar with a checksum beside it. Its eighteen MCP tools are all orchestration verbs and
+not one of them touches memory: context reaches an agent as files written into its workspace before
+boot, and a live message reaches it as keystrokes typed into its pane behind a guard that retains
+rather than delivers when the pane is busy. Node 22 or 24, tmux, macOS or Linux, a native SQLite
+build, and it writes into several files the user also edits. Apache 2.0, sixty-seven published
+versions and a release most days, one human contributor with a release bot authoring most commits.
+
+**It is not a memory system, and the overlap is narrow.** Both are MCP servers for agents in more than
+one tool, both give an agent a stable address, both let one agent message another, both keep durable
+knowledge as markdown with frontmatter, and both mirror skill files with a check that the copies are
+identical. Everything else diverges: openrig owns the terminal and mnemo never does, and openrig's
+knowledge belongs to a position in a topology where mnemo's belongs to the person.
+
+**Taken:** the handover packet (16), the verified-against-source anchor (17), the wider leak scan
+(18), the undeliverable send (19), the dry run (20). It also sharpens graduation (5) into a full
+model: rungs defined by how fast each is expected to change, promotion as an explicit dated act,
+demotion that is deliberately loud, and a warrant travelling with every promoted claim, because canon
+without warrants is formatting. Its second encoding, a stage field carried from birth, is the one that
+fits here; its first, where the filename is the rung and promotion is a move, would break every link
+and every supersession chain.
+
+**Raised:** nothing new. It is the strongest argument yet *for* the card carrying only open work: its
+always-loaded stack of instance, topology and project context is precisely why it needs a watchdog on
+the context window at all.
+
+**Not verified:** it was not installed or run, so nothing here rests on observed behaviour; the clone
+was shallow, so contributor shares come from the API rather than the full history; the terminal user
+interface, the workflow runtime and the Slack gateway were read only at the level of their headings;
+whether anything exists outside the repository, hosted or paid, could not be told from it. The
+frontmatter convention its own documents cite as authoritative lives in a repository that is not this
+one.
+
 ## Where mnemo stands
 
 Four of the six memory systems keep plain text as the source of truth, edited by hand, shared as
@@ -404,9 +511,18 @@ with plain files and ordinary push and pull, no third party. What is still unmat
 combination: one store of the person's own that spans projects, shared across machines the person
 owns, reached by agents in different tools, with a mailbox so one agent can leave another a message
 and get an answer back. mex's handoffs are files a colleague finds later, and its README says so.
-Nothing reviewed so far has a message between agents.
+**Messages between agents are no longer unmatched.** openrig has them, in more forms than mnemo: a
+send, a broadcast, a chatroom, and a durable inbox and outbox with idempotency keys and an
+at-least-once contract across machines. What it does not have is a message that waits for a chat
+nobody has opened — its delivery types into a live pane, and its held-message queue exists because
+that pane is sometimes busy. mnemo's messages are files with a sequence number, so a closed chat has
+post. The combination that is still unmatched is narrower than it was and still true: one store of the
+person's own that spans projects, shared across the machines they own, reached by agents in different
+tools, with a mailbox that needs no terminal to deliver into.
 
-**On distribution,** mnemo and lore are the two that ship as one static binary. The one with a
+**On distribution,** mnemo and lore are the two that ship as one static binary. openrig is a third
+shape, neither of those: one package that carries a daemon, a web interface and a terminal interface,
+and needs a native database build underneath them. The one with a
 service stack installs a second JavaScript runtime, a Python package manager, a vector store and a
 background worker to do its job.
 
