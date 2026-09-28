@@ -1,0 +1,16 @@
+Breaks: a mailbox left by an earlier install is read instead of moved aside, so addresses of a shape mnemo cannot resolve come back as peers and a reply goes nowhere.
+Must fail: go test ./internal/mailbox -run '^TestFilesFromAnEarlierInstallAreMovedAside$'
+
+diff --git a/internal/mailbox/mailbox.go b/internal/mailbox/mailbox.go
+index a51d373..7d84eae 100644
+--- a/internal/mailbox/mailbox.go
++++ b/internal/mailbox/mailbox.go
+@@ -204,6 +204,8 @@ func (m *Mailbox) ensureDir() (moved string, err error) {
+ 	if err != nil {
+ 		return "", nil
+ 	}
++	return "", nil
++	//nolint
+ 	if strings.Contains(string(state), "\"version\"") {
+ 		return "", nil
+ 	}

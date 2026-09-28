@@ -1,0 +1,27 @@
+Breaks: a watcher polling the mailbox marks messages read, so the chat it was meant to wake never sees them.
+Must fail: go test ./internal/mailbox -run '^TestPeekChangesNothing$'
+
+diff --git a/internal/mailbox/ops.go b/internal/mailbox/ops.go
+index f88c653..b97ede0 100644
+--- a/internal/mailbox/ops.go
++++ b/internal/mailbox/ops.go
+@@ -307,11 +307,15 @@ func (m *Mailbox) Peek(address string, after int) (int, []Message, error) {
+ 		// floor, so every group message would look new for ever.
+ 		return top, nil, nil
+ 	}
+-	from := *entry
+-	if after > from.Cursor {
+-		from.Cursor = after
++	if after > entry.Cursor {
++		entry.Cursor = after
+ 	}
+-	return top, unread(messages, address, &from), nil
++	waiting := unread(messages, address, entry)
++	entry.Cursor = top
++	if err := m.saveState(state); err != nil {
++		return 0, nil, err
++	}
++	return top, waiting, nil
+ }
+ 
+ // operate is the shape every locked operation shares.

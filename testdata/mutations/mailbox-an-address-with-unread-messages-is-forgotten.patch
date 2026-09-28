@@ -1,0 +1,16 @@
+Breaks: an address is dropped after ninety days even with messages waiting, so what somebody left for an agent that has not been opened yet disappears.
+Must fail: go test ./internal/mailbox -run '^TestAnAddressWithNothingWaitingIsForgotten$'
+
+diff --git a/internal/mailbox/ops.go b/internal/mailbox/ops.go
+index f88c653..bd505ca 100644
+--- a/internal/mailbox/ops.go
++++ b/internal/mailbox/ops.go
+@@ -256,7 +256,7 @@ func (m *Mailbox) List(ctx context.Context, caller Caller) (Peers, error) {
+ 			waiting := len(unread(messages, address, entry))
+ 			// Forgotten only when nothing is waiting: an address with unread
+ 			// messages is somebody who has not come back yet, not somebody gone.
+-			if waiting == 0 && entry.Holder == nil && !entry.LastSeen.IsZero() &&
++			if entry.Holder == nil && !entry.LastSeen.IsZero() &&
+ 				now.Sub(entry.LastSeen) > Offline {
+ 				delete(state.Addresses, address)
+ 				continue

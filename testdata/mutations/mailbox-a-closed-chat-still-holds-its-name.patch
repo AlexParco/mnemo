@@ -1,0 +1,20 @@
+Breaks: holders whose process is gone are never reaped, so a name stays taken after the chat closes and `peers` reports a chat that is not there.
+Must fail: go test ./internal/mailbox -run '^TestOneNameOneChat$|^TestPeers$'
+
+diff --git a/internal/mailbox/state.go b/internal/mailbox/state.go
+index bd8caea..847f69b 100644
+--- a/internal/mailbox/state.go
++++ b/internal/mailbox/state.go
+@@ -126,11 +126,7 @@ func (m *Mailbox) holderAlive(holder *Holder, now time.Time) bool {
+ // reap drops the holders that are gone, so `live` never reports a chat that was
+ // closed and a name is never held by nothing.
+ func (m *Mailbox) reap(state *State, now time.Time) {
+-	for _, entry := range state.Addresses {
+-		if entry.Holder != nil && !m.holderAlive(entry.Holder, now) {
+-			entry.Holder = nil
+-		}
+-	}
++
+ }
+ 
+ // Lease is how long a remote holder lives without a heartbeat. The relay beats

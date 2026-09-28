@@ -1,0 +1,20 @@
+Breaks: the next seq comes only from the stored counter, so after a lost state write a new message takes a number already used and shadows the older one in every cursor.
+Must fail: go test ./internal/mailbox -run '^TestSeqIsNeverReused$'
+
+diff --git a/internal/mailbox/messages.go b/internal/mailbox/messages.go
+index f988581..6e45e71 100644
+--- a/internal/mailbox/messages.go
++++ b/internal/mailbox/messages.go
+@@ -102,11 +102,7 @@ func highest(messages []Message) int {
+ // one. After a crash the counter can be behind what was appended, and reusing a
+ // seq would make one message shadow another in every cursor.
+ func nextSeq(state *State, messages []Message) int {
+-	next := state.NextSeq
+-	if fromLog := highest(messages) + 1; fromLog > next {
+-		next = fromLog
+-	}
+-	return next
++	return state.NextSeq
+ }
+ 
+ // append adds one message to the log.

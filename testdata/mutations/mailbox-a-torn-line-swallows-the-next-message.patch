@@ -1,0 +1,20 @@
+Breaks: an append does not start on a new line when the log does not end with one, so a line torn by a crash absorbs the next message and both are lost.
+Must fail: go test ./internal/mailbox -run '^TestATornLineIsSkippedAndTheNextMessageSurvives$'
+
+diff --git a/internal/mailbox/messages.go b/internal/mailbox/messages.go
+index f988581..7282a08 100644
+--- a/internal/mailbox/messages.go
++++ b/internal/mailbox/messages.go
+@@ -129,12 +129,6 @@ func (m *Mailbox) append(message Message) error {
+ 	defer file.Close()
+ 
+ 	prefix := ""
+-	if info, err := file.Stat(); err == nil && info.Size() > 0 {
+-		tail := make([]byte, 1)
+-		if _, err := file.ReadAt(tail, info.Size()-1); err == nil && tail[0] != '\n' {
+-			prefix = "\n"
+-		}
+-	}
+ 	if _, err := file.Write(append(append([]byte(prefix), encoded...), '\n')); err != nil {
+ 		return fmt.Errorf("appending to %s: %w", m.logPath(), err)
+ 	}

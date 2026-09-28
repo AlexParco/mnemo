@@ -1,0 +1,16 @@
+Breaks: a new address has no floor, so every group message ever sent arrives at a chat opened today as if it were new.
+Must fail: go test ./internal/mailbox -run '^TestGroupsReachWhoWasThereAndDirectMessagesWait$'
+
+diff --git a/internal/mailbox/state.go b/internal/mailbox/state.go
+index bd8caea..d791cb2 100644
+--- a/internal/mailbox/state.go
++++ b/internal/mailbox/state.go
+@@ -98,7 +98,7 @@ func (s *State) Known() []string {
+ func (s *State) see(address, tool string, highest int, now time.Time) *Address {
+ 	entry, known := s.Addresses[address]
+ 	if !known {
+-		entry = &Address{Floor: highest, Cursor: 0}
++		entry = &Address{Floor: 0, Cursor: 0}
+ 		s.Addresses[address] = entry
+ 	}
+ 	if tool != "" {

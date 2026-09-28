@@ -1,0 +1,23 @@
+Breaks: a prune rewrites the log from the list as it was before the operation appended, so a message sent on the day a prune falls due is deleted the moment it is written.
+Must fail: go test ./internal/mailbox -run '^TestAPruneDoesNotSwallowTheMessageBeingSent$'
+
+diff --git a/internal/mailbox/ops.go b/internal/mailbox/ops.go
+index f88c653..80c0c56 100644
+--- a/internal/mailbox/ops.go
++++ b/internal/mailbox/ops.go
+@@ -337,14 +337,7 @@ func (m *Mailbox) operate(ctx context.Context, caller Caller, fn func(*State, []
+ 		if err := fn(state, messages, now); err != nil {
+ 			return err
+ 		}
+-		// Read again before pruning. The operation may have appended, and pruning
+-		// from the list as it was would rewrite the log without the message that
+-		// was just sent.
+-		current, err := m.readLog()
+-		if err != nil {
+-			return err
+-		}
+-		if pruned, did := m.prune(state, current, now); did {
++		if pruned, did := m.prune(state, messages, now); did {
+ 			if err := m.rewriteLog(pruned); err != nil {
+ 				return err
+ 			}

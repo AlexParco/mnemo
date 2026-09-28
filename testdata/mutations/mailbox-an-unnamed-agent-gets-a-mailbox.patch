@@ -1,0 +1,21 @@
+Breaks: a chat that was not opened with `mnemo run` can send and read messages, so anything that reaches the machine has a mailbox and a reply has no one definite to go to.
+Must fail: go test ./internal/mailbox -run '^TestAnAgentWithNoNameHasNoMailbox$'
+
+diff --git a/internal/mailbox/mailbox.go b/internal/mailbox/mailbox.go
+index a51d373..9795845 100644
+--- a/internal/mailbox/mailbox.go
++++ b/internal/mailbox/mailbox.go
+@@ -88,12 +88,7 @@ func (c Caller) Address() string {
+ 
+ // Named refuses a caller that has no name, which is how an agent that was not
+ // opened with `mnemo run` is kept out of the mailbox.
+-func (c Caller) Named() error {
+-	if c.Address() != "" {
+-		return nil
+-	}
+-	return refuse("This chat has no mailbox name. Open it with: mnemo run <tool> --name <name>")
+-}
++func (c Caller) Named() error { return nil }
+ 
+ // Instance is a new instance identifier: one per process.
+ func Instance() string {

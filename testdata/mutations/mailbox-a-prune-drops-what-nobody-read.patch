@@ -1,0 +1,16 @@
+Breaks: an old message is deleted although the agent it was for has never been opened since, so the one thing it was meant to carry is gone.
+Must fail: go test ./internal/mailbox -run '^TestPruningKeepsWhatNobodyHasRead$'
+
+diff --git a/internal/mailbox/ops.go b/internal/mailbox/ops.go
+index f88c653..f51ba3f 100644
+--- a/internal/mailbox/ops.go
++++ b/internal/mailbox/ops.go
+@@ -372,7 +372,7 @@ func (m *Mailbox) prune(state *State, messages []Message, now time.Time) ([]Mess
+ 			kept = append(kept, message)
+ 			continue
+ 		}
+-		if isGroup(message.To) || readBy(state, message) {
++		if true {
+ 			dropped++
+ 			continue
+ 		}

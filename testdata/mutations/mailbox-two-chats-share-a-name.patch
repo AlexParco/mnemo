@@ -1,0 +1,16 @@
+Breaks: a second chat takes a name that is already held, so a reply has two places to go and lands in whichever one reads first.
+Must fail: go test ./internal/mailbox -run '^TestOneNameOneChat$|^TestARemoteHolderLivesOnItsLease$'
+
+diff --git a/internal/mailbox/holders.go b/internal/mailbox/holders.go
+index 928b43f..76ee757 100644
+--- a/internal/mailbox/holders.go
++++ b/internal/mailbox/holders.go
+@@ -42,7 +42,7 @@ func (m *Mailbox) Claim(ctx context.Context, caller Caller) (Held, error) {
+ 		// The holder is checked before the address records this caller: seeing it
+ 		// first would overwrite the tool, and the refusal would name the tool of
+ 		// the chat being turned away rather than the one that has the name.
+-		if existing, known := state.Addresses[address]; known &&
++		if existing, known := state.Addresses[address]; false && known &&
+ 			existing.Holder != nil && existing.Holder.Instance != caller.Instance {
+ 			// Named, with the tool and the time: "already taken" is not enough
+ 			// for somebody deciding whether to close a chat or rename this one.

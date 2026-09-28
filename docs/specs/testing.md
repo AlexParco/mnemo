@@ -364,6 +364,40 @@ Every one of these is a way to damage a file mnemo did not write.
 - `config unset` really removes the key, so the default applies again and the origin says so.
 - `set` says the change does not reach a chat that is already open.
 
+### Mailbox
+
+- An agent with no name has memory and no mailbox: sending, reading and claiming are all refused,
+  and the refusal says how to get one. That is the whole of the admission control.
+- One address, one live instance. A second chat is refused, and the refusal names **the tool that
+  has the name**, not the one being turned away, with when it opened. The same instance claiming
+  again is a renewal and keeps when it started.
+- A local holder lives while its process does; a remote one lives on a 45-second lease, held while
+  the lease lasts and free once it runs out. A closed chat is reaped, so `live` is never inferred.
+- Releasing frees a name, and another instance's release does not take one away from its holder.
+- A body is trimmed, an empty one is refused, and one over 256 KiB says to send a path instead.
+- A group reaches the agents that existed when it was sent, and not one opened afterwards; a direct
+  message sent before an agent appeared does wait for it.
+- A tool group reaches only that tool, and a tool label derived from a client name never matches one.
+- A cursor belongs to the address: a chat that restarts under the same name reads only what arrived
+  since, not its whole history.
+- A bare name resolves when exactly one address has it, and the refusal for two lists both.
+- Sending to yourself, to a group that does not exist, or with a project that does not exist is
+  refused. An address nobody has used is a warning, not a refusal.
+- A reply goes to whoever sent the message, carries the id and inherits the project. Several replies
+  are allowed. A message that was not addressed to the caller is refused, and one that is gone says
+  how long messages are kept.
+- `peers` puts the caller first, then who is there now, then by address, and counts what is waiting
+  for each. An address with nothing waiting is forgotten after ninety days; one with unread
+  messages never is.
+- `peek` reads without the lock, marks nothing read, and gives an unknown address no group messages.
+- A line torn by a crash is skipped and the message after it survives. A seq is never reused, even
+  after the counter goes backwards.
+- A prune never drops a message nobody has read, however old, and never swallows the message being
+  sent in the same operation.
+- A mailbox left by an earlier install is moved aside, kept, and mentioned once.
+- Waiting returns at once for something already there, times out saying so, and picks up a message
+  that arrives while it waits. The ceiling is below the minute a client gives up at.
+
 ### Card
 
 - The render equals its expected file, byte for byte, for every fixture project, in both languages,
