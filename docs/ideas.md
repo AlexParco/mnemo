@@ -40,11 +40,12 @@ Ordered by what they return against what they cost.
 | 13 | Capture commitments, not musings: a written list of what is never a reason to save | the save criterion | text | not started |
 | 14 | Every answer has a cap, and says when it was cut | [specs/mcp.md](specs/mcp.md) | small | written for loading a project and for search |
 | 15 | How old a memory is, from git, shown where it is read | [specs/mcp.md](specs/mcp.md) and [specs/store.md](specs/store.md) | small to moderate | not started |
-| 16 | A handover packet for when the context window runs out: a threshold that fires early, a bounded recap, a named reason when there is none | a new spec, or [specs/mcp.md](specs/mcp.md) | moderate; the plugin's hook already exists | not started |
+| 16 | A handover packet for when the context window runs out: a threshold that fires early, a bounded recap, a named reason when there is none | a new spec, or [specs/mcp.md](specs/mcp.md) | the code is moderate and the plugin's hook exists; the cost is deciding what a handover *is* here | blocked on that decision |
 | 17 | Every spec names the commit it was last verified against, **and a check enforces it** — openrig has the field and no check, so this would go further than the source it came from | [docs/README.md](README.md) and every spec's frontmatter | small | not started |
-| 18 | A leak scan for instance-private content, not only credentials | [specs/sync.md](specs/sync.md), plus this repository's own checks | small to moderate; the scanner exists | not started |
-| 19 | A send that says it could not wake the recipient, and where the message waits | [specs/mcp.md](specs/mcp.md) | small | not started |
-| 20 | A dry run on anything that edits the user's own files | [specs/integrations.md](specs/integrations.md) | small | not started |
+| 18 | A leak scan for instance-private content, not only credentials | [specs/sync.md](specs/sync.md), plus this repository's own checks | half a day; the seven rules exist and the allow-list is the work | not started |
+| 19 | A send that says it could not wake the recipient, and where the message waits | [specs/mcp.md](specs/mcp.md) | half an hour: one field on the result and one sentence | not started |
+| 20 | A dry run on anything that edits the user's own files | [specs/integrations.md](specs/integrations.md) | small: the integration layer already computes the edits | not started |
+| 21 | Idempotent delivery across a machine boundary: the id minted before the first forward, so a relayed send whose answer was lost has a safe retry | [specs/mailbox.md](specs/mailbox.md) | moderate, and it changes the id rule | a known gap in the spec as written |
 
 **1. A file about the user.** Other systems keep a profile of the person next to the project notes,
 so the agent knows how they work before it is told. mnemo needs no machinery for this: `shared/`
@@ -202,6 +203,30 @@ marker comments and one through a JSON setter that preserves formatting. A perso
 the right thing by looking afterwards. openrig's documented first run is a dry run, and its README
 lists every file it will touch. The integration layer already computes the edits; printing them
 instead of applying them is cheap.
+
+**21. Idempotent delivery across a machine boundary.** A message id here is minted by the mailbox from
+its own sequence, which is fine on one machine and wrong through a relay: a send whose response was
+lost has no safe retry, because the caller cannot tell a timeout from a delivery, and retrying mints a
+second id and a second message. openrig mints the id before the first forward so every retry carries
+the same one, deduplicates on the primary key, and derives a cross-host successor id from a pure
+function so a re-drive converges on the same row. Fixing it changes the id rule in
+[specs/mailbox.md](specs/mailbox.md), so it is written down here as a known gap rather than quietly
+left for whoever builds the relay.
+
+### The order these are worth doing in
+
+**Together, and soon:** 17, 19 and 20. Each is small, each is verifiable, and 19 belongs to the
+mailbox that is being built now. 17 is the odd one out in a good way — the check does not exist in the
+project the idea came from, so writing it costs an afternoon and leaves this repository ahead of its
+source on the one discipline it already claims.
+
+**Alone, because the thinking is the work:** 18. The rules are easy and the allow-list is not: a token
+list without one fires on every mention of the vocabulary that defines it, and this repository's own
+documents are full of the words it would be looking for.
+
+**When the decision is made, not before:** 16, and 21 with it. A handover packet is not a card and not
+a memory as those exist today, and guessing at which would be worse than waiting. 21 is best done by
+whoever writes the relay, with the id rule changed in the spec first.
 
 ## Decisions it raises
 
@@ -515,6 +540,28 @@ and every supersession chain.
 **Raised:** nothing new. It is the strongest argument yet *for* the card carrying only open work: its
 always-loaded stack of instance, topology and project context is precisely why it needs a watchdog on
 the context window at all.
+
+**Is its orchestration better?** Yes, and the comparison is not close, because mnemo has none. It boots
+a declared team, supervises it, adopts sessions that were already running, snapshots and restores a
+whole topology by name, and grows and shrinks one in place. `mnemo run` opens one tool with one name
+and gets out of the way. That is a different product rather than a worse version of the same one, and
+nothing here argues for becoming it: the moment mnemo supervises a process it owns a terminal, and
+owning a terminal is where openrig's own worst bugs live.
+
+**Is its agent-to-agent delivery better?** In one respect that matters and several that do not. It
+**wakes the recipient**: typing into a live pane means the other agent sees the message now, with
+nobody asking it to check. mnemo's answer to that is `mnemo watch`, which is specified and not built,
+so today a message here sits until something calls `mailbox_read` — and that is the main use for a
+mailbox, so the gap is real until the watcher exists. Its delivery result is also better vocabulary:
+delivered, retained, verified, each with a named reason and the command to inspect what is held, where
+mnemo's send says it was sent. And its cross-machine delivery is genuinely more careful (idea 21).
+
+Everything else favours the file. A message here waits for a chat nobody has opened, which keystrokes
+into a live pane cannot do. The transport cannot be broken by a vendor changing a spinner character or
+a prompt glyph, which is what both of openrig's worst open issues are. A cursor belongs to an address,
+so a chat that restarts carries on rather than re-reading. And it needs no tmux, no daemon, no
+database, and no regexes matched against somebody else's screen. The conclusion is not to copy the
+transport but to take the result vocabulary, take the idempotency, and build the watcher.
 
 **Not verified:** it was not installed or run, so nothing here rests on observed behaviour; the clone
 was shallow, so contributor shares come from the API rather than the full history; the terminal user
