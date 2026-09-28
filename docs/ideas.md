@@ -41,7 +41,7 @@ Ordered by what they return against what they cost.
 | 14 | Every answer has a cap, and says when it was cut | [specs/mcp.md](specs/mcp.md) | small | written for loading a project and for search |
 | 15 | How old a memory is, from git, shown where it is read | [specs/mcp.md](specs/mcp.md) and [specs/store.md](specs/store.md) | small to moderate | not started |
 | 16 | A handover packet for when the context window runs out: a threshold that fires early, a bounded recap, a named reason when there is none | a new spec, or [specs/mcp.md](specs/mcp.md) | moderate; the plugin's hook already exists | not started |
-| 17 | Every spec names the commit it was last verified against, and a check enforces it | [docs/README.md](README.md) and every spec's frontmatter | small | not started |
+| 17 | Every spec names the commit it was last verified against, **and a check enforces it** — openrig has the field and no check, so this would go further than the source it came from | [docs/README.md](README.md) and every spec's frontmatter | small | not started |
 | 18 | A leak scan for instance-private content, not only credentials | [specs/sync.md](specs/sync.md), plus this repository's own checks | small to moderate; the scanner exists | not started |
 | 19 | A send that says it could not wake the recipient, and where the message waits | [specs/mcp.md](specs/mcp.md) | small | not started |
 | 20 | A dry run on anything that edits the user's own files | [specs/integrations.md](specs/integrations.md) | small | not started |
@@ -167,16 +167,27 @@ where the conversation had got to, which are two documents.
 **17. A spec names the commit it was verified against.** [README.md](README.md) already claims that
 every behaviour written in these documents was verified in the code rather than recalled. Nothing
 checks that, and nothing records when it was last true. openrig puts a short sha in the frontmatter of
-every as-built document, paired with the date, and annotates load-bearing claims inline with the file
-and line they were re-confirmed at. It also refuses, in CI, to track any document outside three
-directories, so drafts stay untracked instead of quietly becoming doctrine. The field makes this
-project's own stated rule falsifiable one document at a time, which is what a rule needs to survive.
+twenty-four of its as-built documents, paired with the date, and annotates load-bearing claims inline
+with the file and line they were re-confirmed at.
+
+**Read the repository rather than the documentation and the lesson changes.** Nothing checks that sha
+either: `git grep last-verified-against-source` finds it in the documents, in a comment inside the
+docs guard, and in that guard's own test — and in no code that compares it to anything. What the guard
+actually enforces is *where* a document lives: it refuses to track any file under `docs/` outside
+three directories, so drafts stay untracked instead of quietly becoming doctrine. That is worth having
+and it is a different rule. Their test run is the location guard, a check that the mirrored skill files
+are byte-identical, and a check that generated context packs are current; the leak scanner and the
+substance gate are separate commands nobody's test run calls.
+
+So this is not catching up. The field plus a check that the sha is an ancestor of HEAD would go
+further than the project the idea came from — and the mirrored-copy check they do run is the one thing
+here that already exists on both sides.
 
 **18. A leak scan wider than credentials.** Refusing a secret at write time covers a credential. The
 same gate is worth widening: a host name, an absolute home path, a machine label, an agent's name.
-openrig runs exactly this before anything can be distributed, with verdicts for an instance fact, an
-internal path and knowledge belonging to one position, a generated token list and an allow-list of
-contexts where a token is fine. Two places want it here: a memory bound for a hub that might one day
+openrig has exactly this, with verdicts for an instance fact, an internal path and knowledge belonging
+to one position, a generated token list and an allow-list of contexts where a token is fine — though
+it is an opt-in command rather than part of its test run, so having it and running it are two things. Two places want it here: a memory bound for a hub that might one day
 be shared, and this repository, which is public. The allow-list is not optional — a token list without
 one fires on every mention of the vocabulary that defines it.
 
@@ -246,9 +257,16 @@ instead of applying them is cheap.
 - **Writing memory in the background** so it does not block the chat. It buys nothing here — the
   writes are local and fast — and it adds failure modes where a save silently did not happen.
 - **Typing into another agent's terminal as the transport.** openrig sends a message with tmux
-  `send-keys` and screen-scrapes the pane to decide whether it is safe to type. Its two worst open
-  issues are both a vendor changing a cosmetic string: a version reported as the pane command, and a
-  prompt drawn as a different character. A message here is a file and a wake is a notification.
+  `send-keys` and screen-scrapes the pane to decide whether it is safe to type. Read the patterns it
+  matches on and the problem is plain: spinner characters, the words `Working` and `esc to interrupt`,
+  `⏵⏵ accept edits`, and a footer shaped `gpt-N … · Context [`. Its own comment concedes a fifteen
+  second freshness window because "a stale idle read must not authorize a send into what may since
+  have become a prompt", and its two worst open issues are both a vendor changing a cosmetic string: a
+  version reported as the pane command, and a prompt drawn as a different character. The cost is
+  visible in the shape of the code — an outbox with idempotent ids, a retained-not-delivered state, a
+  guard binding that refuses when the pane's occupant changed between committing and writing — all of
+  it machinery to make keystrokes behave like a message. A message here is a file and a wake is a
+  notification, which needs none of that.
 - **Documents that log their own contradictions instead of correcting them.** openrig's architecture
   notes carry lines like "these two body claims are internally inconsistent with each other — do NOT
   carry either number". Admirably honest, nearly unreadable. A spec that disagrees with the code is a
@@ -477,6 +495,14 @@ one tool, both give an agent a stable address, both let one agent message anothe
 knowledge as markdown with frontmatter, and both mirror skill files with a check that the copies are
 identical. Everything else diverges: openrig owns the terminal and mnemo never does, and openrig's
 knowledge belongs to a position in a topology where mnemo's belongs to the person.
+
+**The two transports are worth keeping apart.** Between two agents on one machine there is no
+protocol: `rig send` resolves a seat to a tmux pane and types into it, behind a guard that reads the
+pane to decide whether typing is safe and retains the message when it is not. HTTP appears one level
+up, between daemons on different machines, where a host registry holds a URL and an optional bearer
+and the daemon resolves the bearer itself so it never reaches the caller. An ssh-declared host is
+refused for that path with `unsupported-transport`, because the HTTP call is what fires the remote
+nudge. So "they talk over HTTP" is true of machines and false of agents.
 
 **Taken:** the handover packet (16), the verified-against-source anchor (17), the wider leak scan
 (18), the undeliverable send (19), the dry run (20). It also sharpens graduation (5) into a full
