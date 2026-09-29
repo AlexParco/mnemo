@@ -2,10 +2,13 @@ package mcpserver
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
+	"strings"
 
 	"github.com/AlexParco/mnemo/internal/config"
 	"github.com/AlexParco/mnemo/internal/gitx"
+	"github.com/AlexParco/mnemo/internal/mailbox"
 	"github.com/AlexParco/mnemo/internal/memory"
 	"github.com/AlexParco/mnemo/internal/store"
 )
@@ -34,7 +37,14 @@ type Call struct {
 	// ServedBy names the machine hosting the store when the call came over HTTP,
 	// and is empty for a local call.
 	ServedBy string
+	// Instance is this process, which is what holds a mailbox name.
+	Instance string
 
+	// box is this machine's mailbox, or nil for a connection that has none. It is
+	// here so that every answer can carry a line about waiting messages: an agent
+	// that just searched its memory has told mnemo it is awake, and that is the
+	// cheapest moment there will ever be to mention the post.
+	box *mailbox.Mailbox
 	// store is what the write tools act through. It is built by whoever builds
 	// the call — the command locally, the server for a request — because
 	// building one means choosing where the lock lives, and that is a decision
@@ -43,9 +53,10 @@ type Call struct {
 }
 
 // Local builds the context of a call answered by this machine on its own files.
-func Local(settings config.Settings, writable *store.Store) *Call {
+func Local(settings config.Settings, writable *store.Store, box *mailbox.Mailbox) *Call {
 	return &Call{
 		store:    writable,
+		box:      box,
 		StoreDir: settings.Paths.Store,
 		Machine:  settings.Machine,
 		Agent:    settings.Agent,
@@ -53,6 +64,7 @@ func Local(settings config.Settings, writable *store.Store) *Call {
 		Lang:     memory.ResolveLang(settings.Lang),
 		Remote:   settings.Remote,
 		Autopush: settings.Autopush,
+		Instance: mailbox.Instance(),
 	}
 }
 
@@ -67,6 +79,54 @@ func (c *Call) writable() (*store.Store, error) {
 		return nil, errNowhere
 	}
 	return c.store, nil
+}
+
+// Caller is who this is, in the mailbox's terms.
+func (c *Call) Caller() mailbox.Caller {
+	return mailbox.Caller{
+		Name: c.Agent, Machine: c.Machine, Tool: c.Tool,
+		Instance: c.Instance, Via: "local", PID: os.Getpid(),
+	}
+}
+
+// waiting is the line every answer ends on when this chat has post, and the
+// empty string when it has none.
+//
+// It reads with peek, which takes no lock and marks nothing: adding a line to an
+// answer must never be able to block another agent, and must never consume the
+// message it is announcing.
+func (c *Call) waiting() string {
+	if c.box == nil || c.Agent == "" || c.Machine == "" {
+		return ""
+	}
+	_, unread, err := c.box.Peek(c.Caller().Address(), 0)
+	if err != nil || len(unread) == 0 {
+		return ""
+	}
+	senders := map[string]bool{}
+	var order []string
+	for _, message := range unread {
+		if !senders[message.From] {
+			senders[message.From] = true
+			order = append(order, message.From)
+		}
+	}
+	return fmt.Sprintf("%d message(s) waiting for you, from %s. Read them with mailbox_read.",
+		len(unread), englishList(order))
+}
+
+// englishList joins names the way a person reads them.
+func englishList(values []string) string {
+	switch len(values) {
+	case 0:
+		return "nobody"
+	case 1:
+		return values[0]
+	case 2:
+		return values[0] + " and " + values[1]
+	default:
+		return strings.Join(values[:len(values)-1], ", ") + " and " + values[len(values)-1]
+	}
 }
 
 // repo answers git questions about the store.

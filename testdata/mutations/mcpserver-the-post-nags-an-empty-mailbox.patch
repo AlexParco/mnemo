@@ -1,0 +1,16 @@
+Breaks: every answer carries the waiting-messages line whether or not anything is waiting, so the one signal that means "you have post" stops meaning anything.
+Must fail: go test ./internal/mcpserver -run '^TestTheWaitingLineOnlyAppearsWhenThereIsPost$'
+
+diff --git a/internal/mcpserver/call.go b/internal/mcpserver/call.go
+index 13e278d..5b2d582 100644
+--- a/internal/mcpserver/call.go
++++ b/internal/mcpserver/call.go
+@@ -100,7 +100,7 @@ func (c *Call) waiting() string {
+ 		return ""
+ 	}
+ 	_, unread, err := c.box.Peek(c.Caller().Address(), 0)
+-	if err != nil || len(unread) == 0 {
++	if err != nil {
+ 		return ""
+ 	}
+ 	senders := map[string]bool{}

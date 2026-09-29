@@ -398,6 +398,17 @@ Every one of these is a way to damage a file mnemo did not write.
 - Waiting returns at once for something already there, times out saying so, and picks up a message
   that arrives while it waits. The ceiling is below the minute a client gives up at.
 
+### Waking the recipient
+
+- Every answer, from a memory tool as much as a mailbox one, ends on a line naming how many messages
+  are waiting and who from. Tested through a real client, because the line is added between a handler
+  and the protocol and what matters is that it survives the trip.
+- Announcing does not consume: the messages are still there to read afterwards. Once read, the line
+  stops rather than nagging.
+- A chat with no name, and a chat with an empty mailbox, are told nothing.
+- A refusal does not carry it: a refusal is one block by contract, and reading the mailbox has just
+  delivered everything there was.
+
 ### Card
 
 - The render equals its expected file, byte for byte, for every fixture project, in both languages,

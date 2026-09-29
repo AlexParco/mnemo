@@ -1,0 +1,18 @@
+Breaks: no answer mentions waiting messages, so an agent in Codex or opencode — which have no way to be woken — learns of a message only if somebody thinks to ask it to check.
+Must fail: go test ./internal/mcpserver -run '^TestEveryAnswerCarriesTheWaitingPost$'
+
+diff --git a/internal/mcpserver/server.go b/internal/mcpserver/server.go
+index 02c8fa6..1cb7afc 100644
+--- a/internal/mcpserver/server.go
++++ b/internal/mcpserver/server.go
+@@ -69,9 +69,7 @@ func announcePost(result *mcp.CallToolResult, tool string, call *Call) {
+ 	if result == nil || result.IsError || call == nil || tool == "mailbox_read" || tool == "mailbox_wait" {
+ 		return
+ 	}
+-	if line := call.waiting(); line != "" {
+-		result.Content = append(result.Content, &mcp.TextContent{Text: line})
+-	}
++
+ }
+ 
+ // safely runs a handler and turns a panic into a result that says so. It never

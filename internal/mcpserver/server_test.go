@@ -5,7 +5,12 @@ import (
 	"strings"
 	"testing"
 
+	"path/filepath"
+
 	"github.com/AlexParco/mnemo/internal/criterion"
+	"github.com/AlexParco/mnemo/internal/lock"
+	"github.com/AlexParco/mnemo/internal/mailbox"
+	"github.com/AlexParco/mnemo/internal/memory"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -297,4 +302,131 @@ func TestAPanicIsOneRefusalNotADeadServer(t *testing.T) {
 	if !strings.Contains(text, "something impossible") {
 		t.Errorf("the result does not say what happened: %q", text)
 	}
+}
+
+// The line that makes the mailbox fluid without owning anybody's terminal: a chat
+// that just used its memory has told mnemo it is awake, and that is the cheapest
+// moment there is to mention the post.
+//
+// Tested through a real client, because the line is added by the layer between a
+// handler and the protocol, and because what matters is that it survives the trip.
+func TestEveryAnswerCarriesTheWaitingPost(t *testing.T) {
+	call := writable(t, true)
+	box := withMailbox(t, call, "boss")
+	session := connect(t, call)
+
+	// Another agent leaves two messages.
+	sender := mailbox.Caller{Name: "worker", Machine: call.Machine, Tool: "codex",
+		Instance: mailbox.Instance(), Via: "local", PID: 1}
+	if _, err := box.Claim(t.Context(), sender); err != nil {
+		t.Fatal(err)
+	}
+	for _, body := range []string{"the parser is done", "and the tests pass"} {
+		if _, err := box.Send(t.Context(), sender, call.Caller().Address(), body, ""); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// A memory tool, which is what an agent actually calls all day. This is the
+	// thing an orchestration-verb surface cannot do: those get called when
+	// somebody restructures a team, not several times a minute.
+	result := call2(t, session, "mnemo_status", nil)
+	got := textOf(t, result)
+	last := got[len(got)-1]
+	for _, want := range []string{"2 message(s) waiting for you", "worker@" + call.Machine, "mailbox_read"} {
+		if !strings.Contains(last, want) {
+			t.Errorf("the last block does not say %q:\n%s", want, last)
+		}
+	}
+
+	// Announcing must not consume: the messages are still there to read.
+	read, err := box.Read(t.Context(), call.Caller())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(read) != 2 {
+		t.Errorf("announcing the post consumed it: %d left to read", len(read))
+	}
+
+	// And once read, the line stops rather than nagging.
+	after := textOf(t, call2(t, session, "mnemo_status", nil))
+	if strings.Contains(strings.Join(after, "\n"), "waiting for you") {
+		t.Errorf("the line survived reading:\n%s", strings.Join(after, "\n"))
+	}
+}
+
+// A chat with no name has no post, and a chat with an empty mailbox is not told
+// about it on every single call.
+func TestTheWaitingLineOnlyAppearsWhenThereIsPost(t *testing.T) {
+	t.Run("no name", func(t *testing.T) {
+		session := connect(t, writable(t, true))
+		got := textOf(t, call2(t, session, "mnemo_status", nil))
+		if strings.Contains(strings.Join(got, "\n"), "waiting for you") {
+			t.Errorf("a chat with no name was told about post:\n%s", strings.Join(got, "\n"))
+		}
+	})
+
+	t.Run("a name and an empty mailbox", func(t *testing.T) {
+		call := writable(t, true)
+		withMailbox(t, call, "boss")
+		session := connect(t, call)
+		got := textOf(t, call2(t, session, "mnemo_status", nil))
+		if strings.Contains(strings.Join(got, "\n"), "waiting") {
+			t.Errorf("an empty mailbox was announced:\n%s", strings.Join(got, "\n"))
+		}
+	})
+}
+
+// A refusal is one block by contract, so the post waits for an answer that is not
+// one. And reading the mailbox has just delivered everything there was, so it does
+// not then announce it.
+func TestTheWaitingLineStaysOffARefusal(t *testing.T) {
+	call := writable(t, true)
+	box := withMailbox(t, call, "boss")
+	session := connect(t, call)
+
+	sender := mailbox.Caller{Name: "worker", Machine: call.Machine, Tool: "codex",
+		Instance: mailbox.Instance(), Via: "local", PID: 1}
+	if _, err := box.Claim(t.Context(), sender); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := box.Send(t.Context(), sender, call.Caller().Address(), "something", ""); err != nil {
+		t.Fatal(err)
+	}
+
+	result := call2(t, session, "mnemo_read_memory", map[string]any{"id": "not-there"})
+	if !result.IsError {
+		t.Fatal("expected a refusal")
+	}
+	if got := textOf(t, result); len(got) != 1 {
+		t.Errorf("a refusal carries %d blocks: %q", len(got), got)
+	}
+}
+
+// withMailbox gives a call a mailbox on the same machine, and a name to hold.
+func withMailbox(t *testing.T, call *Call, name string) *mailbox.Mailbox {
+	t.Helper()
+	base := filepath.Dir(call.StoreDir)
+	box := mailbox.New(filepath.Join(base, "mailbox"), call.Machine, mailbox.Options{
+		Locker:        lock.New(filepath.Join(base, "locks")),
+		ProjectExists: func(slug string) bool { return memory.ProjectExists(call.StoreDir, slug) },
+		Alive:         func(int) bool { return true },
+	})
+	call.box = box
+	call.Agent = name
+	call.Instance = mailbox.Instance()
+	if _, err := box.Claim(t.Context(), call.Caller()); err != nil {
+		t.Fatalf("claiming %s: %v", name, err)
+	}
+	return box
+}
+
+// call2 is call, for the tests that also need a Call value in scope.
+func call2(t *testing.T, session *mcp.ClientSession, name string, args map[string]any) *mcp.CallToolResult {
+	t.Helper()
+	result, err := session.CallTool(t.Context(), &mcp.CallToolParams{Name: name, Arguments: args})
+	if err != nil {
+		t.Fatalf("%s: %v", name, err)
+	}
+	return result
 }

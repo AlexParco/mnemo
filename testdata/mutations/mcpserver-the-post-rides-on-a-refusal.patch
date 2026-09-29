@@ -1,0 +1,16 @@
+Breaks: a refusal carries the waiting-messages line as a second block, so a refusal is no longer the one block the contract says it is and an agent reading the first block alone misses the advice.
+Must fail: go test ./internal/mcpserver -run '^TestTheWaitingLineStaysOffARefusal$'
+
+diff --git a/internal/mcpserver/server.go b/internal/mcpserver/server.go
+index 02c8fa6..0a1e3da 100644
+--- a/internal/mcpserver/server.go
++++ b/internal/mcpserver/server.go
+@@ -66,7 +66,7 @@ func add(server *mcp.Server, definition Definition, call *Call) {
+ // refusal, which is one block by contract, and off reading the mailbox, which has
+ // just delivered everything there was.
+ func announcePost(result *mcp.CallToolResult, tool string, call *Call) {
+-	if result == nil || result.IsError || call == nil || tool == "mailbox_read" || tool == "mailbox_wait" {
++	if result == nil || call == nil || tool == "mailbox_read" || tool == "mailbox_wait" {
+ 		return
+ 	}
+ 	if line := call.waiting(); line != "" {

@@ -2,10 +2,10 @@ Breaks: starting the server brings a store into being, so a machine that has nev
 Must fail: go test ./internal/cli -run '^TestServingDoesNotCreateAStore$'
 
 diff --git a/internal/cli/cli.go b/internal/cli/cli.go
-index b74f95d..8f6fb1f 100644
+index f799455..30f4a9b 100644
 --- a/internal/cli/cli.go
 +++ b/internal/cli/cli.go
-@@ -100,9 +100,7 @@ func serveCommand() *cobra.Command {
+@@ -178,9 +178,7 @@ func serveCommand() *cobra.Command {
  			if _, err := resolved.RequireStore(); err != nil {
  				return err
  			}
@@ -13,6 +13,6 @@ index b74f95d..8f6fb1f 100644
 -			// answer saying there is nothing saved yet, which is true, and the
 -			// first write is what brings a store into being.
 +			_ = os.MkdirAll(resolved.Paths.Store, 0o755)
- 			return mcpserver.Serve(cmd.Context(), Version,
- 				mcpserver.Local(resolved, memoryStore(resolved)), &mcp.StdioTransport{})
+ 			return answerCalls(cmd, resolved)
  		},
+ 	}

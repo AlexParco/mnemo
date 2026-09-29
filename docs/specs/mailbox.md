@@ -221,11 +221,92 @@ ephemeral and memory is not.
   `v1-<timestamp>/` inside the mailbox directory and the mailbox starts empty: messages are
   ephemeral and the address format is not the one they use. `mnemo peers` mentions the move once.
 
-## Watching
+## Waking the recipient
 
-`mnemo watch` wakes an idle Claude Code chat when a message arrives. Its behaviour is in
-[integrations.md](integrations.md#mnemo-watch). It uses `peek`, locally or through the server's
-unread endpoint.
+A message nobody reads is not a message. This is the part that decides whether the mailbox is useful
+or a curiosity, so it is worth being precise about what reaches whom.
+
+The obvious way is the wrong one. A harness that owns the agent's terminal can type the message
+straight into it, and the agent sees it at once — but then the transport is keystrokes, it has to read
+the screen to decide whether typing is safe, and it breaks when the tool it is typing into changes a
+spinner character. mnemo never owns a terminal. What it has instead is three ways in, each reaching a
+different state, and one of them is only possible because mnemo's tools are the ones an agent calls
+all day.
+
+### 1. Every answer carries the post
+
+**Any tool answer, in any tool, ends with a line about waiting messages** when the caller has them:
+
+```
+2 message(s) waiting for you, from worker-api@laptop1 and boss@vps. Read them with mailbox_read.
+```
+
+It is the last block, after everything else, and it is added to memory tools as much as mailbox ones:
+a chat that searched its memory has just told mnemo it is awake, and that is the cheapest moment there
+will ever be to mention the post. Nothing is marked read, and the count comes from the same `peek`
+the watcher uses.
+
+This costs nothing and reaches every tool, because an agent working on a project calls
+`mnemo_load_project`, `mnemo_search_memories` and `mnemo_write_memory` constantly. It is what a
+harness built around orchestration verbs cannot do: those get called when a person restructures a
+team, not several times a minute.
+
+What it does not reach is a chat that is thinking, or idle, and touching nothing.
+
+### 2. The watcher, for a chat that is idle
+
+`mnemo watch --tool claude` polls `peek` every two seconds and prints one line per message it has not
+announced yet. In Claude Code it runs as the plugin's monitor, where **a line on stdout becomes a
+notification, and a notification reaches a chat sitting idle at its prompt** — so nobody has to ask
+it to check.
+
+The documentation for monitors says only that what a monitor prints "reaches Claude as notifications";
+whether that wakes an idle chat is not written down anywhere. It does: the previous implementation of
+mnemo shipped exactly this monitor and relied on it. Recorded here because it is undocumented
+behaviour, so it is worth knowing which claim rests on the documentation and which on having run it.
+
+Monitors are interactive sessions only. A chat started for one non-interactive answer has no watcher,
+which is correct: nothing is idle there.
+
+**Channels would be better and are not available yet.** Claude Code documents channels — MCP servers
+that push an event into a session that is already open, with the agent replying through the same
+channel — which is this problem exactly, and bidirectional. The version installed here, 2.1.283, has
+no flag to enable one. When it does, a channel becomes the first choice for Claude Code and the
+monitor becomes the fallback, and `mnemo run claude` is the right place to turn it on, because that
+command already builds the command line.
+
+- It only looks. It never marks a message read, never claims the name, and never sends. The chat that
+  holds the name still reads with `mailbox_read`.
+- Each message is announced once per run of the watcher.
+- The line names the sender, the id, a preview of at most 120 characters, and what to call.
+- A failure is reported once, not every two seconds for as long as it lasts, and the watch carries on:
+  a tunnel that drops for a minute must not end it.
+- With no `MNEMO_AGENT` there is nothing to watch, and it exits quietly.
+
+### 3. The hook, for a chat that is busy
+
+The `PreToolUse` hook that suggests a save also mentions waiting messages, in the `additionalContext`
+field that reaches the model alongside the tool's result. It catches the chat that is working hard and
+not calling mnemo — the gap between the first two.
+
+There is no hook that fires on a timer or on going idle, which is why the watcher exists rather than
+this being the whole answer.
+
+### What this does and does not promise
+
+| The chat is | Reached by | How soon |
+|---|---|---|
+| idle at its prompt, in Claude Code | the watcher, as the plugin's monitor | within two seconds |
+| working, in Claude Code | the hook, at its next edit or write | its next tool call |
+| calling mnemo, in any tool | the notice on the answer | at once |
+| working in Codex or opencode, not calling mnemo | nothing | its next mnemo call |
+
+The last row is honest rather than solved. Codex and opencode have no equivalent of a monitor, so a
+chat there learns of its post when it next speaks to mnemo. The alternative is to own its terminal,
+and that is not a trade mnemo makes.
+
+**Blocking on an answer is different** and already has its own tool: an agent that has asked something
+and needs the reply calls `mailbox_wait`, which holds for up to 55 seconds rather than polling.
 
 ## What an agent is told
 

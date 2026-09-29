@@ -53,8 +53,25 @@ func add(server *mcp.Server, definition Definition, call *Call) {
 			// caller's, and it must not take the whole server down: one bad call
 			// would end the chat's memory for the rest of the session.
 			result := safely(ctx, handle, call, Args(args))
+			announcePost(result, definition.Tool.Name, call)
 			return result, nil, nil
 		})
+}
+
+// announcePost adds the waiting-messages line to a successful answer.
+//
+// Every tool carries it, not only the mailbox ones: a chat that just searched its
+// memory is awake and reachable, and that is the moment to mention the post. It
+// is the last block so that nothing else has to move, and it is left off a
+// refusal, which is one block by contract, and off reading the mailbox, which has
+// just delivered everything there was.
+func announcePost(result *mcp.CallToolResult, tool string, call *Call) {
+	if result == nil || result.IsError || call == nil || tool == "mailbox_read" || tool == "mailbox_wait" {
+		return
+	}
+	if line := call.waiting(); line != "" {
+		result.Content = append(result.Content, &mcp.TextContent{Text: line})
+	}
 }
 
 // safely runs a handler and turns a panic into a result that says so. It never

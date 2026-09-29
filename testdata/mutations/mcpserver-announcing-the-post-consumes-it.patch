@@ -1,0 +1,16 @@
+Breaks: mentioning waiting messages marks them read, so the chat is told it has post and then finds an empty mailbox.
+Must fail: go test ./internal/mcpserver -run '^TestEveryAnswerCarriesTheWaitingPost$'
+
+diff --git a/internal/mcpserver/call.go b/internal/mcpserver/call.go
+index 13e278d..025c1fb 100644
+--- a/internal/mcpserver/call.go
++++ b/internal/mcpserver/call.go
+@@ -99,7 +99,7 @@ func (c *Call) waiting() string {
+ 	if c.box == nil || c.Agent == "" || c.Machine == "" {
+ 		return ""
+ 	}
+-	_, unread, err := c.box.Peek(c.Caller().Address(), 0)
++	unread, err := c.box.Read(context.Background(), c.Caller())
+ 	if err != nil || len(unread) == 0 {
+ 		return ""
+ 	}

@@ -248,6 +248,16 @@ func RemoveClaudeFile(path string) (Result, error) {
 	return result, nil
 }
 
+// RegisteredClaudeFile reports whether a project's own file declares mnemo. A
+// repository shares that entry with everybody who clones it, so it counts.
+func RegisteredClaudeFile(path string) bool {
+	content, _, err := read(path)
+	if err != nil || !gjson.Valid(content) {
+		return false
+	}
+	return gjson.Get(content, "mcpServers.mnemo").Exists()
+}
+
 // RegisteredClaude reports whether the plugin is installed and enabled.
 func RegisteredClaude(run func(args ...string) (string, error)) bool {
 	if run == nil {

@@ -11,7 +11,9 @@ import (
 
 	"github.com/AlexParco/mnemo/internal/config"
 	"github.com/AlexParco/mnemo/internal/lock"
+	"github.com/AlexParco/mnemo/internal/mailbox"
 	"github.com/AlexParco/mnemo/internal/mcpserver"
+	"github.com/AlexParco/mnemo/internal/memory"
 	"github.com/AlexParco/mnemo/internal/store"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/spf13/cobra"
@@ -71,7 +73,7 @@ func Execute(ctx context.Context) int {
 	root.PersistentFlags().StringVar(&flags.Machine, "machine", "", "label for this machine")
 	root.PersistentFlags().StringVar(&flags.Lang, "lang", "", "language mnemo writes in: en or es")
 
-	root.AddCommand(configCommand(), mcpCommand(), serveCommand(), versionCommand())
+	root.AddCommand(configCommand(), mcpCommand(), runCommand(), serveCommand(), versionCommand())
 
 	root.SetFlagErrorFunc(func(_ *cobra.Command, err error) error { return usageError{err} })
 	if err := root.ExecuteContext(ctx); err != nil {
@@ -101,6 +103,45 @@ func settings() (config.Settings, error) {
 		fmt.Fprintf(os.Stderr, "mnemo: %s does not know the setting %q in %s\n", Version, unknown, file.Path())
 	}
 	return resolved, nil
+}
+
+// serve answers tool calls until the client goes away.
+//
+// The name is claimed before the handshake is answered, so a second chat opened
+// with the same name fails at the moment somebody tries rather than later, when a
+// reply has two places to go. A chat that never touches the mailbox still holds
+// its name for as long as it is open.
+func answerCalls(cmd *cobra.Command, resolved config.Settings) error {
+	box := mailboxFor(resolved)
+	call := mcpserver.Local(resolved, memoryStore(resolved), box)
+
+	if resolved.Agent != "" && resolved.Machine != "" {
+		held, err := box.Claim(cmd.Context(), call.Caller())
+		if err != nil {
+			// Refused because somebody else has the name: said on stderr and the
+			// chat still gets its memory. Losing the mailbox is not losing the
+			// memory, and refusing to start would be the worse of the two.
+			fmt.Fprintln(os.Stderr, "mnemo: "+err.Error())
+		} else {
+			fmt.Fprintf(os.Stderr, "mnemo: holding %s for this chat.\n", held.Address)
+			defer func() { _ = box.Release(context.Background(), call.Caller()) }()
+		}
+	}
+	return mcpserver.Serve(cmd.Context(), Version, call, &mcp.StdioTransport{})
+}
+
+// mailboxFor builds this machine's mailbox.
+//
+// Built here for the same reason the store is: choosing where the lock lives and
+// which machine this is are facts about the machine, not about the mailbox.
+func mailboxFor(resolved config.Settings) *mailbox.Mailbox {
+	return mailbox.New(resolved.Paths.Mailbox, resolved.Machine, mailbox.Options{
+		Locker: lock.New(resolved.Paths.Locks),
+		// The mailbox does not read the store; it asks.
+		ProjectExists: func(slug string) bool {
+			return memory.ProjectExists(resolved.Paths.Store, slug)
+		},
+	})
 }
 
 // memoryStore builds the store the write tools act through.
@@ -140,8 +181,7 @@ func serveCommand() *cobra.Command {
 			// The store is not created here. A chat that only reads gets an
 			// answer saying there is nothing saved yet, which is true, and the
 			// first write is what brings a store into being.
-			return mcpserver.Serve(cmd.Context(), Version,
-				mcpserver.Local(resolved, memoryStore(resolved)), &mcp.StdioTransport{})
+			return answerCalls(cmd, resolved)
 		},
 	}
 }
