@@ -1,8 +1,8 @@
-Breaks: tools are registered with the low-level call that does no validation, so an argument of the wrong type, outside an enum, out of bounds or simply misspelt reaches the handler and the call does something other than what was asked.
-Must fail: go test ./internal/mcpserver -run '^TestTheSchemaIsEnforcedBeforeAnyHandlerRuns$'
+Breaks: Tools are registered with the low-level call that does no validation, so an argument of the wrong type, outside an enum, out of bounds or simply misspelt reaches the handler and the call does something other than what was asked.
+Must fail: go test ./internal/mcpserver -run '^TestTheSchemaIsEnforcedBeforeAnyHandlerRuns$' -count=1
 
 diff --git a/internal/mcpserver/server.go b/internal/mcpserver/server.go
-index 02c8fa6..5240ef0 100644
+index 0056953..bd10b27 100644
 --- a/internal/mcpserver/server.go
 +++ b/internal/mcpserver/server.go
 @@ -2,6 +2,7 @@ package mcpserver
@@ -13,23 +13,27 @@ index 02c8fa6..5240ef0 100644
  
  	"github.com/AlexParco/mnemo/internal/criterion"
  	"github.com/modelcontextprotocol/go-sdk/mcp"
-@@ -47,15 +48,13 @@ func Register(server *mcp.Server, call *Call) {
+@@ -47,19 +48,13 @@ func Register(server *mcp.Server, call *Call) {
  // the same fields, and the two would drift.
  func add(server *mcp.Server, definition Definition, call *Call) {
  	handle := definition.Handle
 -	mcp.AddTool(server, definition.Tool,
--		func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+-		func(ctx context.Context, req *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+-			// Who is calling can only be known from the connection, and a Call
+-			// is built before there is one. A copy rather than a write: one Call
+-			// serves every request of a session, and over HTTP it serves one.
+-			call := withClient(call, req)
 -			// Whatever a handler panics on is this program's fault, not the
 -			// caller's, and it must not take the whole server down: one bad call
 -			// would end the chat's memory for the rest of the session.
--			result := safely(ctx, handle, call, Args(args))
+-			result, structured := safely(ctx, handle, call, Args(args))
 -			announcePost(result, definition.Tool.Name, call)
--			return result, nil, nil
+-			return result, structured, nil
 -		})
 +	server.AddTool(definition.Tool, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 +		args := map[string]any{}
 +		_ = json.Unmarshal(req.Params.Arguments, &args)
-+		result := safely(ctx, handle, call, Args(args))
++		result, _ := safely(ctx, handle, withClient(call, req), Args(args))
 +		announcePost(result, definition.Tool.Name, call)
 +		return result, nil
 +	})

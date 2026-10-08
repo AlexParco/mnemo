@@ -1,11 +1,11 @@
-Breaks: every answer carries the waiting-messages line whether or not anything is waiting, so the one signal that means "you have post" stops meaning anything.
-Must fail: go test ./internal/mcpserver -run '^TestTheWaitingLineOnlyAppearsWhenThereIsPost$'
+Breaks: Every answer carries the waiting-messages line whether or not anything is waiting, so the one signal that means 'you have post' stops meaning anything.
+Must fail: go test ./internal/mcpserver -run '^TestTheWaitingLineOnlyAppearsWhenThereIsPost$' -count=1
 
 diff --git a/internal/mcpserver/call.go b/internal/mcpserver/call.go
-index 13e278d..5b2d582 100644
+index 67a332c..0d49c77 100644
 --- a/internal/mcpserver/call.go
 +++ b/internal/mcpserver/call.go
-@@ -100,7 +100,7 @@ func (c *Call) waiting() string {
+@@ -130,7 +130,7 @@ func (c *Call) waiting() string {
  		return ""
  	}
  	_, unread, err := c.box.Peek(c.Caller().Address(), 0)
@@ -13,4 +13,4 @@ index 13e278d..5b2d582 100644
 +	if err != nil {
  		return ""
  	}
- 	senders := map[string]bool{}
+ 	return fmt.Sprintf("%d message(s) waiting for you, from %s. Read them with mailbox_read.",
