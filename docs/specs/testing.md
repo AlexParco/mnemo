@@ -537,7 +537,9 @@ user's machines are.
 - Retention: read messages expire after 30 days, unread messages to an address never do, and `seq` is
   never reused, even when the state file is lost.
 - A torn last line does not corrupt the next message.
-- Wait returns as soon as a message lands, times out empty, and stops when cancelled.
+- Wait returns as soon as a message lands, times out empty, and stops when cancelled — and a
+  cancelled wait is an empty answer, not a failure, and never a complaint about another agent
+  holding the mailbox.
 - `peek` shows what waits without marking it read or recording anyone.
 - Version 1 files are moved aside, and the mailbox starts empty.
 - A caller without a name gets the `mnemo run` refusal from every mailbox tool, and memory tools
@@ -549,7 +551,12 @@ user's machines are.
   really runs in; and a third chat asking for a name that is open is turned away on stderr, keeps
   its memory, is refused by `mailbox_read` with the same sentence, and is told by `mailbox_peers`
   which window to close.
-- Bursts from both lose nothing and share no `seq`; the tool shown comes from `MNEMO_TOOL`.
+- **Bursts from two processes lose nothing and share no `seq`**, sent at the same time from two
+  real `mnemo serve` processes and read back through several bounded reads. A `seq` is what every
+  cursor is measured against, so two messages with the same one would make each shadow the other
+  for everybody, and nothing in the files prevents it except the lock and the rule that the next
+  one is the larger of the counter and the log.
+- The tool shown comes from `MNEMO_TOOL`.
 
 ### MCP surface
 
@@ -615,8 +622,11 @@ user's machines are.
 - `mcp add` for Claude Code runs the plugin commands in order, prints them when `claude` is missing,
   and writes a `.mcp.json` entry with `--path`.
 - `mcp remove` removes only what mnemo wrote.
-- `run` checks everything in order and stops at the first failure with its message. It sets
-  `MNEMO_AGENT`, opens the tool in the directory, and passes the arguments after `--`.
+- `run` checks everything in order and stops at the first failure with its message: no name, a name
+  that cannot be an address, a tool it does not know, a directory that is not one, not registered,
+  not on the PATH, and a name a live chat holds — which says which tool holds it and since when,
+  because somebody has to know which window to close. Then it really opens a tool: a fake one on
+  the PATH that prints where it ran, what the environment says, and what came after `--`.
 - The plugin: the manifest is valid, the monitor, hook and MCP server point at hidden commands that
   exist, and all six skills are present with bilingual trigger descriptions.
 - `watch` announces each message once, leaves it unread, keeps going through errors without repeating
