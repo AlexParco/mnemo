@@ -63,7 +63,11 @@ One address is held by at most one live instance. That is what lets a reply find
 - **A holder** records the instance, the tool, the process id, how it reaches the mailbox
   (`local` or `remote`), when it started and, for remote holders, when its lease ends.
 - **Local holders are alive while their process is.** It is checked with the process id on the
-  machine that hosts the mailbox.
+  machine that hosts the mailbox. The process id is all there is to go on, so a chat that crashed
+  and whose id the system later gave to something else looks alive for as long as that lasts, and
+  its name cannot be claimed until it ends. Nothing here can tell those two apart; a start time
+  would, and reading one is different on every system. What it costs is one name on one machine,
+  and the way out is another name.
 - **Remote holders are alive while their lease lasts.** A lease is 45 seconds. Every request from
   that instance renews it, and the relay sends a heartbeat every 15 seconds. A client that
   vanishes loses the name at most 45 seconds later.
@@ -167,6 +171,10 @@ old messages when a prune is due, and records the caller.
   tool schema and a command both send zero for an argument nobody gave, so reading it as "return at
   once" would make the documented default unreachable. The clamp is the engine's own defence for a
   caller with no schema in front of it; today every caller comes through one.
+- The size of the log is sampled **before** the first `read`, not after it: a message appended in
+  between would otherwise already be in the size the loop compares against, so nothing would look
+  changed and the wait would run its full length and report that nothing arrived while it sat in
+  the file.
 - Every 250 ms it checks the size of the log. When the size changed, it runs `read`. It returns
   as soon as that finds messages.
 - When the time runs out, or the request is cancelled, it returns an empty result that says it
@@ -184,8 +192,12 @@ old messages when a prune is due, and records the caller.
   `0` beside an agent with unread mail, which is the confusion `peers` exists to prevent.
 - **Order:** the caller first, then live rows, then by address.
 - The result also names the machine that hosts this mailbox.
-- An address that has been offline for 90 days with nothing unread is dropped from the known
-  addresses.
+- An address that has been offline for 90 days is dropped from the known addresses — when nothing
+  is unread for it **and** nothing in the log is addressed to it at all. Its cursor is the only
+  record that the messages sent to it were read, so forgetting it first would leave them unprunable
+  for ever, and a new chat under that name would be handed what the last one finished three months
+  ago as new work. The prune runs at the end of the same operation, so the address goes on the
+  next one.
 
 ### peek(address, after)
 
@@ -195,7 +207,11 @@ line is skipped.
 
 - It returns the highest `seq` in the log and the messages that `read` would return for that
   address with a cursor of `max(after, cursor)`.
-- An address that is not known receives no group messages.
+- An address that is not known receives no group messages, and the `seq` it gets back is the
+  `after` it asked with rather than the top of the log. A watcher starts at the same moment as the
+  chat it watches and can look before the name is claimed; told how far the log goes, it would
+  record itself as having announced messages it never announced, and the chat would sit idle beside
+  post nobody mentioned.
 
 ## Retention
 

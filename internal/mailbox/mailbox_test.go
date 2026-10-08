@@ -472,15 +472,26 @@ func TestAnAddressWithNothingWaitingIsForgotten(t *testing.T) {
 	b.alive[200], b.alive[300] = false, false
 	b.now = b.now.Add(Offline + time.Hour)
 
-	peers, err := b.List(t.Context(), caller)
-	if err != nil {
-		t.Fatal(err)
+	// The first call keeps it, and prunes its message. An address is not
+	// forgotten while a message to it is still in the log: its cursor is the
+	// only record that the message was read, and the prune needs that record.
+	// The prune runs at the end of the same call, so the second one forgets it.
+	listed := func() string {
+		t.Helper()
+		peers, err := b.List(t.Context(), caller)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var addresses []string
+		for _, peer := range peers.Peers {
+			addresses = append(addresses, peer.Address)
+		}
+		return strings.Join(addresses, ",")
 	}
-	var addresses []string
-	for _, peer := range peers.Peers {
-		addresses = append(addresses, peer.Address)
+	if first := listed(); !strings.Contains(first, "gone@here") {
+		t.Errorf("an address was forgotten while its message was still there: %s", first)
 	}
-	joined := strings.Join(addresses, ",")
+	joined := listed()
 	if strings.Contains(joined, "gone@here") {
 		t.Errorf("an address with nothing waiting was kept: %s", joined)
 	}
@@ -844,5 +855,47 @@ func TestAHeldNameIsDescribedBeforeAChatIsOpened(t *testing.T) {
 		t.Fatal(err)
 	} else if said != "" {
 		t.Errorf("a closed chat is still described as %q", said)
+	}
+}
+
+// An address is forgotten after ninety days, and its cursor is the only record
+// that the messages sent to it were read. Forgetting it while they are still in
+// the log would hand them to the next chat of that name as new work.
+func TestAnAddressIsNotForgottenWhileItsMessagesAreStillThere(t *testing.T) {
+	b := newBox(t)
+	worker := b.agent(t, "worker", "claude", 100)
+	sender := b.agent(t, "boss", "claude", 200)
+	done := b.send(t, sender, worker.Address(), "the coupons endpoint is done")
+	if read := b.read(t, worker); len(read) != 1 {
+		t.Fatalf("the worker read %d messages", len(read))
+	}
+
+	// Three months later, nobody has opened that chat again. A prune has not run
+	// either, which is the case for a mailbox nobody has touched.
+	b.now = b.now.Add(Offline + 24*time.Hour)
+	b.alive[100] = false
+	asked := b.agent(t, "somebody", "claude", 300)
+	if _, err := b.List(t.Context(), asked); err != nil {
+		t.Fatal(err)
+	}
+
+	// The message was pruned, because the cursor that said it had been read was
+	// still there to say so.
+	messages, err := b.readLog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, message := range messages {
+		if message.ID == done.ID {
+			t.Fatalf("the message is still in the log, and nothing is left that can prune it")
+		}
+	}
+
+	// And a new chat under the same name is not handed the old one's finished
+	// work as something to do.
+	b.alive[100] = true
+	again := b.agent(t, "worker", "claude", 100)
+	if waiting := b.read(t, again); len(waiting) != 0 {
+		t.Errorf("a new chat was handed %q", bodies(waiting))
 	}
 }

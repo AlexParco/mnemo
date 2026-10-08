@@ -688,6 +688,14 @@ an internal fault reported as advice the agent could act on. It would need an er
 store that is neither a refusal nor reachable from a handler's arguments, and constructing one
 means putting the store in a state it cannot be in.
 
+**Also deliberately absent.** The order of the two steps a wait begins with — sampling the log's
+size, then reading — has no test. Sampling after the read would mean a message appended in between
+is already in the size the loop compares against, so nothing looks changed and the wait runs its
+full length and reports that nothing arrived. Reaching that window from outside means appending
+between two statements of one function, a few microseconds apart, and the only way to do it
+reliably is a hook in production code whose sole purpose is this test. The reason is in a comment
+beside the two lines instead.
+
 **Also deliberately absent.** The walk over the plugin's skills lives entirely in the test: there is
 no production code behind it, so the only way to break it is to edit the test, which is not a
 control. Its two guards — every directory is resolved with `os.Stat`, so a skill shipped as a

@@ -189,13 +189,17 @@ func (m *Mailbox) Wait(ctx context.Context, caller Caller, timeout time.Duration
 	}
 
 	// Anything already waiting comes back at once.
+	// The size is sampled before the read, not after it. A message appended in
+	// between would otherwise already be in the size this loop compares against,
+	// so nothing would look changed and the wait would run its full length and
+	// report that nothing arrived while it was sitting in the file.
+	size := m.logSize()
 	messages, err := m.Read(ctx, caller)
 	if err != nil || len(messages) > 0 {
 		return Waited{Messages: messages}, err
 	}
 
 	deadline := m.now().Add(timeout)
-	size := m.logSize()
 	ticker := time.NewTicker(pollEvery)
 	defer ticker.Stop()
 	for {
@@ -256,8 +260,14 @@ func (m *Mailbox) List(ctx context.Context, caller Caller) (Peers, error) {
 			waiting := len(unread(messages, address, entry))
 			// Forgotten only when nothing is waiting: an address with unread
 			// messages is somebody who has not come back yet, not somebody gone.
-			if waiting == 0 && entry.Holder == nil && !entry.LastSeen.IsZero() &&
-				now.Sub(entry.LastSeen) > Offline {
+			//
+			// And only when nothing in the log is addressed to it at all. Its
+			// cursor is the only record that those messages were read: forget it
+			// while they are still there and nothing can ever prune them, and a
+			// new chat opened under the same name is handed, as new work, what
+			// the last one finished three months ago.
+			if waiting == 0 && !addressed(messages, address) && entry.Holder == nil &&
+				!entry.LastSeen.IsZero() && now.Sub(entry.LastSeen) > Offline {
 				delete(state.Addresses, address)
 				continue
 			}
@@ -305,7 +315,13 @@ func (m *Mailbox) Peek(address string, after int) (int, []Message, error) {
 	if !known {
 		// An address nobody has ever held receives no group messages: it has no
 		// floor, so every group message would look new for ever.
-		return top, nil, nil
+		//
+		// It is given back the `after` it was asked with, not the top of the
+		// log. A watcher starts at the same moment as the chat it watches and
+		// can easily look before the name has been claimed; told how far the log
+		// goes, it would record itself as having announced messages it never
+		// announced, and the chat would sit idle next to post nobody mentioned.
+		return after, nil, nil
 	}
 	from := *entry
 	if after > from.Cursor {
@@ -397,6 +413,16 @@ func (m *Mailbox) prune(state *State, messages []Message, now time.Time) ([]Mess
 		kept = append(kept, message)
 	}
 	return kept, dropped > 0
+}
+
+// addressed reports whether any message in the log was sent to one address.
+func addressed(messages []Message, address string) bool {
+	for _, message := range messages {
+		if message.To == address {
+			return true
+		}
+	}
+	return false
 }
 
 // readBy reports whether the address a message was sent to has read past it.

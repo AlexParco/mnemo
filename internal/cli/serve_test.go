@@ -1361,3 +1361,58 @@ func TestAMessageCrossesBetweenTwoRealChatsAndTheReplyComesBack(t *testing.T) {
 		t.Errorf("the identity line is %q", identity)
 	}
 }
+
+// The watcher and the chat it watches start at the same moment, so the watcher
+// can easily look before the name has been claimed. What it must not do then is
+// record itself as having announced what was already waiting.
+func TestWatchStartedBeforeTheChatAnnouncesWhatWasAlreadyThere(t *testing.T) {
+	home, _ := machine(t, true)
+	resolved := watchSettings(t, home, "boss")
+	box := mailboxFor(resolved)
+
+	// A message is left for a name nobody has claimed yet. A direct message
+	// waits for an address that does not exist, which is the whole reason
+	// somebody can be sent work before they open the chat.
+	sender := mailbox.Caller{Name: "worker", Machine: resolved.Machine, Tool: "codex",
+		Instance: mailbox.Instance(), Via: "local", PID: os.Getpid()}
+	if _, err := box.Claim(t.Context(), sender); err != nil {
+		t.Fatal(err)
+	}
+	waiting, err := box.Send(t.Context(), sender, "boss@"+resolved.Machine, "start with the parser", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// One watcher, running across the moment the chat opens — which is the
+	// real shape: the monitor is started once and lives as long as the session.
+	var out, errOut strings.Builder
+	ctx, cancel := context.WithTimeout(t.Context(), 400*time.Millisecond)
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- watch(ctx, resolved, "claude", &out, &errOut, 20*time.Millisecond) }()
+
+	// It looks a few times while the address is still unknown, which is what it
+	// does for as long as the chat takes to start, and then the chat claims it.
+	time.Sleep(100 * time.Millisecond)
+	receiver := mailbox.Caller{Name: "boss", Machine: resolved.Machine, Tool: "claude",
+		Instance: mailbox.Instance(), Via: "local", PID: os.Getpid()}
+	if _, err := box.Claim(t.Context(), receiver); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-done; err != nil {
+		t.Fatalf("watching: %v", err)
+	}
+
+	// What was waiting all along is announced. Before this, the first look while
+	// the address was unknown moved the watcher past it, and the chat sat idle
+	// next to post nobody ever mentioned.
+	if !strings.Contains(out.String(), waiting.Message.ID) {
+		t.Errorf("what was waiting was never announced:\n%s", out.String())
+	}
+	if strings.Count(out.String(), waiting.Message.ID) != 1 {
+		t.Errorf("it was announced more than once:\n%s", out.String())
+	}
+	if errOut.Len() != 0 {
+		t.Errorf("it complained: %s", errOut.String())
+	}
+}

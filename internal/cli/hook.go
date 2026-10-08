@@ -269,6 +269,13 @@ func loadSessionState(path string) sessionState {
 	return state
 }
 
+// saveSessionState replaces the file, atomically.
+//
+// Two edits can be in flight at once in one session, and this runs on the path
+// of every one of them. A write in place can be read half-finished by the next
+// hook, which reads it as no state at all and starts the count again — so the
+// reminder a person is relying on quietly stops arriving. A temporary file and a
+// rename cannot be seen half-done.
 func saveSessionState(path string, state sessionState) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return
@@ -277,7 +284,22 @@ func saveSessionState(path string, state sessionState) {
 	if err != nil {
 		return
 	}
-	_ = os.WriteFile(path, encoded, 0o600)
+	temporary, err := os.CreateTemp(filepath.Dir(path), ".session-*")
+	if err != nil {
+		return
+	}
+	defer os.Remove(temporary.Name())
+	if _, err := temporary.Write(encoded); err != nil {
+		temporary.Close()
+		return
+	}
+	if err := temporary.Close(); err != nil {
+		return
+	}
+	if err := os.Chmod(temporary.Name(), 0o600); err != nil {
+		return
+	}
+	_ = os.Rename(temporary.Name(), path)
 }
 
 // sweepOldState deletes what belongs to sessions nobody will open again. A
