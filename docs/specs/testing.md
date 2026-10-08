@@ -769,6 +769,18 @@ the control fails.
 - Drop from `MAILBOX_RULE` what mnemo cannot verify: the test that reads what the rule says fails.
 - Print a refusal into a terminal with the tool names left in it: the test that a terminal names
   commands fails.
+- Hand a watcher the top of the log for an address nobody has claimed: the test that a watcher
+  started before the chat still announces what was waiting fails.
+- Forget an address while its messages are still in the log: the test that its finished work is not
+  handed to the next chat of that name fails.
+- Bound the reader by the size of a body rather than by the size of a line: the all-escapes test
+  fails, and with it the mailbox.
+- Hand over every waiting message at once: the bounded-read test fails.
+- Print a body with its escape sequences intact: the terminal-rewriting test fails.
+- Trust the tool label as the environment gives it: the cleaning test fails.
+- Announce the post to a chat whose claim was refused: the not-nagged test fails.
+- Decide what is new from the top of the whole log: the test that somebody else's traffic does not
+  retrigger the hook fails.
 
 **Waiting for the packages they test.**
 
