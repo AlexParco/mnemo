@@ -73,7 +73,8 @@ func Execute(ctx context.Context) int {
 	root.PersistentFlags().StringVar(&flags.Machine, "machine", "", "label for this machine")
 	root.PersistentFlags().StringVar(&flags.Lang, "lang", "", "language mnemo writes in: en or es")
 
-	root.AddCommand(configCommand(), mcpCommand(), runCommand(), serveCommand(), versionCommand())
+	root.AddCommand(configCommand(), hookCommand(), mcpCommand(), peersCommand(), readCommand(),
+		replyCommand(), runCommand(), sendCommand(), serveCommand(), versionCommand(), watchCommand())
 
 	root.SetFlagErrorFunc(func(_ *cobra.Command, err error) error { return usageError{err} })
 	if err := root.ExecuteContext(ctx); err != nil {
@@ -122,6 +123,14 @@ func answerCalls(cmd *cobra.Command, resolved config.Settings) error {
 			// chat still gets its memory. Losing the mailbox is not losing the
 			// memory, and refusing to start would be the worse of the two.
 			fmt.Fprintln(os.Stderr, "mnemo: "+err.Error())
+			// Carried into the call so the agent is told too. stderr reaches a
+			// person reading logs; the agent would otherwise send under a name
+			// whose replies go to the chat that holds it. Only a refusal is
+			// carried: a lock that timed out is this one moment failing, not a
+			// name that belongs to somebody else.
+			if mailbox.IsRefusal(err) {
+				call.ClaimRefusal = err.Error()
+			}
 		} else {
 			fmt.Fprintf(os.Stderr, "mnemo: holding %s for this chat.\n", held.Address)
 			defer func() { _ = box.Release(context.Background(), call.Caller()) }()

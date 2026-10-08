@@ -2,13 +2,21 @@ package cli
 
 import (
 	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
+	"time"
+
+	"github.com/AlexParco/mnemo/internal/config"
+	"github.com/AlexParco/mnemo/internal/mailbox"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -409,10 +417,10 @@ func TestALoadCarriesThePendingFileItself(t *testing.T) {
 	}
 }
 
-// Every tool the spec's memory half defines is actually served by the binary.
-// The rule texts an agent reads name these by hand, so one that is specced and
-// missing is an instruction to call something that is not there.
-func TestTheBinaryServesEveryMemoryTool(t *testing.T) {
+// Every tool the spec defines is actually served by the binary. The rule texts
+// an agent reads name these by hand, so one that is specced and missing is an
+// instruction to call something that is not there.
+func TestTheBinaryServesEveryToolTheSpecDefines(t *testing.T) {
 	_, env := machine(t, true)
 	session, complaints := serve(t, env)
 
@@ -430,17 +438,19 @@ func TestTheBinaryServesEveryMemoryTool(t *testing.T) {
 		"mnemo_read_memory", "mnemo_bootstrap", "mnemo_upsert_project", "mnemo_write_memory",
 		"mnemo_write_pending", "mnemo_commit", "mnemo_sync", "mnemo_resolve_conflict",
 		"mnemo_rebase", "mnemo_push", "mnemo_rename", "mnemo_forget", "mnemo_guide",
+		"mailbox_peers", "mailbox_send", "mailbox_reply", "mailbox_read", "mailbox_wait",
 	} {
 		if !served[want] {
 			t.Errorf("%s is in the spec and not served", want)
 		}
 	}
-	if len(listed.Tools) != 17 {
+	if len(listed.Tools) != 22 {
 		var names []string
 		for name := range served {
 			names = append(names, name)
 		}
-		t.Errorf("%d tools served, want the 17 of the memory half: %q", len(listed.Tools), names)
+		sort.Strings(names)
+		t.Errorf("%d tools served, want the 22 of the spec: %q", len(listed.Tools), names)
 	}
 }
 
@@ -707,5 +717,512 @@ func TestNoUsableMachineLabelIsSaidOutLoud(t *testing.T) {
 	}
 	if !strings.Contains(out, "mnemo config set machine") {
 		t.Errorf("the warning does not say what to type:\n%s", out)
+	}
+}
+
+// The watcher is the only way in that needs no tool call at all, so it is the
+// only thing that reaches a chat doing nothing. Everything about it is "look,
+// never touch".
+func TestWatchAnnouncesWithoutTouchingAnything(t *testing.T) {
+	home, env := machine(t, true)
+	resolved := watchSettings(t, home, "boss")
+	box := mailboxFor(resolved)
+
+	// Another agent claims a name and leaves two messages.
+	sender := mailbox.Caller{Name: "worker", Machine: resolved.Machine, Tool: "codex",
+		Instance: mailbox.Instance(), Via: "local", PID: os.Getpid()}
+	if _, err := box.Claim(t.Context(), sender); err != nil {
+		t.Fatal(err)
+	}
+	receiver := mailbox.Caller{Name: "boss", Machine: resolved.Machine, Tool: "claude",
+		Instance: mailbox.Instance(), Via: "local", PID: os.Getpid()}
+	if _, err := box.Claim(t.Context(), receiver); err != nil {
+		t.Fatal(err)
+	}
+	first, err := box.Send(t.Context(), sender, "boss@"+resolved.Machine, "the parser is done", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := box.Send(t.Context(), sender, "boss@"+resolved.Machine,
+		"and   the\n\ttests   pass", ""); err != nil {
+		t.Fatal(err)
+	}
+
+	var out, errOut strings.Builder
+	ctx, cancel := context.WithTimeout(t.Context(), 300*time.Millisecond)
+	defer cancel()
+	if err := watch(ctx, resolved, "claude", &out, &errOut, 20*time.Millisecond); err != nil {
+		t.Fatalf("watching: %v", err)
+	}
+
+	lines := strings.Split(strings.TrimSpace(out.String()), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("announced %d lines, want the two waiting:\n%s", len(lines), out.String())
+	}
+	// What is already waiting is announced when it starts, not only what arrives
+	// afterwards: a chat that was closed when the message came still hears it.
+	want := fmt.Sprintf("[mnemo] message %s from worker@%s: %q Read it with mailbox_read.",
+		first.Message.ID, resolved.Machine, "the parser is done")
+	if lines[0] != want {
+		t.Errorf("the line is:\n%s\nwant:\n%s", lines[0], want)
+	}
+	// Runs of whitespace collapse: a notification is one line by definition.
+	if !strings.Contains(lines[1], `"and the tests pass"`) {
+		t.Errorf("the body was not flattened: %s", lines[1])
+	}
+	// Each message once per run.
+	if strings.Count(out.String(), first.Message.ID) != 1 {
+		t.Errorf("a message was announced twice:\n%s", out.String())
+	}
+	if errOut.Len() != 0 {
+		t.Errorf("it complained on a clean run: %s", errOut.String())
+	}
+
+	// And it marked nothing: the chat still has both to read.
+	unread, err := box.Read(t.Context(), receiver)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(unread) != 2 {
+		t.Errorf("announcing consumed the post: %d left to read", len(unread))
+	}
+	// Nor did it take the name: the holder is still the chat.
+	if holder, live, err := box.HeldBy(t.Context(), "boss@"+resolved.Machine); err != nil {
+		t.Fatal(err)
+	} else if !live || holder.Instance != receiver.Instance {
+		t.Errorf("the watcher disturbed the holder: live=%v holder=%+v", live, holder)
+	}
+	_ = env
+}
+
+// A chat opened without `mnemo run` has memory and no mailbox. Nothing is wrong
+// with that, so the watcher says nothing rather than explaining it every two
+// seconds for the life of the session.
+func TestWatchWithNoNameSaysNothing(t *testing.T) {
+	home, _ := machine(t, true)
+	resolved := watchSettings(t, home, "")
+
+	var out, errOut strings.Builder
+	if err := watch(t.Context(), resolved, "claude", &out, &errOut, time.Millisecond); err != nil {
+		t.Fatalf("watching: %v", err)
+	}
+	if out.Len() != 0 || errOut.Len() != 0 {
+		t.Errorf("it said something:\nout: %s\nerr: %s", out.String(), errOut.String())
+	}
+}
+
+// A preview is read by eye, which is the one place in mnemo that is true, so it
+// is cut by code points rather than bytes.
+func TestAPreviewIsNeverCutMidCharacter(t *testing.T) {
+	long := strings.Repeat("ñ", 400)
+	got := preview(long)
+	if runes := []rune(got); len(runes) != previewChars {
+		t.Errorf("the preview is %d code points, want %d", len(runes), previewChars)
+	}
+	if !strings.HasSuffix(got, "…") {
+		t.Errorf("a cut preview does not say it was cut: %q", got[len(got)-6:])
+	}
+	if strings.ContainsRune(got, '�') {
+		t.Error("the preview was cut mid-character")
+	}
+	if short := preview("  already   short\n"); short != "already short" {
+		t.Errorf("a short body came back as %q", short)
+	}
+}
+
+// watchSettings resolves the settings a watcher runs with, for one agent name.
+func watchSettings(t *testing.T, home, agent string) config.Settings {
+	t.Helper()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("XDG_STATE_HOME", filepath.Join(home, "state"))
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "config"))
+	t.Setenv("MNEMO_DIR", filepath.Join(home, "store"))
+	t.Setenv("MNEMO_MACHINE", "testbox")
+	t.Setenv("MNEMO_AGENT", agent)
+	t.Setenv("MNEMO_REMOTE", "")
+	file, err := config.LoadFrom(config.ConfigFile())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return config.Resolve(file, config.Overrides{})
+}
+
+// The hook runs before every edit, in somebody's working session. Everything
+// about it is shaped by never getting in the way, so that is what is tested
+// first: it never fails, whatever it is handed.
+func TestTheHookNeverFails(t *testing.T) {
+	home, _ := machine(t, true)
+	watchSettings(t, home, "")
+
+	for name, stdin := range map[string]string{
+		"nothing":                        "",
+		"not JSON":                       "{{{",
+		"no session id":                  `{"transcript_path":"/nowhere"}`,
+		"a transcript that is not there": `{"session_id":"s1","transcript_path":"/nowhere/at/all"}`,
+		"a huge body":                    `{"session_id":"s1","body":"` + strings.Repeat("x", 100000) + `"}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			if got := suggestSave(strings.NewReader(stdin)); got != "" && !strings.HasPrefix(got, "mnemo: ") {
+				t.Errorf("it said %q", got)
+			}
+		})
+	}
+}
+
+// The edit signal is the one that is on by default, so it has to count, nudge at
+// the threshold, and not nag between nudges.
+func TestTheHookNudgesOnEditsAndThenWaits(t *testing.T) {
+	home, _ := machine(t, true)
+	watchSettings(t, home, "")
+	t.Setenv("MNEMO_SAVE_EDITS", "3")
+	input := `{"session_id":"a-session"}`
+
+	for i := 1; i <= 2; i++ {
+		if got := suggestSave(strings.NewReader(input)); got != "" {
+			t.Fatalf("it nudged after %d edit(s): %q", i, got)
+		}
+	}
+	got := suggestSave(strings.NewReader(input))
+	if !strings.Contains(got, "3 unsaved edits") {
+		t.Fatalf("the nudge at the threshold reads %q", got)
+	}
+	for _, want := range []string{"this session", "/mnemo:save-context", "lose progress"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("the nudge does not say %q: %q", want, got)
+		}
+	}
+	// And then it waits a whole threshold before the next one.
+	for i := 4; i <= 5; i++ {
+		if again := suggestSave(strings.NewReader(input)); again != "" {
+			t.Fatalf("it nudged again at edit %d: %q", i, again)
+		}
+	}
+	if again := suggestSave(strings.NewReader(input)); !strings.Contains(again, "6 unsaved edits") {
+		t.Errorf("the second nudge reads %q", again)
+	}
+
+	// Zero turns it off entirely.
+	t.Setenv("MNEMO_SAVE_EDITS", "0")
+	for i := 0; i < 5; i++ {
+		if off := suggestSave(strings.NewReader(`{"session_id":"off"}`)); off != "" {
+			t.Fatalf("it nudged with the signal off: %q", off)
+		}
+	}
+}
+
+// A save resets the count, because the whole point is unsaved work. The store's
+// head is read from the files in .git rather than by running git: this is on the
+// path of every edit and a process there would be felt.
+func TestASaveResetsTheCount(t *testing.T) {
+	home, _ := machine(t, true)
+	resolved := watchSettings(t, home, "")
+	t.Setenv("MNEMO_SAVE_EDITS", "2")
+	git := filepath.Join(resolved.Paths.Store, ".git")
+	write(t, filepath.Join(git, "HEAD"), "ref: refs/heads/main\n")
+	write(t, filepath.Join(git, "refs", "heads", "main"), "1111111111111111111111111111111111111111\n")
+	input := `{"session_id":"s"}`
+
+	suggestSave(strings.NewReader(input))
+	if got := suggestSave(strings.NewReader(input)); !strings.Contains(got, "2 unsaved edits") {
+		t.Fatalf("the first nudge reads %q", got)
+	}
+
+	// A save: the head moves.
+	write(t, filepath.Join(git, "refs", "heads", "main"), "2222222222222222222222222222222222222222\n")
+	if got := suggestSave(strings.NewReader(input)); got != "" {
+		t.Errorf("it nudged on the edit right after a save: %q", got)
+	}
+	if got := suggestSave(strings.NewReader(input)); !strings.Contains(got, "2 unsaved edits") {
+		t.Errorf("the count did not restart from the save: %q", got)
+	}
+
+	// A packed ref is what a freshly cloned store has, and it has to be read too.
+	if err := os.Remove(filepath.Join(git, "refs", "heads", "main")); err != nil {
+		t.Fatal(err)
+	}
+	write(t, filepath.Join(git, "packed-refs"),
+		"# pack-refs with: peeled fully-peeled sorted\n3333333333333333333333333333333333333333 refs/heads/main\n")
+	if head := storeHead(resolved.Paths.Store); head != "3333333333333333333333333333333333333333" {
+		t.Errorf("a packed ref read as %q", head)
+	}
+}
+
+// Spanish when the resolved language is Spanish. The nudge is read by a person.
+func TestTheNudgeFollowsTheLanguage(t *testing.T) {
+	home, _ := machine(t, true)
+	watchSettings(t, home, "")
+	t.Setenv("MNEMO_SAVE_EDITS", "1")
+	t.Setenv("MNEMO_LANG", "es")
+
+	got := suggestSave(strings.NewReader(`{"session_id":"es"}`))
+	for _, want := range []string{"ediciones sin guardar", "en esta sesión", "para no perder el avance"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("the Spanish nudge does not say %q: %q", want, got)
+		}
+	}
+	if strings.Contains(got, "unsaved") {
+		t.Errorf("the Spanish nudge carries English: %q", got)
+	}
+}
+
+// The context signal is off unless asked for, because it reads a transcript whose
+// format belongs to the tool and can change under us.
+func TestTheContextSignalIsOffByDefaultAndReadsTheLastUsage(t *testing.T) {
+	home, _ := machine(t, true)
+	watchSettings(t, home, "")
+	transcript := filepath.Join(home, "transcript.jsonl")
+	write(t, transcript, strings.Join([]string{
+		`{"message":{"usage":{"input_tokens":10,"cache_read_input_tokens":20,"cache_creation_input_tokens":0}}}`,
+		`{"type":"something-else"}`,
+		`{"message":{"usage":{"input_tokens":1000,"cache_read_input_tokens":80000,"cache_creation_input_tokens":4000}}}`,
+	}, "\n")+"\n")
+	input := fmt.Sprintf(`{"session_id":"ctx","transcript_path":%q}`, transcript)
+
+	t.Setenv("MNEMO_SAVE_EDITS", "0")
+	if got := suggestSave(strings.NewReader(input)); got != "" {
+		t.Errorf("the context signal nudged while off: %q", got)
+	}
+
+	// The three counts add up, and the last entry is the one that matters.
+	if used := contextTokens(transcript); used != 85000 {
+		t.Errorf("the context is %d tokens, want 85000 from the last entry", used)
+	}
+
+	t.Setenv("MNEMO_SAVE_TOKENS", "80000")
+	got := suggestSave(strings.NewReader(input))
+	if !strings.Contains(got, "context at ~85k tokens") {
+		t.Errorf("the context nudge reads %q", got)
+	}
+	// And it does not nudge again until a whole step later.
+	if again := suggestSave(strings.NewReader(input)); again != "" {
+		t.Errorf("it nudged twice for the same context: %q", again)
+	}
+}
+
+// The shape the hook protocol expects: the same sentence twice, once for the
+// person and once for the model.
+func TestTheNudgeIsPrintedInTheShapeTheHookExpects(t *testing.T) {
+	var out strings.Builder
+	printNudge(&out, "mnemo: 40 unsaved edits this session.")
+
+	var parsed struct {
+		SystemMessage      string `json:"systemMessage"`
+		HookSpecificOutput struct {
+			HookEventName     string `json:"hookEventName"`
+			AdditionalContext string `json:"additionalContext"`
+		} `json:"hookSpecificOutput"`
+	}
+	if err := json.Unmarshal([]byte(out.String()), &parsed); err != nil {
+		t.Fatalf("what it printed is not JSON: %v\n%s", err, out.String())
+	}
+	if parsed.SystemMessage == "" || parsed.HookSpecificOutput.AdditionalContext != parsed.SystemMessage {
+		t.Errorf("parsed = %+v; the person and the model get the same sentence", parsed)
+	}
+	if parsed.HookSpecificOutput.HookEventName != "PreToolUse" {
+		t.Errorf("the event is %q", parsed.HookSpecificOutput.HookEventName)
+	}
+}
+
+// The plugin ships three things that invoke the binary, and shipping one that
+// invokes a command the binary does not have is worse than shipping without it.
+func TestThePluginOnlyInvokesCommandsThatExist(t *testing.T) {
+	root := filepath.Join("..", "..")
+	var invoked []string
+
+	var plugin struct {
+		Version    string `json:"version"`
+		MCPServers map[string]struct {
+			Command string            `json:"command"`
+			Args    []string          `json:"args"`
+			Env     map[string]string `json:"env"`
+		} `json:"mcpServers"`
+	}
+	if err := json.Unmarshal([]byte(read(t, filepath.Join(root, "plugin", ".claude-plugin", "plugin.json"))),
+		&plugin); err != nil {
+		t.Fatalf("plugin.json is not JSON: %v", err)
+	}
+	entry, ok := plugin.MCPServers["mnemo"]
+	if !ok {
+		t.Fatal("the plugin declares no mnemo server, so a chat gets no tools")
+	}
+	// By name, not by path: a plugin cannot know where the binary is.
+	if entry.Command != "mnemo" {
+		t.Errorf("the plugin runs %q; it has to run mnemo from the PATH", entry.Command)
+	}
+	if entry.Env["MNEMO_TOOL"] != "claude" {
+		t.Errorf("the plugin does not say which tool it is: %v", entry.Env)
+	}
+	invoked = append(invoked, strings.Join(entry.Args, " "))
+
+	var monitors []struct {
+		Name    string `json:"name"`
+		Command string `json:"command"`
+	}
+	if err := json.Unmarshal([]byte(read(t, filepath.Join(root, "plugin", "monitors", "monitors.json"))),
+		&monitors); err != nil {
+		t.Fatalf("monitors.json is not JSON: %v", err)
+	}
+	if len(monitors) != 1 || monitors[0].Name != "mailbox" {
+		t.Fatalf("monitors = %+v", monitors)
+	}
+	invoked = append(invoked, strings.TrimPrefix(monitors[0].Command, "mnemo "))
+
+	var hooks struct {
+		Hooks map[string][]struct {
+			Matcher string `json:"matcher"`
+			Hooks   []struct {
+				Type    string `json:"type"`
+				Command string `json:"command"`
+			} `json:"hooks"`
+		} `json:"hooks"`
+	}
+	if err := json.Unmarshal([]byte(read(t, filepath.Join(root, "plugin", "hooks", "hooks.json"))),
+		&hooks); err != nil {
+		t.Fatalf("hooks.json is not JSON: %v", err)
+	}
+	pre := hooks.Hooks["PreToolUse"]
+	if len(pre) != 1 || pre[0].Matcher != "Edit|Write" || len(pre[0].Hooks) != 1 {
+		t.Fatalf("the PreToolUse hook is %+v", pre)
+	}
+	invoked = append(invoked, strings.TrimPrefix(pre[0].Hooks[0].Command, "mnemo "))
+
+	// Every one of them actually runs. --help exits 0 for a command that exists
+	// and non-zero for one that does not, without doing anything.
+	_, env := machine(t, false)
+	for _, command := range invoked {
+		args := append(strings.Fields(command), "--help")
+		if out, code := runMnemo(t, env, args...); code != 0 {
+			t.Errorf("the plugin invokes `mnemo %s`, which this binary does not have:\n%s", command, out)
+		}
+	}
+}
+
+// The hook is the third way in, and the only one that reaches a chat that is
+// working hard: not idle, so no notification wakes it, and not calling mnemo, so
+// no answer carries the line. Its next edit is.
+func TestTheHookTellsABusyChatItHasPost(t *testing.T) {
+	home, _ := machine(t, true)
+	resolved := watchSettings(t, home, "boss")
+	// High enough that nothing here crosses it: what is being tested is the post,
+	// not the save nudge.
+	t.Setenv("MNEMO_SAVE_EDITS", "500")
+	box := mailboxFor(resolved)
+
+	sender := mailbox.Caller{Name: "worker", Machine: resolved.Machine, Tool: "codex",
+		Instance: mailbox.Instance(), Via: "local", PID: os.Getpid()}
+	receiver := mailbox.Caller{Name: "boss", Machine: resolved.Machine, Tool: "claude",
+		Instance: mailbox.Instance(), Via: "local", PID: os.Getpid()}
+	for _, caller := range []mailbox.Caller{sender, receiver} {
+		if _, err := box.Claim(t.Context(), caller); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := box.Send(t.Context(), sender, "boss@"+resolved.Machine, "the parser is done", ""); err != nil {
+		t.Fatal(err)
+	}
+
+	input := `{"session_id":"busy"}`
+	got := suggestSave(strings.NewReader(input))
+	if !strings.Contains(got, "1 message(s) waiting for you, from worker@"+resolved.Machine) {
+		t.Fatalf("the hook said %q", got)
+	}
+	if !strings.Contains(got, "mailbox_read") {
+		t.Errorf("the hook does not say how to read it: %q", got)
+	}
+
+	// Once per message, not at every edit until it is read. A hook that repeated
+	// itself would be the thing that gets in the way.
+	if again := suggestSave(strings.NewReader(input)); again != "" {
+		t.Errorf("the hook announced the same message twice: %q", again)
+	}
+
+	// And it marked nothing read: announcing is not delivering, and the chat
+	// still has the message.
+	unread, err := box.Read(t.Context(), receiver)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(unread) != 1 {
+		t.Errorf("the hook consumed the post: %d left to read", len(unread))
+	}
+
+	// A new message is announced, because it is new.
+	if _, err := box.Send(t.Context(), sender, "boss@"+resolved.Machine, "deployed", ""); err != nil {
+		t.Fatal(err)
+	}
+	if next := suggestSave(strings.NewReader(input)); !strings.Contains(next, "1 message(s) waiting") {
+		t.Errorf("a message that arrived later was not announced: %q", next)
+	}
+}
+
+// A chat with no name has no mailbox, and the hook must not invent one: it runs
+// before every edit in every session, including the ones that never asked for a
+// mailbox at all.
+func TestTheHookSaysNothingAboutPostToAChatWithNoName(t *testing.T) {
+	home, _ := machine(t, true)
+	watchSettings(t, home, "")
+	t.Setenv("MNEMO_SAVE_EDITS", "500")
+
+	if got := suggestSave(strings.NewReader(`{"session_id":"nameless"}`)); got != "" {
+		t.Errorf("it said %q", got)
+	}
+}
+
+// A failure must not end the watch, and must not be repeated every two seconds
+// for as long as it lasts: a tunnel that drops for a minute is a normal day.
+func TestWatchKeepsGoingAndComplainsOnlyOnce(t *testing.T) {
+	home, _ := machine(t, true)
+	resolved := watchSettings(t, home, "boss")
+	// A state file that cannot be read is the shape every failure takes here:
+	// peek reads two files, and this is the one it reads first.
+	write(t, filepath.Join(resolved.Paths.Mailbox, "state.json"), "{not json")
+
+	var out, errOut strings.Builder
+	ctx, cancel := context.WithTimeout(t.Context(), 300*time.Millisecond)
+	defer cancel()
+	if err := watch(ctx, resolved, "claude", &out, &errOut, 20*time.Millisecond); err != nil {
+		t.Fatalf("a failure ended the watch: %v", err)
+	}
+
+	said := strings.Split(strings.TrimSpace(errOut.String()), "\n")
+	if len(said) != 1 {
+		t.Errorf("it complained %d times over ten or more looks:\n%s", len(said), errOut.String())
+	}
+	if !strings.HasPrefix(said[0], "mnemo watch: ") {
+		t.Errorf("the complaint reads %q", said[0])
+	}
+	// Nothing on stdout, because every line there becomes a notification.
+	if out.Len() != 0 {
+		t.Errorf("it announced something while failing: %s", out.String())
+	}
+}
+
+// The hook keeps a file per session. Without a sweep they accumulate for as long
+// as somebody uses mnemo, in a directory nobody ever looks at.
+func TestOldSessionStateIsSweptUp(t *testing.T) {
+	home, _ := machine(t, true)
+	resolved := watchSettings(t, home, "")
+	t.Setenv("MNEMO_SAVE_EDITS", "500")
+
+	old := filepath.Join(resolved.Paths.Reminder, "long-gone.json")
+	write(t, old, `{"edits":12}`)
+	if err := os.Chtimes(old, time.Now().Add(-8*24*time.Hour), time.Now().Add(-8*24*time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	recent := filepath.Join(resolved.Paths.Reminder, "yesterday.json")
+	write(t, recent, `{"edits":3}`)
+	if err := os.Chtimes(recent, time.Now().Add(-24*time.Hour), time.Now().Add(-24*time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+
+	suggestSave(strings.NewReader(`{"session_id":"today"}`))
+
+	if _, err := os.Stat(old); !os.IsNotExist(err) {
+		t.Errorf("a session nobody will open again is still there: %v", err)
+	}
+	// And a session from yesterday is somebody's work in progress.
+	if _, err := os.Stat(recent); err != nil {
+		t.Errorf("yesterday's session was swept up: %v", err)
 	}
 }

@@ -398,6 +398,26 @@ Every one of these is a way to damage a file mnemo did not write.
 - Waiting returns at once for something already there, times out saying so, and picks up a message
   that arrives while it waits. The ceiling is below the minute a client gives up at.
 
+### MCP, the mailbox tools
+
+- A message crosses from one chat to another and the answer comes back: what the sender is told,
+  what the receiver reads, and that reading it is what consumes it — a second read returns nothing
+  of the same message, because an agent handed the same request twice acts on it twice.
+- The order of the blocks: what happened first, the identity line last. A send says how the answer
+  will arrive; a message says how to answer it, by id.
+- A message naming a project tells the receiver to load that project's memory before acting, which
+  is the whole reason the field exists instead of a pasted body. A reply inherits it.
+- Every mailbox answer also carries structured content, which the terminal commands read, and a
+  refusal carries none: a command that found some on a refusal would report a message it never sent.
+  An empty result is an empty list and never `null`.
+- A chat with no name is refused by every tool but `peers`, and told how to get one. `peers` answers,
+  because it is how an agent finds out that it has none.
+- A chat whose name another live chat holds is refused by every tool but `peers`, with the sentence
+  the claim itself was refused with, and its identity line carries that sentence as a warning.
+- `peers` puts the caller first, marks it `(you)`, counts what waits for each address, and explains
+  both words: `offline` reads as unreachable and is not.
+- Waiting that finds nothing says so without failing, and says how to keep waiting.
+
 ### Waking the recipient
 
 - Every answer, from a memory tool as much as a mailbox one, ends on a line naming how many messages
@@ -568,9 +588,21 @@ user's machines are.
 - The plugin: the manifest is valid, the monitor, hook and MCP server point at hidden commands that
   exist, and all six skills are present with bilingual trigger descriptions.
 - `watch` announces each message once, leaves it unread, keeps going through errors without repeating
-  them, and exits quietly without a name.
+  them — proved against a state file it cannot read, over ten or more looks — and exits quietly
+  without a name. A preview is never cut mid-character.
 - `hook suggest-save`: silent when current, nudges at the threshold, resets after a save, prunes old
-  state, and never fails.
+  state while leaving yesterday's session alone, and never fails.
+- The hook also tells a chat it has post, once per message, and marks nothing read: it is the only
+  way in that reaches a chat that is neither idle nor calling mnemo. A chat with no name is told
+  nothing.
+- The mailbox from a terminal, in the order somebody uses it: `peers` on an empty mailbox, a `send`
+  to a name nobody has used yet and its warning, `peers` showing the caller, `read` which delivers
+  and then has nothing, `reply`, and the answer arriving.
+- A terminal command refuses the name of an open chat — reading its post would mark it read and that
+  chat would never see it — and gives the name back when it finishes. `peers` is never refused,
+  because it is how somebody finds out which chat has the name.
+- A mailbox command with no name stops with a usage status rather than guessing one, and says both
+  ways to give it. The name may come from the environment.
 
 ### Config and release
 

@@ -32,7 +32,7 @@ func New(version string, call *Call) *mcp.Server {
 // Register adds every tool to a server. It takes the definitions rather than
 // building them, so the list a client is offered comes from one place.
 func Register(server *mcp.Server, call *Call) {
-	for _, definition := range memoryTools() {
+	for _, definition := range allTools() {
 		add(server, definition, call)
 	}
 }
@@ -52,9 +52,9 @@ func add(server *mcp.Server, definition Definition, call *Call) {
 			// Whatever a handler panics on is this program's fault, not the
 			// caller's, and it must not take the whole server down: one bad call
 			// would end the chat's memory for the rest of the session.
-			result := safely(ctx, handle, call, Args(args))
+			result, structured := safely(ctx, handle, call, Args(args))
 			announcePost(result, definition.Tool.Name, call)
-			return result, nil, nil
+			return result, structured, nil
 		})
 }
 
@@ -77,13 +77,15 @@ func announcePost(result *mcp.CallToolResult, tool string, call *Call) {
 // safely runs a handler and turns a panic into a result that says so. It never
 // looks like success, and it never looks like advice either: there is nothing
 // the agent could do differently.
-func safely(ctx context.Context, handle Handler, call *Call, args Args) (result *mcp.CallToolResult) {
+func safely(ctx context.Context, handle Handler, call *Call, args Args) (
+	result *mcp.CallToolResult, structured any) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
-			result = (&answer{}).fail("%v", recovered).result()
+			result, structured = (&answer{}).fail("%v", recovered).result(), nil
 		}
 	}()
-	return handle(ctx, call, args).result()
+	answered := handle(ctx, call, args)
+	return answered.result(), answered.structured
 }
 
 // Serve answers on the given transport until the client goes away. Over stdio

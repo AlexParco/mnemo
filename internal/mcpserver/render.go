@@ -22,6 +22,11 @@ import (
 type answer struct {
 	blocks []string
 	failed bool
+	// structured is the same answer as data, for a caller that parses rather
+	// than reads. The mailbox tools carry it because the terminal commands read
+	// their answers, and rendering a message twice would be two renderings that
+	// could disagree. A refusal never carries it: there is no answer to parse.
+	structured any
 }
 
 // say appends one block, formatted.
@@ -85,6 +90,15 @@ func (a *answer) fail(format string, args ...any) *answer {
 	a.blocks = nil
 	a.failed = true
 	a.blocks = append(a.blocks, "mnemo failed unexpectedly: "+fmt.Sprintf(format, args...))
+	return a
+}
+
+// with attaches the structured form of this answer.
+func (a *answer) with(value any) *answer {
+	if a.failed {
+		return a
+	}
+	a.structured = value
 	return a
 }
 

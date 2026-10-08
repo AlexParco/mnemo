@@ -667,9 +667,17 @@ mailbox_wait again to keep waiting.` Structured content adds `"timed_out": true|
 ### Identity line
 
 `You are <address> (<tool>).` When the caller's claim was refused, a second line follows:
-`warning: <address> is already open in <tool> since <time>. Close that chat, or open this one with
-another name.` In that case every mailbox tool except `mailbox_peers` is a refusal with the same
-text.
+`warning: ` and the sentence the claim itself was refused with — `<address> is already open in
+<tool> since <time>. Close that chat, or pick another name.` It is that sentence and not a second
+wording of it: a user deciding whether to close the other chat needs one message, and two would
+eventually disagree.
+
+In that case every mailbox tool except `mailbox_peers` is a refusal with the same text. Peers still
+answers, because it is how a user finds out which chat has the name, and refusing it would refuse
+the answer to the question the warning raises.
+
+A chat with no name at all is told that instead: `You have no mailbox name, so you cannot send or
+receive. Open this chat with: mnemo run <tool> --name <name>`.
 
 ## Prompts
 

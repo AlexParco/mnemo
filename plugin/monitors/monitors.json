@@ -1,0 +1,7 @@
+[
+  {
+    "name": "mailbox",
+    "command": "mnemo watch --tool claude",
+    "description": "mnemo mailbox: messages sent to this chat"
+  }
+]

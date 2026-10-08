@@ -67,8 +67,12 @@ One address is held by at most one live instance. That is what lets a reply find
   - `mnemo run` checks before launching the tool, so the usual collision stops before a chat opens.
 - **Releasing** happens when the process exits cleanly: the local serve process removes its hold,
   and the relay sends a release. A crash is covered by the process check or by the lease.
-- **Commands from a terminal** hold their `--name` for as long as the command runs. They are
-  refused when a chat holds that name.
+- **Commands from a terminal that send or read** hold their `--name` for as long as the command
+  runs, and give it back when they finish, including when they fail. They are refused when a chat
+  holds that name: reading its post would mark it read, and that chat would never see it.
+  - `mnemo peers` claims nothing. It neither sends nor marks anything read, and it is how somebody
+    finds out which chat has a name — so being refused a look would refuse the answer to the
+    question. Its `--name` only records the caller as known, so others can write to it.
 
 ## Messages
 

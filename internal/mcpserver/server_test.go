@@ -77,6 +77,14 @@ var annotated = map[string]struct {
 	"mnemo_write_memory":  {destructive: truth(true)},
 	"mnemo_write_pending": {destructive: truth(true)},
 	"mnemo_commit":        {destructive: truth(false)},
+	"mailbox_peers":       {readOnly: true},
+	"mailbox_send":        {destructive: truth(false)},
+	"mailbox_reply":       {destructive: truth(false)},
+	// Reading mail is read-only although it moves a cursor: that is the
+	// server's own bookkeeping, and calling it a write would make Codex's
+	// `writes` approval mode prompt every time a chat checks for post.
+	"mailbox_read": {readOnly: true},
+	"mailbox_wait": {readOnly: true},
 }
 
 func sameHint(got, want *bool) bool {
@@ -107,7 +115,7 @@ func TestAClientSeesTheToolsAndTheirShape(t *testing.T) {
 	for _, tool := range listed.Tools {
 		offered[tool.Name] = tool
 	}
-	for _, definition := range memoryTools() {
+	for _, definition := range allTools() {
 		tool, ok := offered[definition.Tool.Name]
 		if !ok {
 			t.Errorf("%s was defined but is not offered", definition.Tool.Name)
@@ -137,8 +145,8 @@ func TestAClientSeesTheToolsAndTheirShape(t *testing.T) {
 			t.Errorf("%s: destructive hint is %s, want %s", tool.Name, hint(got.DestructiveHint), hint(want.destructive))
 		}
 	}
-	if len(listed.Tools) != len(memoryTools()) {
-		t.Errorf("%d tools offered, %d defined", len(listed.Tools), len(memoryTools()))
+	if len(listed.Tools) != len(allTools()) {
+		t.Errorf("%d tools offered, %d defined", len(listed.Tools), len(allTools()))
 	}
 }
 
@@ -288,9 +296,12 @@ func TestTheInstructionsTravelWithTheConnection(t *testing.T) {
 // A handler that panics must refuse this one call, not end the chat's memory
 // for the rest of the session.
 func TestAPanicIsOneRefusalNotADeadServer(t *testing.T) {
-	result := safely(t.Context(), func(_ context.Context, _ *Call, _ Args) *answer {
+	result, structured := safely(t.Context(), func(_ context.Context, _ *Call, _ Args) *answer {
 		panic("something impossible")
 	}, nil, nil)
+	if structured != nil {
+		t.Errorf("a panic came back with structured content: %v", structured)
+	}
 
 	if !result.IsError {
 		t.Fatal("a panic came back as success")

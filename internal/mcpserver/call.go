@@ -39,6 +39,11 @@ type Call struct {
 	ServedBy string
 	// Instance is this process, which is what holds a mailbox name.
 	Instance string
+	// ClaimRefusal is why this chat does not hold its mailbox name: another live
+	// chat has it. It is carried here because the claim happens at startup,
+	// before any tool is called, and the agent has to be told — otherwise it
+	// sends under a name whose replies go somewhere else.
+	ClaimRefusal string
 
 	// box is this machine's mailbox, or nil for a connection that has none. It is
 	// here so that every answer can carry a line about waiting messages: an agent
