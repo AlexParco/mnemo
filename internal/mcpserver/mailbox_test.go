@@ -2,6 +2,7 @@ package mcpserver
 
 import (
 	"encoding/json"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -468,4 +469,75 @@ func TestTheMailboxWorksWithNoStoreBehindIt(t *testing.T) {
 	// Naming a project is the one thing that asks the store a question, and the
 	// mailbox asks rather than reading it: with nothing to ask, a project is
 	// refused and the refusal is about the project, not about the mailbox.
+}
+
+// An answer is bounded and says where it stopped. That rule is written down for
+// the memory tools, and a mailbox read is the same kind of answer: a message may
+// be 256 KiB and nothing limits how many are waiting.
+func TestAReadIsBoundedAndSaysWhatIsLeft(t *testing.T) {
+	calls := chats(t, "alex", "worker-api")
+	sender, receiver := calls[0], calls[1]
+	if _, err := receiver.box.Claim(t.Context(), receiver.Caller()); err != nil {
+		t.Fatal(err)
+	}
+
+	for i := 0; i < mailbox.MaxDelivered+5; i++ {
+		if _, err := sender.box.Send(t.Context(), sender.Caller(), "worker-api@here",
+			fmt.Sprintf("message number %d", i), ""); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	blocks, out := structured(t, handleRead, receiver, Args{})
+	if got := out["messages"].([]any); len(got) != mailbox.MaxDelivered {
+		t.Fatalf("it handed over %d messages", len(got))
+	}
+	if out["left"] != float64(5) {
+		t.Errorf("it says %v are left", out["left"])
+	}
+	if !strings.Contains(blocks[1], "5 more message(s) are still waiting") {
+		t.Errorf("it does not say what is left:\n%s", strings.Join(blocks, "\n--\n"))
+	}
+	if !strings.Contains(blocks[1], "mailbox_read again") {
+		t.Errorf("it does not say how to get the rest:\n%s", blocks[1])
+	}
+
+	// What was left is still waiting, and the next read starts where the last
+	// one stopped — not at the top of the log, which would lose it.
+	blocks, out = structured(t, handleRead, receiver, Args{})
+	if got := out["messages"].([]any); len(got) != 5 {
+		t.Fatalf("the second read handed over %d messages", len(got))
+	}
+	if !strings.Contains(blocks[0], "message number 24") {
+		t.Errorf("the last message never arrived:\n%s", blocks[0])
+	}
+	if _, said := out["left"]; said {
+		t.Errorf("it still says something is left: %v", out["left"])
+	}
+}
+
+// A chat that does not hold its name is told nothing about post. The post
+// belongs to the chat that does, and reading it would be refused — so the line
+// would be an instruction to call a tool that cannot work, about somebody
+// else's messages.
+func TestAChatThatLostItsNameIsNotNaggedAboutPost(t *testing.T) {
+	calls := chats(t, "alex", "alex", "boss")
+	first, second, sender := calls[0], calls[1], calls[2]
+	if _, err := first.box.Claim(t.Context(), first.Caller()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := sender.box.Claim(t.Context(), sender.Caller()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := sender.box.Send(t.Context(), sender.Caller(), "alex@here", "something", ""); err != nil {
+		t.Fatal(err)
+	}
+
+	if line := first.waiting(); !strings.Contains(line, "1 message(s) waiting") {
+		t.Fatalf("the chat that holds the name was told %q", line)
+	}
+	second.ClaimRefusal = "alex@here is already open in claude since 14:03."
+	if line := second.waiting(); line != "" {
+		t.Errorf("the chat that lost the name was told %q", line)
+	}
 }

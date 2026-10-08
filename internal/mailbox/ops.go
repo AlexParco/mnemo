@@ -137,22 +137,65 @@ func wasRecipient(message Message, address string, entry *Address) bool {
 	return message.Seq > entry.Floor
 }
 
-// Read returns what is waiting for the caller and marks it read.
-func (m *Mailbox) Read(ctx context.Context, caller Caller) ([]Message, error) {
-	var out []Message
+// Delivery is what one read hands over, and what it had to leave.
+type Delivery struct {
+	Messages []Message
+	// Left is how many are still waiting. It is said in the answer, so an agent
+	// reads again rather than assuming it has everything.
+	Left int
+}
+
+// MaxDelivered and MaxDeliveredBytes bound one read.
+//
+// A message may be 256 KiB and nothing limits how many are waiting, so reading
+// everything could be megabytes — into a tool result, which is the agent's
+// context. Every other answer mnemo gives is bounded and says where it stopped;
+// this is that rule, for the mailbox.
+const (
+	MaxDelivered      = 20
+	MaxDeliveredBytes = 128 * 1024
+)
+
+// fit is as many of the waiting messages as one answer may carry.
+//
+// Always at least one, however large: a message over the budget would otherwise
+// sit at the head of the queue for ever, and nothing behind it would move either.
+func fit(waiting []Message) Delivery {
+	carried := 0
+	for i, message := range waiting {
+		if i >= MaxDelivered || (i > 0 && carried+len(message.Body) > MaxDeliveredBytes) {
+			return Delivery{Messages: waiting[:i], Left: len(waiting) - i}
+		}
+		carried += len(message.Body)
+	}
+	return Delivery{Messages: waiting}
+}
+
+// Read returns what is waiting for the caller and marks read what it hands over.
+func (m *Mailbox) Read(ctx context.Context, caller Caller) (Delivery, error) {
+	var out Delivery
 	if err := caller.Named(); err != nil {
-		return nil, err
+		return out, err
 	}
 	err := m.operate(ctx, caller, func(state *State, messages []Message, now time.Time) error {
 		address := caller.Address()
 		entry := state.Addresses[address]
-		out = unread(messages, address, entry)
-		// The cursor goes to the top of the log, not to the last message read:
-		// anything below it was either read, sent by this address, or addressed
-		// to a group it is not in, and none of those should come back later.
-		if top := highest(messages); top > entry.Cursor {
-			entry.Cursor = top
+		waiting := unread(messages, address, entry)
+		out = fit(waiting)
+
+		if len(out.Messages) == len(waiting) {
+			// Everything went, so the cursor goes to the top of the log rather
+			// than to the last message: anything below it was either read, sent
+			// by this address, or addressed to a group it is not in, and none of
+			// those should come back later.
+			if top := highest(messages); top > entry.Cursor {
+				entry.Cursor = top
+			}
+			return nil
 		}
+		// Only what was handed over is marked read, so the next read starts
+		// where this one stopped.
+		entry.Cursor = out.Messages[len(out.Messages)-1].Seq
 		return nil
 	})
 	return out, err
@@ -160,7 +203,7 @@ func (m *Mailbox) Read(ctx context.Context, caller Caller) ([]Message, error) {
 
 // Waited is the result of waiting.
 type Waited struct {
-	Messages []Message
+	Delivery
 	// TimedOut says nothing arrived, which is a normal answer and not a failure.
 	TimedOut bool
 }
@@ -194,9 +237,9 @@ func (m *Mailbox) Wait(ctx context.Context, caller Caller, timeout time.Duration
 	// so nothing would look changed and the wait would run its full length and
 	// report that nothing arrived while it was sitting in the file.
 	size := m.logSize()
-	messages, err := m.Read(ctx, caller)
-	if err != nil || len(messages) > 0 {
-		return Waited{Messages: messages}, err
+	delivered, err := m.Read(ctx, caller)
+	if err != nil || len(delivered.Messages) > 0 {
+		return Waited{Delivery: delivered}, err
 	}
 
 	deadline := m.now().Add(timeout)
@@ -210,12 +253,12 @@ func (m *Mailbox) Wait(ctx context.Context, caller Caller, timeout time.Duration
 		case <-ticker.C:
 			if current := m.logSize(); current != size {
 				size = current
-				messages, err := m.Read(ctx, caller)
+				delivered, err := m.Read(ctx, caller)
 				if err != nil {
 					return Waited{}, err
 				}
-				if len(messages) > 0 {
-					return Waited{Messages: messages}, nil
+				if len(delivered.Messages) > 0 {
+					return Waited{Delivery: delivered}, nil
 				}
 			}
 			if !m.now().Before(deadline) {

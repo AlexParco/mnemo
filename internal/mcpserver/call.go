@@ -129,6 +129,13 @@ func (c *Call) waiting() string {
 	if c.box == nil || c.Agent == "" || c.Machine == "" {
 		return ""
 	}
+	// Nothing is said to a chat that does not hold its name. The post belongs to
+	// the chat that does, and mailbox_read would refuse this one — so the line
+	// would be an instruction to call a tool that cannot work, about messages
+	// that are somebody else's.
+	if c.ClaimRefusal != "" {
+		return ""
+	}
 	_, unread, err := c.box.Peek(c.Caller().Address(), 0)
 	if err != nil || len(unread) == 0 {
 		return ""

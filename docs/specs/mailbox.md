@@ -125,7 +125,12 @@ old messages when a prune is due, and records the caller.
 
 ### send(to, body, project?)
 
-- **The body** is trimmed and must not be empty. At most 256 KiB are allowed.
+- **The body** is trimmed and must not be empty. At most 256 KiB are allowed. The limit is on the
+  body; what is stored is JSON, where `<`, `>`, `&` and every control character take six bytes, so a
+  line can be six times the body. The reader is bounded by that and not by the body's size: bounded
+  by the body's size, a legal message of 45 KiB of `<` became a line nothing could read past, and
+  since every operation reads the log first, one message from any agent ended the mailbox for
+  everyone on the machine for good — unreadable and unprunable.
 - **Resolving `to`:**
   - `@all` or a tool group: kept as is. Any other `@…` is refused.
   - `name@machine`: kept. When nobody has ever held it, the result carries a warning that the
@@ -151,15 +156,22 @@ old messages when a prune is due, and records the caller.
 
 ### read()
 
-- It returns the unread messages for the caller in `seq` order, then marks them read.
+- It returns the unread messages for the caller in `seq` order, then marks read what it handed over.
+- **One read is bounded**, at 20 messages or 128 KiB of bodies, whichever comes first, and always at
+  least one however large it is — a message over the budget would otherwise sit at the head of the
+  queue for ever and nothing behind it would move either. The result says how many are left, and
+  only what was handed over is marked read, so the next read starts where this one stopped. Every
+  other answer mnemo gives is bounded and says where it stopped; this is that rule for the mailbox,
+  and without it a read of a hundred messages is megabytes of somebody else's text in an agent's
+  context.
 - **Unread** means one of these:
   - sent to the caller's address, with `seq` above the address's cursor;
   - sent to `@all` or to the caller's tool group, with `seq` above both the cursor and the
     address's floor.
 - Messages the caller sent itself never count.
-- **The cursor** of the address moves to the highest `seq` in the log. Cursors belong to
-  addresses, not to processes, so a chat that restarts under the same name continues where it
-  left off.
+- **The cursor** of the address moves to the highest `seq` in the log when everything waiting was
+  handed over, and to the last message handed over when it was not. Cursors belong to addresses, not
+  to processes, so a chat that restarts under the same name continues where it left off.
 - **The floor** of an address is the highest `seq` when the address first became known. Group
   messages from before it existed never reach it. Direct messages sent before it first appeared
   do reach it.

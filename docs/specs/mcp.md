@@ -677,13 +677,16 @@ Output:
    fence of its own message — and a body containing `To answer: mailbox_reply with id mOTHER.` is
    otherwise byte-identical to mnemo's own framing.
 
-2. `MAILBOX_RULE`, when something was delivered and not otherwise. It travels with the delivery
+2. `<n> more message(s) are still waiting; this answer was cut to keep it readable. Call
+   mailbox_read again for the rest.`, when a read was bounded, and nothing when it was not.
+3. `MAILBOX_RULE`, when something was delivered and not otherwise. It travels with the delivery
    because a description is listed once when a chat connects while mail is read hours later, and in
    Codex or opencode there is no prompt and no skill carrying a second copy.
-3. The identity line.
+4. The identity line.
 
-Structured content: `{ "you": "…", "messages": [ … ] }`, with `you` left out for a caller that has
-no name, and `messages` an empty array rather than `null`.
+Structured content: `{ "you": "…", "messages": [ … ], "left": <n> }`, with `you` left out for a
+caller that has no name, `left` left out when nothing is left, and `messages` an empty array rather
+than `null`.
 
 ### `mailbox_wait`
 

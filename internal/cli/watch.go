@@ -129,7 +129,11 @@ func notice(message mailbox.Message) string {
 // broken character in front of a person, and a notification is the one place
 // mnemo's output is read by eye rather than by a model.
 func preview(body string) string {
-	flat := strings.Join(strings.Fields(body), " ")
+	// Whitespace is collapsed first and what is left is made printable after, in
+	// that order: a newline is whitespace and becomes a space, while an escape
+	// sequence is not text at all — a notification line that can repaint the
+	// window it appears in can show somebody something mnemo never said.
+	flat := printable(strings.Join(strings.Fields(body), " "))
 	runes := []rune(flat)
 	if len(runes) <= previewChars {
 		return flat

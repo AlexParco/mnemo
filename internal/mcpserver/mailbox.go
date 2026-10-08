@@ -265,19 +265,35 @@ func handleRead(ctx context.Context, call *Call, _ Args) *answer {
 	if err := call.mailboxReady(); err != nil {
 		return a.fromMailbox(err)
 	}
-	messages, err := box.Read(ctx, call.Caller())
+	got, err := box.Read(ctx, call.Caller())
 	if err != nil {
 		return a.fromMailbox(err)
 	}
-	return a.say("%s", delivered(messages, "No new messages.")).
-		block(rule(messages)).
+	return a.say("%s", delivered(got.Messages, "No new messages.")).
+		block(more(got)).
+		block(rule(got.Messages)).
 		say("%s", call.identity()).
-		with(readOut{You: call.Caller().Address(), Messages: messageList(messages)})
+		with(readOut{You: call.Caller().Address(), Messages: messageList(got.Messages), Left: got.Left})
 }
 
 type readOut struct {
 	You      string            `json:"you,omitempty"`
 	Messages []mailbox.Message `json:"messages"`
+	// Left is how many are still waiting, left out when none are.
+	Left int `json:"left,omitempty"`
+}
+
+// more says what was not handed over, and nothing when everything was.
+//
+// An answer that stops without saying so is the one an agent acts on as if it
+// were the whole of it — which here means answering two people and never
+// hearing the third.
+func more(got mailbox.Delivery) string {
+	if got.Left == 0 {
+		return ""
+	}
+	return fmt.Sprintf("%d more message(s) are still waiting; this answer was cut to keep it readable. "+
+		"Call mailbox_read again for the rest.", got.Left)
 }
 
 func handleWait(ctx context.Context, call *Call, args Args) *answer {
@@ -296,16 +312,19 @@ func handleWait(ctx context.Context, call *Call, args Args) *answer {
 	}
 	return a.say("%s", delivered(waited.Messages,
 		"Nothing arrived before the timeout. Call mailbox_wait again to keep waiting.")).
+		block(more(waited.Delivery)).
 		block(rule(waited.Messages)).
 		say("%s", call.identity()).
 		with(waitOut{
-			You: call.Caller().Address(), Messages: messageList(waited.Messages), TimedOut: waited.TimedOut,
+			You: call.Caller().Address(), Messages: messageList(waited.Messages),
+			Left: waited.Left, TimedOut: waited.TimedOut,
 		})
 }
 
 type waitOut struct {
 	You      string            `json:"you,omitempty"`
 	Messages []mailbox.Message `json:"messages"`
+	Left     int               `json:"left,omitempty"`
 	TimedOut bool              `json:"timed_out"`
 }
 

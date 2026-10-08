@@ -783,8 +783,8 @@ func TestWatchAnnouncesWithoutTouchingAnything(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(unread) != 2 {
-		t.Errorf("announcing consumed the post: %d left to read", len(unread))
+	if len(unread.Messages) != 2 {
+		t.Errorf("announcing consumed the post: %d left to read", len(unread.Messages))
 	}
 	// Nor did it take the name: the holder is still the chat.
 	if holder, live, err := box.HeldBy(t.Context(), "boss@"+resolved.Machine); err != nil {
@@ -1150,8 +1150,8 @@ func TestTheHookTellsABusyChatItHasPost(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(unread) != 1 {
-		t.Errorf("the hook consumed the post: %d left to read", len(unread))
+	if len(unread.Messages) != 1 {
+		t.Errorf("the hook consumed the post: %d left to read", len(unread.Messages))
 	}
 
 	// A new message is announced, because it is new.
@@ -1414,5 +1414,44 @@ func TestWatchStartedBeforeTheChatAnnouncesWhatWasAlreadyThere(t *testing.T) {
 	}
 	if errOut.Len() != 0 {
 		t.Errorf("it complained: %s", errOut.String())
+	}
+}
+
+// The log is shared by every agent on the machine, so the hook must measure what
+// it has announced by this chat's own post. Two other agents talking to each
+// other would otherwise make it repeat itself at every edit.
+func TestTheHookIsNotRetriggeredByOtherAgentsTraffic(t *testing.T) {
+	home, _ := machine(t, true)
+	resolved := watchSettings(t, home, "boss")
+	t.Setenv("MNEMO_SAVE_EDITS", "500")
+	box := mailboxFor(resolved)
+
+	caller := func(name string) mailbox.Caller {
+		return mailbox.Caller{Name: name, Machine: resolved.Machine, Tool: "claude",
+			Instance: mailbox.Instance(), Via: "local", PID: os.Getpid()}
+	}
+	boss, worker, other := caller("boss"), caller("worker"), caller("other")
+	for _, who := range []mailbox.Caller{boss, worker, other} {
+		if _, err := box.Claim(t.Context(), who); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := box.Send(t.Context(), worker, "boss@"+resolved.Machine, "for you", ""); err != nil {
+		t.Fatal(err)
+	}
+
+	input := `{"session_id":"busy"}`
+	if got := suggestSave(strings.NewReader(input)); !strings.Contains(got, "1 message(s) waiting") {
+		t.Fatalf("the hook said %q", got)
+	}
+
+	// Two other agents talk to each other. Nothing new for this chat.
+	for i := 0; i < 3; i++ {
+		if _, err := box.Send(t.Context(), worker, "other@"+resolved.Machine, "not for you", ""); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if again := suggestSave(strings.NewReader(input)); again != "" {
+		t.Errorf("somebody else's traffic made it repeat itself: %q", again)
 	}
 }

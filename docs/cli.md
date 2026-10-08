@@ -360,7 +360,13 @@ $ mnemo read --name alex
   no new messages for alex@laptop1
 ```
 
-Times are local. A message from an earlier day shows its date.
+Times are local. A message from an earlier day shows its date. A read that was cut ends with
+`<n> more waiting — run it again for the rest`.
+
+**A body is printed with its control characters replaced** by the picture characters for them. A
+body is written by somebody else and printed into a person's terminal, where an escape sequence is
+not text: it moves the cursor, clears the screen, repaints what is above it. Dropping them silently
+would hide that anything was tried, so what was there stays visible.
 
 ## Settings
 

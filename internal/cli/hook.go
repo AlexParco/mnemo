@@ -195,17 +195,23 @@ func waitingPost(resolved config.Settings, state *sessionState, spanish bool) st
 	// Everything unread, not only what has not been announced: the number has to
 	// be the number mailbox_read will hand over. Saying "1 message(s) waiting"
 	// and then delivering three is worse than saying nothing.
-	top, waiting, err := mailboxFor(resolved).Peek(address, 0)
+	_, waiting, err := mailboxFor(resolved).Peek(address, 0)
 	if err != nil || len(waiting) == 0 {
 		return ""
 	}
 	// What is announced once is each message. Nothing new since the last time
 	// means nothing to say, however much is still waiting: the chat has been
 	// told, and a hook that repeats itself is the thing in the way.
-	if top <= state.AnnouncedPost {
+	//
+	// Measured by the last message addressed to this chat, not by the top of the
+	// log: the log is shared by every agent on the machine, so two others
+	// talking to each other would move the top and this chat would hear about
+	// its own old post again at the next edit.
+	newest := waiting[len(waiting)-1].Seq
+	if newest <= state.AnnouncedPost {
 		return ""
 	}
-	state.AnnouncedPost = top
+	state.AnnouncedPost = newest
 	// The same sentence the tool answers carry, so a chat hears one wording
 	// whichever way it was reached, and the senders are joined the same way.
 	senders := mailbox.Names(mailbox.Senders(waiting))

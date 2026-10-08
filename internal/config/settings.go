@@ -126,7 +126,11 @@ func Resolve(file *File, flags Overrides) Settings {
 	// The agent's name and the tool it runs in are never stored: they belong to
 	// one chat, not to the machine.
 	s.Agent, s.source["agent"] = env("MNEMO_AGENT"), Source{"env", "MNEMO_AGENT"}
-	s.Tool, s.source["tool"] = env("MNEMO_TOOL"), Source{"env", "MNEMO_TOOL"}
+	// The tool is cleaned rather than trusted. It is written onto an address and
+	// into every message's header, and whoever wrote the MCP entry chose it: a
+	// value with a newline in it would put a line of its own into the header an
+	// agent reads, under mnemo's name.
+	s.Tool, s.source["tool"] = toolLabel(env("MNEMO_TOOL")), Source{"env", "MNEMO_TOOL"}
 	if s.Agent == "" {
 		s.source["agent"] = Source{"default", ""}
 	}
@@ -261,4 +265,26 @@ func (s Settings) RequireMachine() (string, error) {
 	}
 	return "", fmt.Errorf("this machine has no usable label: its hostname gives nothing that can be used as one. " +
 		"Set it with mnemo config set machine <label>")
+}
+
+// toolLabel is a tool name as it may be stored: lower-case letters, digits and
+// single dashes, and nothing else.
+//
+// Not a refusal, because a chat whose tool label is odd should still work; what
+// it must not do is carry anything into a line somebody reads as mnemo's.
+func toolLabel(name string) string {
+	var out strings.Builder
+	dashed := false
+	for _, letter := range strings.ToLower(strings.TrimSpace(name)) {
+		if (letter >= 'a' && letter <= 'z') || (letter >= '0' && letter <= '9') {
+			out.WriteRune(letter)
+			dashed = false
+			continue
+		}
+		if !dashed && out.Len() > 0 {
+			out.WriteByte('-')
+			dashed = true
+		}
+	}
+	return strings.Trim(out.String(), "-")
 }

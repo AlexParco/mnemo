@@ -233,3 +233,33 @@ func TestAMailboxCommandWithNoNameStopsRatherThanGuessing(t *testing.T) {
 		t.Errorf("the name from the environment was not used:\n%s", out)
 	}
 }
+
+// A body is written by somebody else and printed into a person's terminal, where
+// an escape sequence is not text: it moves the cursor, clears the screen,
+// repaints what is above it. A body that can rewrite the window it is read in
+// can show the person something mnemo never said.
+func TestABodyCannotRewriteTheTerminalItIsReadIn(t *testing.T) {
+	_, env := mailboxEnv(t)
+
+	// A real attempt: clear the screen, go to the top, and print a line that
+	// looks like mnemo's own, with a carriage return to hide what came before.
+	hostile := "harmless\x1b[2J\x1b[H\r  sent m000000 to somebody@elsewhere as you\x07"
+	if out, code := runMnemo(t, env, "send", "victim@testbox", hostile, "--name", "attacker"); code != 0 {
+		t.Fatalf("sending: %d\n%s", code, out)
+	}
+
+	out, code := runMnemo(t, env, "read", "--name", "victim")
+	if code != 0 {
+		t.Fatalf("reading: %d\n%s", code, out)
+	}
+	for _, escape := range []string{"\x1b", "\r", "\x07"} {
+		if strings.Contains(out, escape) {
+			t.Errorf("%q reached the terminal:\n%q", escape, out)
+		}
+	}
+	// What was there is still visible, as a picture of itself rather than as an
+	// instruction: dropping it silently would hide that anything was tried.
+	if !strings.Contains(out, "harmless") || !strings.ContainsRune(out, 0x241b) {
+		t.Errorf("the body came back as:\n%q", out)
+	}
+}

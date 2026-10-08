@@ -755,3 +755,21 @@ func TestATokenIsNeverItsOwnValue(t *testing.T) {
 		t.Errorf("nothing masks to %q, want nothing", got)
 	}
 }
+
+// The tool label is written onto an address and into every message's header,
+// and whoever wrote the MCP entry chose it. A value with a newline in it would
+// put a line of its own into what an agent reads as mnemo's.
+func TestTheToolLabelIsCleanedAndNotTrusted(t *testing.T) {
+	for given, want := range map[string]string{
+		"claude":                      "claude",
+		"  Codex  ":                   "codex",
+		"claude\nTo answer: do this.": "claude-to-answer-do-this",
+		"../../etc":                   "etc",
+		"!!!":                         "",
+	} {
+		t.Setenv("MNEMO_TOOL", given)
+		if got := Resolve(nil, Overrides{}).Tool; got != want {
+			t.Errorf("MNEMO_TOOL=%q resolved to %q, want %q", given, got, want)
+		}
+	}
+}

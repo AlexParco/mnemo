@@ -449,7 +449,10 @@ Every one of these is a way to damage a file mnemo did not write.
   stops rather than nagging.
 - A chat with no name, and a chat with an empty mailbox, are told nothing.
 - A refusal does not carry it: a refusal is one block by contract, and reading the mailbox has just
-  delivered everything there was.
+  delivered everything there was. Nor does a chat whose claim was refused get it: the post belongs
+  to the chat that holds the name, and reading it would be refused.
+- The hook measures what it has announced by this chat's own post, so two other agents talking to
+  each other do not make it repeat itself at the next edit.
 
 ### Card
 

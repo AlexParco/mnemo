@@ -36,6 +36,18 @@ const MaxBody = 256 * 1024
 // Retention is how long a message is kept once it has been read.
 const Retention = 30 * 24 * time.Hour
 
+// maxLine is the longest line the reader will accept, and it is the encoded
+// size of a message rather than the size of its body.
+//
+// A body is JSON, and the encoder writes `<`, `>`, `&` and every control
+// character as a six-byte escape. So a body of 45 KiB of `<` — a fifth of what
+// is allowed — becomes a line of 270 KiB. Bounded by the body's size, the
+// reader refused that line as too long, and since every operation reads the log
+// first, one message from any agent ended the mailbox for everyone on the
+// machine, for good: the message could not be read past and could not be pruned
+// either. Six bytes per byte is the worst the encoder can do.
+const maxLine = 6*MaxBody + 8192
+
 // newID is `m`, the seq in base 36, and four random hex characters. Short enough
 // to say out loud, unique enough to reply to.
 func newID(seq int) string {
@@ -66,8 +78,9 @@ func (m *Mailbox) readLog() ([]Message, error) {
 
 	var messages []Message
 	scanner := bufio.NewScanner(file)
-	// A message may be up to 256 KiB, and the default token size is 64 KiB.
-	scanner.Buffer(make([]byte, 0, 64*1024), MaxBody+4096)
+	// The buffer grows to what a line needs, up to this limit; nothing is
+	// allocated for a log of short messages.
+	scanner.Buffer(make([]byte, 0, 64*1024), maxLine)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" {

@@ -355,8 +355,8 @@ func TestEveryAnswerCarriesTheWaitingPost(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(read) != 2 {
-		t.Errorf("announcing the post consumed it: %d left to read", len(read))
+	if len(read.Messages) != 2 {
+		t.Errorf("announcing the post consumed it: %d left to read", len(read.Messages))
 	}
 
 	// And once read, the line stops rather than nagging.

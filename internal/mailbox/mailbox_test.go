@@ -64,11 +64,11 @@ func (b *box) send(t *testing.T, from Caller, to, body string) Message {
 
 func (b *box) read(t *testing.T, caller Caller) []Message {
 	t.Helper()
-	messages, err := b.Read(t.Context(), caller)
+	got, err := b.Read(t.Context(), caller)
 	if err != nil {
 		t.Fatalf("reading for %s: %v", caller.Address(), err)
 	}
-	return messages
+	return got.Messages
 }
 
 func bodies(messages []Message) string {
@@ -897,5 +897,41 @@ func TestAnAddressIsNotForgottenWhileItsMessagesAreStillThere(t *testing.T) {
 	again := b.agent(t, "worker", "claude", 100)
 	if waiting := b.read(t, again); len(waiting) != 0 {
 		t.Errorf("a new chat was handed %q", bodies(waiting))
+	}
+}
+
+// A body within the limit must never be able to end the mailbox.
+//
+// The reader used to be bounded by the size of a body rather than by the size
+// of a body once it is JSON, where `<` and every control character take six
+// bytes. A fifth of the allowed size, sent as `<`, made a line nothing could
+// read past — and every operation reads the log first, so one message from any
+// agent ended the mailbox for everyone on the machine, for good: it could not
+// be read and could not be pruned either.
+func TestABodyThatIsAllEscapesDoesNotEndTheMailbox(t *testing.T) {
+	b := newBox(t)
+	sender := b.agent(t, "attacker", "claude", 100)
+	victim := b.agent(t, "victim", "claude", 200)
+
+	// The worst the encoder can do, at the largest body that is allowed.
+	body := strings.Repeat("<", MaxBody)
+	if _, err := b.Send(t.Context(), sender, victim.Address(), body, ""); err != nil {
+		t.Fatalf("sending: %v", err)
+	}
+
+	delivered := b.read(t, victim)
+	if len(delivered) != 1 {
+		t.Fatalf("the victim read %d messages", len(delivered))
+	}
+	if delivered[0].Body != body {
+		t.Errorf("the body came back %d bytes, sent %d", len(delivered[0].Body), len(body))
+	}
+	// And everything still works afterwards, which is the part that was broken:
+	// every operation reads the log before it does anything.
+	if _, err := b.List(t.Context(), victim); err != nil {
+		t.Errorf("peers: %v", err)
+	}
+	if _, err := b.Send(t.Context(), victim, sender.Address(), "got it", ""); err != nil {
+		t.Errorf("sending afterwards: %v", err)
 	}
 }

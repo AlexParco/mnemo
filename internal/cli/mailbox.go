@@ -132,11 +132,11 @@ func readCommand() *cobra.Command {
 				return err
 			}
 			return holding(cmd.Context(), box, caller, func() error {
-				messages, err := box.Read(cmd.Context(), caller)
+				got, err := box.Read(cmd.Context(), caller)
 				if err != nil {
 					return asCommand(err)
 				}
-				return printMessages(cmd.OutOrStdout(), caller, messages, time.Now())
+				return printMessages(cmd.OutOrStdout(), caller, got, time.Now())
 			})
 		},
 	}
@@ -352,12 +352,12 @@ func warnAsCommand(warning string) string {
 	return commandsFor(warning)
 }
 
-func printMessages(out io.Writer, caller mailbox.Caller, messages []mailbox.Message, now time.Time) error {
-	if len(messages) == 0 {
+func printMessages(out io.Writer, caller mailbox.Caller, got mailbox.Delivery, now time.Time) error {
+	if len(got.Messages) == 0 {
 		return say(out, []string{"no new messages for " + caller.Address()})
 	}
 	var lines []string
-	for _, message := range messages {
+	for _, message := range got.Messages {
 		parts := []string{message.ID, "from " + message.From + " (" + orUnknown(message.Tool) + ")",
 			when(message.TS, now)}
 		if message.ReplyTo != "" {
@@ -372,6 +372,9 @@ func printMessages(out io.Writer, caller mailbox.Caller, messages []mailbox.Mess
 		for _, line := range strings.Split(message.Body, "\n") {
 			lines = append(lines, "  "+line)
 		}
+	}
+	if got.Left > 0 {
+		lines = append(lines, fmt.Sprintf("%d more waiting — run it again for the rest", got.Left))
 	}
 	return say(out, lines)
 }
@@ -392,11 +395,44 @@ func when(stamp string, now time.Time) string {
 
 // say prints the lines a terminal command answers with, each indented by two
 // spaces, which is how every other command here answers.
+//
+// Every line is stripped of control characters first. A message body is written
+// by somebody else and printed into a person's terminal, where an escape
+// sequence is not text: it moves the cursor, clears the screen, repaints what is
+// above it. A body that can rewrite the window it is being read in can show the
+// person something mnemo never said.
 func say(out io.Writer, lines []string) error {
 	for _, line := range lines {
-		if _, err := fmt.Fprintln(out, "  "+line); err != nil {
+		if _, err := fmt.Fprintln(out, "  "+printable(line)); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// printable is a line with nothing in it that a terminal reads as an
+// instruction: the C0 controls, DEL, and the C1 range a terminal may act on.
+// Every one of them is replaced by the picture character for it, so what was
+// there is visible rather than silently dropped.
+func printable(line string) string {
+	var out strings.Builder
+	for _, letter := range line {
+		switch {
+		case letter == '\t':
+			out.WriteString("    ")
+		case letter < 0x20 || letter == 0x7f:
+			// U+2400 and up are the pictures for the control characters, and
+			// U+2421 is the one for DEL.
+			if letter == 0x7f {
+				out.WriteRune(0x2421)
+				continue
+			}
+			out.WriteRune(0x2400 + letter)
+		case letter >= 0x80 && letter <= 0x9f:
+			out.WriteRune(0xfffd)
+		default:
+			out.WriteRune(letter)
+		}
+	}
+	return out.String()
 }
