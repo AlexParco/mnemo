@@ -177,6 +177,39 @@ func reaches(message Message, address string, entry *Address) bool {
 	return message.Seq > entry.Cursor && message.Seq > entry.Floor
 }
 
+// Senders are the distinct senders of a batch of messages, in the order they
+// first appear.
+//
+// It lives here because two surfaces say the same sentence about waiting post —
+// the line on every tool answer and the one the save hook adds — and when each
+// built its own list they drifted: one read "from a and b" and the other "from
+// a, b".
+func Senders(messages []Message) []string {
+	seen := map[string]bool{}
+	var order []string
+	for _, message := range messages {
+		if !seen[message.From] {
+			seen[message.From] = true
+			order = append(order, message.From)
+		}
+	}
+	return order
+}
+
+// Names joins addresses the way a person reads them.
+func Names(values []string) string {
+	switch len(values) {
+	case 0:
+		return "nobody"
+	case 1:
+		return values[0]
+	case 2:
+		return values[0] + " and " + values[1]
+	default:
+		return strings.Join(values[:len(values)-1], ", ") + " and " + values[len(values)-1]
+	}
+}
+
 // isGroup reports whether an address is a group rather than one agent.
 func isGroup(to string) bool { return strings.HasPrefix(to, "@") }
 

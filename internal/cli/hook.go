@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/AlexParco/mnemo/internal/config"
+	"github.com/AlexParco/mnemo/internal/mailbox"
 	"github.com/spf13/cobra"
 )
 
@@ -198,20 +199,15 @@ func waitingPost(resolved config.Settings, state *sessionState, spanish bool) st
 	if top > state.AnnouncedPost {
 		state.AnnouncedPost = top
 	}
-	senders := map[string]bool{}
-	var order []string
-	for _, message := range waiting {
-		if !senders[message.From] {
-			senders[message.From] = true
-			order = append(order, message.From)
-		}
-	}
+	// The same sentence the tool answers carry, so a chat hears one wording
+	// whichever way it was reached, and the senders are joined the same way.
+	senders := mailbox.Names(mailbox.Senders(waiting))
 	if spanish {
 		return fmt.Sprintf("mnemo: %d mensaje(s) esperándote, de %s. Léelos con mailbox_read.",
-			len(waiting), strings.Join(order, ", "))
+			len(waiting), senders)
 	}
 	return fmt.Sprintf("mnemo: %d message(s) waiting for you, from %s. Read them with mailbox_read.",
-		len(waiting), strings.Join(order, ", "))
+		len(waiting), senders)
 }
 
 // nudge is the sentence, in one language or the other.
@@ -226,6 +222,9 @@ func nudge(spanish bool, reason string) string {
 
 func editReason(spanish bool, edits int) string {
 	if spanish {
+		if edits == 1 {
+			return "1 edición sin guardar"
+		}
 		return fmt.Sprintf("%d ediciones sin guardar", edits)
 	}
 	if edits == 1 {

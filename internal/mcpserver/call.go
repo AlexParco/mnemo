@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/AlexParco/mnemo/internal/config"
 	"github.com/AlexParco/mnemo/internal/gitx"
@@ -108,30 +107,8 @@ func (c *Call) waiting() string {
 	if err != nil || len(unread) == 0 {
 		return ""
 	}
-	senders := map[string]bool{}
-	var order []string
-	for _, message := range unread {
-		if !senders[message.From] {
-			senders[message.From] = true
-			order = append(order, message.From)
-		}
-	}
 	return fmt.Sprintf("%d message(s) waiting for you, from %s. Read them with mailbox_read.",
-		len(unread), englishList(order))
-}
-
-// englishList joins names the way a person reads them.
-func englishList(values []string) string {
-	switch len(values) {
-	case 0:
-		return "nobody"
-	case 1:
-		return values[0]
-	case 2:
-		return values[0] + " and " + values[1]
-	default:
-		return strings.Join(values[:len(values)-1], ", ") + " and " + values[len(values)-1]
-	}
+		len(unread), mailbox.Names(mailbox.Senders(unread)))
 }
 
 // repo answers git questions about the store.

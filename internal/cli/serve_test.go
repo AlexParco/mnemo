@@ -956,13 +956,20 @@ func TestTheNudgeFollowsTheLanguage(t *testing.T) {
 	t.Setenv("MNEMO_LANG", "es")
 
 	got := suggestSave(strings.NewReader(`{"session_id":"es"}`))
-	for _, want := range []string{"ediciones sin guardar", "en esta sesión", "para no perder el avance"} {
+	// One edit, and a threshold of one is reachable, so the singular has to
+	// exist in both languages: "1 ediciones" is how a text stops being somebody's
+	// own language and starts being a translation.
+	for _, want := range []string{"1 edición sin guardar", "en esta sesión", "para no perder el avance"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("the Spanish nudge does not say %q: %q", want, got)
 		}
 	}
 	if strings.Contains(got, "unsaved") {
 		t.Errorf("the Spanish nudge carries English: %q", got)
+	}
+	if plural := suggestSave(strings.NewReader(`{"session_id":"es"}`)); !strings.Contains(plural,
+		"2 ediciones sin guardar") {
+		t.Errorf("the Spanish plural reads %q", plural)
 	}
 }
 
@@ -1153,6 +1160,25 @@ func TestTheHookTellsABusyChatItHasPost(t *testing.T) {
 	}
 	if next := suggestSave(strings.NewReader(input)); !strings.Contains(next, "1 message(s) waiting") {
 		t.Errorf("a message that arrived later was not announced: %q", next)
+	}
+
+	// Two senders read as two senders. The same sentence is said by the tool
+	// answers and by this hook, and when each built its own list of names they
+	// drifted — one said "a and b", the other "a, b".
+	other := mailbox.Caller{Name: "deployer", Machine: resolved.Machine, Tool: "claude",
+		Instance: mailbox.Instance(), Via: "local", PID: os.Getpid()}
+	if _, err := box.Claim(t.Context(), other); err != nil {
+		t.Fatal(err)
+	}
+	for _, from := range []mailbox.Caller{sender, other} {
+		if _, err := box.Send(t.Context(), from, "boss@"+resolved.Machine, "another one", ""); err != nil {
+			t.Fatal(err)
+		}
+	}
+	both := suggestSave(strings.NewReader(input))
+	if !strings.Contains(both, fmt.Sprintf("2 message(s) waiting for you, from worker@%s and deployer@%s",
+		resolved.Machine, resolved.Machine)) {
+		t.Errorf("two senders read as %q", both)
 	}
 }
 
