@@ -1,0 +1,16 @@
+Breaks: The tool label is taken from the environment as written and stored on an address and in every message header. A newline in it puts a line of its own into what an agent reads as mnemo's — a header, a project to load, an answer line with another id.
+Must fail: go test ./internal/config -run '^TestTheToolLabelIsCleanedAndNotTrusted$' -count=1
+
+diff --git a/internal/config/settings.go b/internal/config/settings.go
+index 5c62b10..f3fc3a7 100644
+--- a/internal/config/settings.go
++++ b/internal/config/settings.go
+@@ -130,7 +130,7 @@ func Resolve(file *File, flags Overrides) Settings {
+ 	// into every message's header, and whoever wrote the MCP entry chose it: a
+ 	// value with a newline in it would put a line of its own into the header an
+ 	// agent reads, under mnemo's name.
+-	s.Tool, s.source["tool"] = toolLabel(env("MNEMO_TOOL")), Source{"env", "MNEMO_TOOL"}
++	s.Tool, s.source["tool"] = env("MNEMO_TOOL"), Source{"env", "MNEMO_TOOL"}
+ 	if s.Agent == "" {
+ 		s.source["agent"] = Source{"default", ""}
+ 	}

@@ -1,0 +1,18 @@
+Breaks: A chat whose claim was refused is told it has mail and to read it with mailbox_read, which then refuses it. The post belongs to the chat that holds the name, so the line is an instruction to call a tool that cannot work about messages that are somebody else's.
+Must fail: go test ./internal/mcpserver -run '^TestAChatThatLostItsNameIsNotNaggedAboutPost$' -count=1
+
+diff --git a/internal/mcpserver/call.go b/internal/mcpserver/call.go
+index 1c1967d..a056023 100644
+--- a/internal/mcpserver/call.go
++++ b/internal/mcpserver/call.go
+@@ -133,9 +133,7 @@ func (c *Call) waiting() string {
+ 	// the chat that does, and mailbox_read would refuse this one — so the line
+ 	// would be an instruction to call a tool that cannot work, about messages
+ 	// that are somebody else's.
+-	if c.ClaimRefusal != "" {
+-		return ""
+-	}
++
+ 	_, unread, err := c.box.Peek(c.Caller().Address(), 0)
+ 	if err != nil || len(unread) == 0 {
+ 		return ""

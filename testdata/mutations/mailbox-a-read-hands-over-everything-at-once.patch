@@ -1,0 +1,21 @@
+Breaks: A read hands over every waiting message at once, so a hundred of them is megabytes of another agent's text dropped into this one's context — and an answer that is not bounded is the one an agent cannot recover from.
+Must fail: go test ./internal/mcpserver -run '^TestAReadIsBoundedAndSaysWhatIsLeft$' -count=1
+
+diff --git a/internal/mailbox/ops.go b/internal/mailbox/ops.go
+index ceb1b97..9323304 100644
+--- a/internal/mailbox/ops.go
++++ b/internal/mailbox/ops.go
+@@ -161,13 +161,6 @@ const (
+ // Always at least one, however large: a message over the budget would otherwise
+ // sit at the head of the queue for ever, and nothing behind it would move either.
+ func fit(waiting []Message) Delivery {
+-	carried := 0
+-	for i, message := range waiting {
+-		if i >= MaxDelivered || (i > 0 && carried+len(message.Body) > MaxDeliveredBytes) {
+-			return Delivery{Messages: waiting[:i], Left: len(waiting) - i}
+-		}
+-		carried += len(message.Body)
+-	}
+ 	return Delivery{Messages: waiting}
+ }
+ 

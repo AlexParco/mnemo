@@ -1,0 +1,16 @@
+Breaks: One legal message ends the mailbox for everyone on the machine, for good. A body of 45 KiB of '<' — a fifth of what is allowed — is six times that once stored as JSON, so the reader refuses the line as too long; every operation reads the log first, so nothing works again, and the line can be neither read past nor pruned.
+Must fail: go test ./internal/mailbox -run '^TestABodyThatIsAllEscapesDoesNotEndTheMailbox$' -count=1
+
+diff --git a/internal/mailbox/messages.go b/internal/mailbox/messages.go
+index b7f5779..793b55c 100644
+--- a/internal/mailbox/messages.go
++++ b/internal/mailbox/messages.go
+@@ -80,7 +80,7 @@ func (m *Mailbox) readLog() ([]Message, error) {
+ 	scanner := bufio.NewScanner(file)
+ 	// The buffer grows to what a line needs, up to this limit; nothing is
+ 	// allocated for a log of short messages.
+-	scanner.Buffer(make([]byte, 0, 64*1024), maxLine)
++	scanner.Buffer(make([]byte, 0, 64*1024), MaxBody+4096)
+ 	for scanner.Scan() {
+ 		line := strings.TrimSpace(scanner.Text())
+ 		if line == "" {

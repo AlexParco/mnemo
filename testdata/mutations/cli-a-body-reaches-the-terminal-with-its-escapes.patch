@@ -1,0 +1,16 @@
+Breaks: A message body is printed into a person's terminal with its escape sequences intact, so a body can clear the screen, move the cursor and print lines that look like mnemo's own. The person is shown something mnemo never said, in the window they are reading it in.
+Must fail: go test ./internal/cli -run '^TestABodyCannotRewriteTheTerminalItIsReadIn$' -count=1
+
+diff --git a/internal/cli/mailbox.go b/internal/cli/mailbox.go
+index 04d1c1a..e73face 100644
+--- a/internal/cli/mailbox.go
++++ b/internal/cli/mailbox.go
+@@ -403,7 +403,7 @@ func when(stamp string, now time.Time) string {
+ // person something mnemo never said.
+ func say(out io.Writer, lines []string) error {
+ 	for _, line := range lines {
+-		if _, err := fmt.Fprintln(out, "  "+printable(line)); err != nil {
++		if _, err := fmt.Fprintln(out, "  "+line); err != nil {
+ 			return err
+ 		}
+ 	}
