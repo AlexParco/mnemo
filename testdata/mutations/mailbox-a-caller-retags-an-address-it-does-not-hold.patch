@@ -1,0 +1,16 @@
+Breaks: A chat whose claim was refused retags the address every time it looks at the mailbox, so while the chat that holds the name sits idle the table reports the wrong tool, a group message is routed by it, and the next person asking for that name is sent to the wrong window.
+Must fail: go test ./internal/mailbox -run '^TestACallerThatDoesNotHoldTheNameCannotRetagIt$' -count=1
+
+diff --git a/internal/mailbox/ops.go b/internal/mailbox/ops.go
+index b0cd187..675b612 100644
+--- a/internal/mailbox/ops.go
++++ b/internal/mailbox/ops.go
+@@ -331,7 +331,7 @@ func (m *Mailbox) operate(ctx context.Context, caller Caller, fn func(*State, []
+ 		now := m.now()
+ 		m.reap(state, now)
+ 		if address := caller.Address(); address != "" {
+-			state.see(address, m.tellable(state, caller), highest(messages), now)
++			state.see(address, caller.Tool, highest(messages), now)
+ 		}
+ 
+ 		if err := fn(state, messages, now); err != nil {

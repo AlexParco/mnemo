@@ -1,0 +1,18 @@
+Breaks: Every call to peers repeats the notice that an earlier install's messages were moved aside, for the life of the process, which turns the one line a person is owed into the kind of line they learn to skip.
+Must fail: go test ./internal/mailbox -run '^TestFilesFromAnEarlierInstallAreMovedAside$' -count=1
+
+diff --git a/internal/mailbox/mailbox.go b/internal/mailbox/mailbox.go
+index db78650..003f8ed 100644
+--- a/internal/mailbox/mailbox.go
++++ b/internal/mailbox/mailbox.go
+@@ -152,9 +152,7 @@ func (m *Mailbox) rememberMoved(dir string) {
+ func (m *Mailbox) Moved() string {
+ 	m.movedMu.Lock()
+ 	defer m.movedMu.Unlock()
+-	said := m.moved
+-	m.moved = ""
+-	return said
++	return m.moved
+ }
+ 
+ // New returns a mailbox for a directory, which need not exist yet.

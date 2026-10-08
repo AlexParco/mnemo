@@ -1,0 +1,16 @@
+Breaks: A chat that was closed is still described as holding its name, so mnemo run refuses to open a window that nobody has — and tells the person to go and close a chat that is not there.
+Must fail: go test ./internal/mailbox -run '^TestAHeldNameIsDescribedBeforeAChatIsOpened$' -count=1
+
+diff --git a/internal/mailbox/holders.go b/internal/mailbox/holders.go
+index abbcfbe..831f8f0 100644
+--- a/internal/mailbox/holders.go
++++ b/internal/mailbox/holders.go
+@@ -136,7 +136,7 @@ func (m *Mailbox) Describe(ctx context.Context, address string) (string, error)
+ 			return err
+ 		}
+ 		entry, known := state.Addresses[address]
+-		if !known || entry.Holder == nil || !m.holderAlive(entry.Holder, m.now()) {
++		if !known || entry.Holder == nil {
+ 			return nil
+ 		}
+ 		said = describe(entry)

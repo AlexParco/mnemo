@@ -1,0 +1,21 @@
+Breaks: The name a client gave itself in the handshake is recorded on the address, so a client that calls itself "Claude" joins the @claude group and a message meant for every Claude Code chat reaches something that is not one. The client chooses that name.
+Must fail: go test ./internal/mcpserver -run '^TestAClientThatDidNotSayWhichToolItIsIsStillNamed$' -count=1
+
+diff --git a/internal/mcpserver/call.go b/internal/mcpserver/call.go
+index 67a332c..ed46fb2 100644
+--- a/internal/mcpserver/call.go
++++ b/internal/mcpserver/call.go
+@@ -113,8 +113,12 @@ func label(name string) string {
+ 
+ // Caller is who this is, in the mailbox's terms.
+ func (c *Call) Caller() mailbox.Caller {
++	tool := c.Tool
++	if tool == "" {
++		tool = c.Client
++	}
+ 	return mailbox.Caller{
+-		Name: c.Agent, Machine: c.Machine, Tool: c.Tool,
++		Name: c.Agent, Machine: c.Machine, Tool: tool,
+ 		Instance: c.Instance, Via: "local", PID: os.Getpid(),
+ 	}
+ }
