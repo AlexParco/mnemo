@@ -1,0 +1,25 @@
+Breaks: A refusal or a warning printed into a terminal tells the person to 'check the spelling with mailbox_peers' — a tool only an agent can call. The one thing they are told to do next is the one thing they cannot do.
+Must fail: go test ./internal/cli -run '^TestARefusalFromATerminalNamesCommandsAndNotTools$' -count=1
+
+diff --git a/internal/cli/mailbox.go b/internal/cli/mailbox.go
+index d9c13ae..6610e53 100644
+--- a/internal/cli/mailbox.go
++++ b/internal/cli/mailbox.go
+@@ -77,7 +77,7 @@ func sendCommand() *cobra.Command {
+ 			return holding(cmd.Context(), box, caller, func() error {
+ 				sent, err := box.Send(cmd.Context(), caller, args[0], args[1], project)
+ 				if err != nil {
+-					return asCommand(err)
++					return err
+ 				}
+ 				return printSent(cmd.OutOrStdout(), caller, sent,
+ 					fmt.Sprintf("sent %s to %s", sent.Message.ID, sent.Message.To))
+@@ -323,7 +323,7 @@ func sameDay(a, b time.Time) bool {
+ func printSent(out io.Writer, caller mailbox.Caller, sent mailbox.Sent, first string) error {
+ 	lines := []string{first + " as " + caller.Address()}
+ 	if sent.Warning != "" {
+-		lines = append(lines, "warning: "+warnAsCommand(sent.Warning))
++		lines = append(lines, "warning: "+sent.Warning)
+ 	}
+ 	return say(out, lines)
+ }

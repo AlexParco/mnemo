@@ -756,6 +756,8 @@ the control fails.
   promise that no group can reach a chat by a name the client chose for itself.
 - Tell a chat whose claim was refused that it is the address it asked for: the lost-name test fails.
 - Drop from `MAILBOX_RULE` what mnemo cannot verify: the test that reads what the rule says fails.
+- Print a refusal into a terminal with the tool names left in it: the test that a terminal names
+  commands fails.
 
 **Waiting for the packages they test.**
 
