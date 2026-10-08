@@ -1,0 +1,16 @@
+Breaks: A watcher that looks before the chat has claimed its name is told how far the log goes, so it records itself as having announced everything already waiting. The chat then opens and sits idle next to post nobody ever mentions — the one path that reaches an idle chat, silent in exactly the case where somebody was sent work before they opened the chat.
+Must fail: go test ./internal/cli -run '^TestWatchStartedBeforeTheChatAnnouncesWhatWasAlreadyThere$' -count=1
+
+diff --git a/internal/mailbox/ops.go b/internal/mailbox/ops.go
+index 0b87744..8737bac 100644
+--- a/internal/mailbox/ops.go
++++ b/internal/mailbox/ops.go
+@@ -321,7 +321,7 @@ func (m *Mailbox) Peek(address string, after int) (int, []Message, error) {
+ 		// can easily look before the name has been claimed; told how far the log
+ 		// goes, it would record itself as having announced messages it never
+ 		// announced, and the chat would sit idle next to post nobody mentioned.
+-		return after, nil, nil
++		return top, nil, nil
+ 	}
+ 	from := *entry
+ 	if after > from.Cursor {
