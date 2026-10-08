@@ -79,6 +79,9 @@ func (a *answer) data(value any) *answer {
 // blocks of a successful answer alongside it.
 func (a *answer) refuse(format string, args ...any) *answer {
 	a.blocks = nil
+	// Including the structured form. A caller that parses the answer rather
+	// than reading it would otherwise be handed a message that was never sent.
+	a.structured = nil
 	a.failed = true
 	a.blocks = append(a.blocks, fmt.Sprintf(format, args...))
 	return a
@@ -88,6 +91,7 @@ func (a *answer) refuse(format string, args ...any) *answer {
 // looks like advice either: there is nothing for the agent to do differently.
 func (a *answer) fail(format string, args ...any) *answer {
 	a.blocks = nil
+	a.structured = nil
 	a.failed = true
 	a.blocks = append(a.blocks, "mnemo failed unexpectedly: "+fmt.Sprintf(format, args...))
 	return a
