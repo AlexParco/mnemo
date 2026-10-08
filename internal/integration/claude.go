@@ -109,7 +109,9 @@ func AddClaude(version string, run func(args ...string) (string, error)) (Result
 		result.Advice = strings.TrimSpace(out) + "\nRun these by hand:\n" + ClaudeCommands()
 		return result, nil
 	}
-	if installed, known := InstalledVersion(run); known && version != "dev" && installed != strings.TrimPrefix(version, "v") {
+	installed, known := InstalledVersion(run)
+	switch {
+	case known && version != "dev" && installed != strings.TrimPrefix(version, "v"):
 		result.Outcome, result.Detail = Refused, "the marketplace served plugin "+installed
 		result.Advice = fmt.Sprintf("This binary is %s, and the plugin that was installed is %s — a different "+
 			"implementation, which does not use this binary and does not read the store this binary reads.\n"+
@@ -117,6 +119,15 @@ func AddClaude(version string, run func(args ...string) (string, error)) (Result
 			"Then wire this binary into one project instead:\n"+
 			"  mnemo mcp add claude --path <project>/.mcp.json", version, installed, PluginRef)
 		return result, nil
+	case known && version == "dev":
+		// A build from a working copy cannot match any published version, so
+		// there is nothing to compare and nothing to refuse. Said anyway,
+		// because this is the one case where somebody gets a plugin that is not
+		// the code in front of them, and the symptom — a chat whose memory is
+		// somewhere else — says nothing about why.
+		result.Advice = fmt.Sprintf("This binary is a build from a working copy and the plugin installed is %s, "+
+			"from the marketplace. If that release is not this code, the chat will use the release and not this "+
+			"binary.\nTo use this binary in one project: mnemo mcp add claude --path <project>/.mcp.json", installed)
 	}
 	result.Outcome, result.Detail = Added, PluginRef
 	return result, nil

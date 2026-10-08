@@ -80,3 +80,26 @@ explained where it appears.
     at the new one, and neither is hidden from search.
 25. **Retiring a whole store is a terminal command and never a tool.** It moves the store aside by
     default, refuses while work has not reached the hub, and never touches the hub itself.
+26. **Waking the recipient has three layers, and the first one is the cheapest.** Every tool answer
+    ends on a line about waiting post, because an agent working on a project calls mnemo several
+    times a minute and that costs nothing; `mnemo watch` as the plugin's monitor reaches a chat
+    sitting idle; the save hook reaches one that is working and not calling mnemo. The last row of
+    the table in [specs/mailbox.md](specs/mailbox.md#waking-the-recipient) is honest rather than
+    solved: a chat in Codex or opencode that is not calling mnemo learns of its post when it next
+    speaks to mnemo, and the alternative is owning its terminal.
+27. **Looking is not holding.** `mnemo peers` claims no name, and `mailbox_peers` answers a chat
+    whose claim was refused. Both are how somebody finds out which chat has a name, so refusing
+    them would refuse the answer to the question they raise. Everything else that sends or reads
+    holds the name while it runs.
+28. **A caller that does not hold an address cannot retag it.** The tool recorded on an address
+    decides which group messages reach it and what a refusal names, so only its holder may change
+    it.
+29. **A message body is fenced, and the fence carries the message's own id.** Four of an id's
+    characters are random and assigned when the message was stored, so a sender cannot write the
+    fence of its own message — and a body is otherwise byte-identical to mnemo's own framing.
+30. **A client's own name is shown and never recorded.** When nothing says which tool a chat is,
+    the name the client gave in the handshake is used in the identity line, and never written onto
+    an address: a name a client chose for itself must not be able to make `@claude` reach a chat
+    that is not Claude Code.
+31. **A refusal printed into a terminal names commands, not tools.** The mailbox writes one message
+    for both surfaces; the four tool names that have a command are translated on the way out.

@@ -106,6 +106,11 @@ and a name can serve a different implementation than the one running; installing
 success would hand a chat a mnemo that keeps its memory somewhere else. A mismatch is refused, says
 which version was installed, and gives the command to remove it.
 
+**A build from a working copy has no version to compare**, so nothing is refused — and the install
+says which plugin version it got anyway. It is the one case where somebody ends up with a plugin
+that is not the code in front of them, and the symptom, a chat whose memory is somewhere else, says
+nothing about why.
+
 **With `--path P`**, the plugin is not installed. The file P, shaped like `.mcp.json`, gets:
 
 ```json
