@@ -1,0 +1,18 @@
+Breaks: A terminal command leaves its name held after it exits. The process check frees it again, so what is left is a stale holder in the file and a window where a reused pid makes a command that finished minutes ago look like a live chat — which is the one thing peers is not allowed to infer.
+Must fail: go test ./internal/cli -run '^TestATerminalCommandWillNotTakeAnOpenChatsName$' -count=1
+
+diff --git a/internal/cli/mailbox.go b/internal/cli/mailbox.go
+index 79f6991..55587ba 100644
+--- a/internal/cli/mailbox.go
++++ b/internal/cli/mailbox.go
+@@ -184,10 +184,6 @@ func holding(ctx context.Context, box *mailbox.Mailbox, caller mailbox.Caller, f
+ 	if _, err := box.Claim(ctx, caller); err != nil {
+ 		return err
+ 	}
+-	// Released on the way out, including on a failure: a command that leaves the
+-	// name held would keep a chat from opening under it until the lease or the
+-	// process check noticed, and there is no process to notice here.
+-	defer func() { _ = box.Release(context.Background(), caller) }()
+ 	return fn()
+ }
+ 

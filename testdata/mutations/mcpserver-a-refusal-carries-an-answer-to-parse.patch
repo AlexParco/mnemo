@@ -1,0 +1,37 @@
+Breaks: A send that was refused still reports a message to anything parsing the answer, so a terminal command prints a message it never sent: the handler attaches what it got before checking the error, and a refusal no longer drops it.
+Must fail: go test ./internal/mcpserver -run '^TestARefusalCarriesNothingToParse$' -count=1
+
+diff --git a/internal/mcpserver/mailbox.go b/internal/mcpserver/mailbox.go
+index 784eba0..76861e4 100644
+--- a/internal/mcpserver/mailbox.go
++++ b/internal/mcpserver/mailbox.go
+@@ -181,6 +181,7 @@ func handleSend(ctx context.Context, call *Call, args Args) *answer {
+ 		return a.fromMailbox(err)
+ 	}
+ 	sent, err := box.Send(ctx, call.Caller(), args.str("to"), args.str("body"), args.str("project"))
++	a.with(sentOut{Message: sent.Message, Warning: sent.Warning})
+ 	if err != nil {
+ 		return a.fromMailbox(err)
+ 	}
+diff --git a/internal/mcpserver/render.go b/internal/mcpserver/render.go
+index 94ab25a..20ea8ea 100644
+--- a/internal/mcpserver/render.go
++++ b/internal/mcpserver/render.go
+@@ -79,9 +79,6 @@ func (a *answer) data(value any) *answer {
+ // blocks of a successful answer alongside it.
+ func (a *answer) refuse(format string, args ...any) *answer {
+ 	a.blocks = nil
+-	// Including the structured form. A caller that parses the answer rather
+-	// than reading it would otherwise be handed a message that was never sent.
+-	a.structured = nil
+ 	a.failed = true
+ 	a.blocks = append(a.blocks, fmt.Sprintf(format, args...))
+ 	return a
+@@ -91,7 +88,6 @@ func (a *answer) refuse(format string, args ...any) *answer {
+ // looks like advice either: there is nothing for the agent to do differently.
+ func (a *answer) fail(format string, args ...any) *answer {
+ 	a.blocks = nil
+-	a.structured = nil
+ 	a.failed = true
+ 	a.blocks = append(a.blocks, "mnemo failed unexpectedly: "+fmt.Sprintf(format, args...))
+ 	return a

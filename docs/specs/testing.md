@@ -694,6 +694,27 @@ survive either way; the damage lands inside the two memories it does open, whose
 was reading. The test now asserts that a retagged memory's body is exactly what the user wrote, and
 the control fails.
 
+- Offer the memory tools and no mailbox tools: the test that every specced tool is served fails.
+- Attach the message before checking the error, and let a refusal keep its structured form: the
+  test that a refusal carries nothing to parse fails.
+- Let a chat act under a name another live chat holds, and leave the lost name out of the identity
+  line: the taken-name test fails on both counts.
+- Deliver a message without saying how to answer it, and name a project without saying to load it:
+  the round-trip test fails.
+- Take an open chat's name from a terminal, never give a name back, and claim it just to look: the
+  three halves of the open-chat test fail.
+- Invent a name when none was given: the test that a mailbox command stops rather than guessing
+  fails.
+- Print nothing for an empty read: the terminal round trip fails.
+- Announce every message at every look, die on the first failure, repeat one failure for ever, and
+  read instead of peeking: each fails the watch test that covers it.
+- Mention the same post before every edit, and mark it read while mentioning it: the busy-chat test
+  fails.
+- Sweep every session's state rather than the old ones, and sweep none at all: the sweep test fails
+  both ways.
+- Point the plugin's monitor at a command the binary does not have: the test that every command the
+  plugin invokes exists fails.
+
 **Waiting for the packages they test.**
 
 - Do not persist the address cursor: the restart test fails.

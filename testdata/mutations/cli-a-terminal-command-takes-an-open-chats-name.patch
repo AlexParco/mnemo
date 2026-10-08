@@ -1,0 +1,18 @@
+Breaks: A terminal command runs under the name of an open chat: 'mnemo read' marks that chat's post read, so the chat never sees what was sent to it, and a 'send' goes out from a name whose answers land in the chat instead.
+Must fail: go test ./internal/cli -run '^TestATerminalCommandWillNotTakeAnOpenChatsName$' -count=1
+
+diff --git a/internal/cli/mailbox.go b/internal/cli/mailbox.go
+index 79f6991..3bf09ad 100644
+--- a/internal/cli/mailbox.go
++++ b/internal/cli/mailbox.go
+@@ -181,9 +181,7 @@ func terminal(name string, needed bool) (config.Settings, *mailbox.Mailbox, mail
+ // both hold one address, and a command run while a chat holds that name is
+ // refused rather than quietly reading the chat's post out from under it.
+ func holding(ctx context.Context, box *mailbox.Mailbox, caller mailbox.Caller, fn func() error) error {
+-	if _, err := box.Claim(ctx, caller); err != nil {
+-		return err
+-	}
++
+ 	// Released on the way out, including on a failure: a command that leaves the
+ 	// name held would keep a chat from opening under it until the lease or the
+ 	// process check noticed, and there is no process to notice here.

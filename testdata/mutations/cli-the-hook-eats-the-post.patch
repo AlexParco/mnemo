@@ -1,0 +1,35 @@
+Breaks: The hook marks the post read as it mentions it, so mailbox_read finds nothing: the chat is told it has a message and cannot get at it, and whoever sent it waits for an answer that never comes. The hook also takes the mailbox lock now, before every edit in somebody's session.
+Must fail: go test ./internal/cli -run '^TestTheHookTellsABusyChatItHasPost$' -count=1
+
+diff --git a/internal/cli/hook.go b/internal/cli/hook.go
+index a2fb82b..bbf7f2a 100644
+--- a/internal/cli/hook.go
++++ b/internal/cli/hook.go
+@@ -1,6 +1,7 @@
+ package cli
+ 
+ import (
++	"context"
+ 	"encoding/json"
+ 	"fmt"
+ 	"io"
+@@ -11,6 +12,7 @@ import (
+ 	"time"
+ 
+ 	"github.com/AlexParco/mnemo/internal/config"
++	"github.com/AlexParco/mnemo/internal/mailbox"
+ 	"github.com/spf13/cobra"
+ )
+ 
+@@ -190,8 +192,9 @@ func waitingPost(resolved config.Settings, state *sessionState, spanish bool) st
+ 	if resolved.Agent == "" || resolved.Machine == "" {
+ 		return ""
+ 	}
+-	address := resolved.Agent + "@" + resolved.Machine
+-	top, waiting, err := mailboxFor(resolved).Peek(address, state.AnnouncedPost)
++	waiting, err := mailboxFor(resolved).Read(context.Background(), mailbox.Caller{Name: resolved.Agent,
++		Machine: resolved.Machine, Tool: "claude", Instance: mailbox.Instance(), Via: "local", PID: os.Getpid()})
++	top := state.AnnouncedPost
+ 	if err != nil || len(waiting) == 0 {
+ 		return ""
+ 	}

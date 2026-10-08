@@ -1,0 +1,15 @@
+Breaks: A file per chat is kept for ever in a directory nobody ever opens, so months of sessions accumulate on the machine with nothing that ever removes them.
+Must fail: go test ./internal/cli -run '^TestOldSessionStateIsSweptUp$' -count=1
+
+diff --git a/internal/cli/hook.go b/internal/cli/hook.go
+index a2fb82b..56a918c 100644
+--- a/internal/cli/hook.go
++++ b/internal/cli/hook.go
+@@ -119,7 +119,6 @@ func suggestSave(stdin io.Reader) string {
+ 	step := envInt("MNEMO_SAVE_TOKENS_STEP", defaultTokensStep)
+ 
+ 	dir := resolved.Paths.Reminder
+-	sweepOldState(dir, time.Now())
+ 	path := filepath.Join(dir, input.SessionID+".json")
+ 	state := loadSessionState(path)
+ 

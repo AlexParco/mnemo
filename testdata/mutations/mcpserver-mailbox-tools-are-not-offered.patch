@@ -1,0 +1,16 @@
+Breaks: A chat is offered the memory tools and no mailbox tools, so an agent cannot reach another agent at all and has no way to find out why.
+Must fail: go test ./internal/cli -run '^TestTheBinaryServesEveryToolTheSpecDefines$' -count=1
+
+diff --git a/internal/mcpserver/tools.go b/internal/mcpserver/tools.go
+index 0a11c64..7503f7c 100644
+--- a/internal/mcpserver/tools.go
++++ b/internal/mcpserver/tools.go
+@@ -111,7 +111,7 @@ func readOnly() *mcp.ToolAnnotations {
+ // One list, because the local server and a relay must offer the same tools: two
+ // of them would drift, and an agent would be offered a tool that is not there.
+ func allTools() []Definition {
+-	return append(memoryTools(), mailboxTools()...)
++	return memoryTools()
+ }
+ 
+ // memoryTools are the tools that read and write the store. The mailbox adds its

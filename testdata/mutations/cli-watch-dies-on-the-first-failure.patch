@@ -1,0 +1,30 @@
+Breaks: The watcher exits the first time it cannot read the mailbox, so a tunnel that drops for a minute ends the only way a chat sitting idle ever hears about its post — for the rest of the session.
+Must fail: go test ./internal/cli -run '^TestWatchKeepsGoingAndComplainsOnlyOnce$' -count=1
+
+diff --git a/internal/cli/watch.go b/internal/cli/watch.go
+index f7ee0b3..bada7e4 100644
+--- a/internal/cli/watch.go
++++ b/internal/cli/watch.go
+@@ -76,7 +76,6 @@ func watch(ctx context.Context, resolved config.Settings, tool string, out, errO
+ 	_ = tool
+ 
+ 	announced := 0
+-	lastError := ""
+ 	ticker := time.NewTicker(every)
+ 	defer ticker.Stop()
+ 
+@@ -87,12 +86,9 @@ func watch(ctx context.Context, resolved config.Settings, tool string, out, errO
+ 			// Reported once per distinct error, not every two seconds for as
+ 			// long as it lasts, and the watch carries on: a tunnel that drops
+ 			// for a minute must not end it.
+-			if message := err.Error(); message != lastError {
+-				fmt.Fprintln(errOut, "mnemo watch: "+message)
+-				lastError = message
+-			}
++			fmt.Fprintln(errOut, "mnemo watch: "+err.Error())
++			return err
+ 		default:
+-			lastError = ""
+ 			for _, message := range waiting {
+ 				if _, err := fmt.Fprintln(out, notice(message)); err != nil {
+ 					// Whoever was reading has gone. There is nobody left to

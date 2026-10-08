@@ -1,0 +1,17 @@
+Breaks: A mailbox command with no name invents one, so a message goes out from an address this person is not looking at and the answer waits at a name they will never read, while 'mnemo read' delivers somebody else's post to them.
+Must fail: go test ./internal/cli -run '^TestAMailboxCommandWithNoNameStopsRatherThanGuessing$' -count=1
+
+diff --git a/internal/cli/mailbox.go b/internal/cli/mailbox.go
+index 79f6991..e94c557 100644
+--- a/internal/cli/mailbox.go
++++ b/internal/cli/mailbox.go
+@@ -161,8 +161,7 @@ func terminal(name string, needed bool) (config.Settings, *mailbox.Mailbox, mail
+ 		name = resolved.Agent
+ 	}
+ 	if name == "" && needed {
+-		return resolved, nil, caller, usage(
+-			"this needs a name to act as: --name <name>, or MNEMO_AGENT in the environment")
++		name = "terminal"
+ 	}
+ 	if name != "" && !mailbox.IsName(name) {
+ 		return resolved, nil, caller, usage("%q is not a usable name. Use lower-case letters, digits and "+

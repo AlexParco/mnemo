@@ -1,0 +1,26 @@
+Breaks: Every message is announced again every two seconds for as long as it is unread, so a chat that has been told once is interrupted thirty times a minute and the notification becomes something to ignore.
+Must fail: go test ./internal/cli -run '^TestWatchAnnouncesWithoutTouchingAnything$' -count=1
+
+diff --git a/internal/cli/watch.go b/internal/cli/watch.go
+index f7ee0b3..18f1e8b 100644
+--- a/internal/cli/watch.go
++++ b/internal/cli/watch.go
+@@ -81,7 +81,7 @@ func watch(ctx context.Context, resolved config.Settings, tool string, out, errO
+ 	defer ticker.Stop()
+ 
+ 	for {
+-		top, waiting, err := box.Peek(address, announced)
++		_, waiting, err := box.Peek(address, announced)
+ 		switch {
+ 		case err != nil:
+ 			// Reported once per distinct error, not every two seconds for as
+@@ -100,9 +100,6 @@ func watch(ctx context.Context, resolved config.Settings, tool string, out, errO
+ 					return nil
+ 				}
+ 			}
+-			if top > announced {
+-				announced = top
+-			}
+ 		}
+ 
+ 		select {

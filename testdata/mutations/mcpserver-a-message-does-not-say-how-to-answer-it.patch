@@ -1,0 +1,15 @@
+Breaks: A message arrives without its id or how to answer, so an agent that wants to reply has to guess an id and the reply attaches to the wrong message or to none.
+Must fail: go test ./internal/mcpserver -run '^TestAMessageReachesTheOtherChatAndTheReplyComesBack$' -count=1
+
+diff --git a/internal/mcpserver/mailbox.go b/internal/mcpserver/mailbox.go
+index 784eba0..34f124f 100644
+--- a/internal/mcpserver/mailbox.go
++++ b/internal/mcpserver/mailbox.go
+@@ -313,6 +313,6 @@ func one(message mailbox.Message) string {
+ 		lines = append(lines, "project: "+message.Project+
+ 			" — load its memory with mnemo_load_project before acting on this")
+ 	}
+-	lines = append(lines, "", message.Body, "", "To answer: mailbox_reply with id "+message.ID+".")
++	lines = append(lines, "", message.Body)
+ 	return strings.Join(lines, "\n")
+ }

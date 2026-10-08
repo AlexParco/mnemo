@@ -1,0 +1,16 @@
+Breaks: The plugin's monitor runs a command the binary does not have, so it fails silently at every poll: a chat sitting idle is never told it has post, which is the only way in that needs no tool call.
+Must fail: go test ./internal/cli -run '^TestThePluginOnlyInvokesCommandsThatExist$' -count=1
+
+diff --git a/plugin/monitors/monitors.json b/plugin/monitors/monitors.json
+index 77702f2..561bc97 100644
+--- a/plugin/monitors/monitors.json
++++ b/plugin/monitors/monitors.json
+@@ -1,7 +1,7 @@
+ [
+   {
+     "name": "mailbox",
+-    "command": "mnemo watch --tool claude",
++    "command": "mnemo mailbox watch --tool claude",
+     "description": "mnemo mailbox: messages sent to this chat"
+   }
+ ]

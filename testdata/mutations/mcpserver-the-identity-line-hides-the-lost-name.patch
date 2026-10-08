@@ -1,0 +1,23 @@
+Breaks: The identity line says a chat is an address it does not hold, with nothing about the chat that does, so the agent tells the user it is somebody it is not.
+Must fail: go test ./internal/mcpserver -run '^TestAChatWhoseNameWasTakenIsToldInEveryAnswer$' -count=1
+
+diff --git a/internal/mcpserver/mailbox.go b/internal/mcpserver/mailbox.go
+index 784eba0..53b870c 100644
+--- a/internal/mcpserver/mailbox.go
++++ b/internal/mcpserver/mailbox.go
+@@ -55,14 +55,7 @@ func (c *Call) identity() string {
+ 	if tool == "" {
+ 		tool = "an unknown tool"
+ 	}
+-	line := fmt.Sprintf("You are %s (%s).", caller.Address(), tool)
+-	if c.ClaimRefusal != "" {
+-		// The same sentence the claim itself was refused with, not a second
+-		// wording of it: a user deciding whether to close the other chat needs
+-		// one message, and two would eventually disagree.
+-		line += "\nwarning: " + c.ClaimRefusal
+-	}
+-	return line
++	return fmt.Sprintf("You are %s (%s).", caller.Address(), tool)
+ }
+ 
+ // mailboxReady refuses when this chat does not hold its name.

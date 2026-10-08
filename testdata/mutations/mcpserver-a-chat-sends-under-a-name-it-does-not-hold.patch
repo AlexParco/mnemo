@@ -1,0 +1,17 @@
+Breaks: A chat whose name another live chat holds sends and reads anyway: its messages go out under that name, the answers go to the chat that holds it, and it marks that chat's post read so the chat never sees it.
+Must fail: go test ./internal/mcpserver -run '^TestAChatWhoseNameWasTakenIsToldInEveryAnswer$' -count=1
+
+diff --git a/internal/mcpserver/mailbox.go b/internal/mcpserver/mailbox.go
+index 784eba0..2800372 100644
+--- a/internal/mcpserver/mailbox.go
++++ b/internal/mcpserver/mailbox.go
+@@ -72,9 +72,6 @@ func (c *Call) identity() string {
+ // and it is how a user finds out which chat has the name — but it may not send,
+ // receive or mark anything read under a name that belongs to another chat.
+ func (c *Call) mailboxReady() error {
+-	if c.ClaimRefusal != "" {
+-		return &mailbox.Refusal{Message: c.ClaimRefusal}
+-	}
+ 	return nil
+ }
+ 

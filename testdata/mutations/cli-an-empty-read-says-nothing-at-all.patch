@@ -1,0 +1,16 @@
+Breaks: 'mnemo read' with nothing waiting prints nothing, which reads as a command that failed silently rather than as an empty mailbox — and the two are what somebody checking on an agent most needs to tell apart.
+Must fail: go test ./internal/cli -run '^TestTheTerminalCommandsCarryTheConversation$' -count=1
+
+diff --git a/internal/cli/mailbox.go b/internal/cli/mailbox.go
+index 79f6991..0265d5e 100644
+--- a/internal/cli/mailbox.go
++++ b/internal/cli/mailbox.go
+@@ -298,7 +298,7 @@ func printSent(out io.Writer, caller mailbox.Caller, sent mailbox.Sent, first st
+ 
+ func printMessages(out io.Writer, caller mailbox.Caller, messages []mailbox.Message, now time.Time) error {
+ 	if len(messages) == 0 {
+-		return say(out, []string{"no new messages for " + caller.Address()})
++		return nil
+ 	}
+ 	var lines []string
+ 	for _, message := range messages {

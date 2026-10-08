@@ -1,0 +1,22 @@
+Breaks: The hook mentions the same waiting messages before every single edit, so a chat that has been told once and is busy working is told again forty times — and the thing that must never get in the way becomes the thing in the way.
+Must fail: go test ./internal/cli -run '^TestTheHookTellsABusyChatItHasPost$' -count=1
+
+diff --git a/internal/cli/hook.go b/internal/cli/hook.go
+index a2fb82b..d07b81b 100644
+--- a/internal/cli/hook.go
++++ b/internal/cli/hook.go
+@@ -191,13 +191,10 @@ func waitingPost(resolved config.Settings, state *sessionState, spanish bool) st
+ 		return ""
+ 	}
+ 	address := resolved.Agent + "@" + resolved.Machine
+-	top, waiting, err := mailboxFor(resolved).Peek(address, state.AnnouncedPost)
++	_, waiting, err := mailboxFor(resolved).Peek(address, state.AnnouncedPost)
+ 	if err != nil || len(waiting) == 0 {
+ 		return ""
+ 	}
+-	if top > state.AnnouncedPost {
+-		state.AnnouncedPost = top
+-	}
+ 	senders := map[string]bool{}
+ 	var order []string
+ 	for _, message := range waiting {

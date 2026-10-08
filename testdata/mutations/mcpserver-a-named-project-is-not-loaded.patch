@@ -1,0 +1,19 @@
+Breaks: A message names a project and the receiver is not told to load its memory, so it acts on the sender's one-line summary instead of the project's decisions — which is the whole reason the field exists instead of a pasted body.
+Must fail: go test ./internal/mcpserver -run '^TestAMessageReachesTheOtherChatAndTheReplyComesBack$' -count=1
+
+diff --git a/internal/mcpserver/mailbox.go b/internal/mcpserver/mailbox.go
+index 784eba0..ac4d93d 100644
+--- a/internal/mcpserver/mailbox.go
++++ b/internal/mcpserver/mailbox.go
+@@ -308,10 +308,7 @@ func one(message mailbox.Message) string {
+ 		lines = append(lines, "in reply to "+message.ReplyTo)
+ 	}
+ 	if message.Project != "" {
+-		// The point of the field: the sender did not paste its context, it named
+-		// where the context is.
+-		lines = append(lines, "project: "+message.Project+
+-			" — load its memory with mnemo_load_project before acting on this")
++		lines = append(lines, "project: "+message.Project)
+ 	}
+ 	lines = append(lines, "", message.Body, "", "To answer: mailbox_reply with id "+message.ID+".")
+ 	return strings.Join(lines, "\n")
