@@ -1593,3 +1593,93 @@ func TestRunRefusesANameAChatAlreadyHolds(t *testing.T) {
 		t.Error("the tool was opened anyway")
 	}
 }
+
+// Two processes sending at once lose nothing and share no seq.
+//
+// The seq is what every cursor is measured against, so two messages with the
+// same one would make each shadow the other for everybody. Nothing in the files
+// prevents it except the lock and the rule that the next seq is the larger of
+// the counter and the log, and the only way to find out whether those hold is
+// two real processes doing it at the same time.
+func TestBurstsFromTwoProcessesLoseNothingAndShareNoSeq(t *testing.T) {
+	home, env := machine(t, true)
+	mailboxDir := filepath.Join(home, "mailbox")
+	chat := func(name, tool string) *mcp.ClientSession {
+		session, _ := serve(t, append(env,
+			"MNEMO_MAILBOX_DIR="+mailboxDir, "MNEMO_AGENT="+name, "MNEMO_TOOL="+tool))
+		return session
+	}
+
+	left, right := chat("left", "claude"), chat("right", "codex")
+	reader := chat("reader", "opencode")
+	_ = reader
+
+	const each = 15
+	var waiting sync.WaitGroup
+	burst := func(session *mcp.ClientSession, from string) {
+		defer waiting.Done()
+		for i := 0; i < each; i++ {
+			result := invoke(t, session, "mailbox_send", map[string]any{
+				"to": "reader@testbox", "body": fmt.Sprintf("%s %d", from, i),
+			})
+			if result.IsError {
+				t.Errorf("%s %d: %s", from, i, allText(result))
+				return
+			}
+		}
+	}
+	waiting.Add(2)
+	go burst(left, "left")
+	go burst(right, "right")
+	waiting.Wait()
+
+	// Read until it stops handing things over: one read is bounded, so the whole
+	// burst takes several.
+	bodies := map[string]bool{}
+	seqs := map[float64]string{}
+	for round := 0; round < 10; round++ {
+		result := invoke(t, reader, "mailbox_read", nil)
+		if result.IsError {
+			t.Fatalf("reading: %s", allText(result))
+		}
+		var answer struct {
+			Messages []struct {
+				Seq  float64 `json:"seq"`
+				Body string  `json:"body"`
+			} `json:"messages"`
+			Left int `json:"left"`
+		}
+		// The client decodes it into a map, so it goes back through JSON to be
+		// read as the shape the spec gives.
+		raw, err := json.Marshal(result.StructuredContent)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal(raw, &answer); err != nil {
+			t.Fatalf("the structured answer is %s: %v", raw, err)
+		}
+		for _, message := range answer.Messages {
+			if was, seen := seqs[message.Seq]; seen {
+				t.Errorf("seq %v is both %q and %q", message.Seq, was, message.Body)
+			}
+			seqs[message.Seq] = message.Body
+			bodies[message.Body] = true
+		}
+		if answer.Left == 0 {
+			break
+		}
+	}
+
+	if len(bodies) != 2*each {
+		var missing []string
+		for _, from := range []string{"left", "right"} {
+			for i := 0; i < each; i++ {
+				if body := fmt.Sprintf("%s %d", from, i); !bodies[body] {
+					missing = append(missing, body)
+				}
+			}
+		}
+		sort.Strings(missing)
+		t.Errorf("%d of %d arrived; missing %v", len(bodies), 2*each, missing)
+	}
+}
