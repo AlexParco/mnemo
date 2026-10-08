@@ -145,6 +145,11 @@ Each list below is behaviour, not a test-per-function list.
   the program dies.
 - The bindings and the files must match, proved against a `rules/` that is wrong on purpose: a file
   nothing is bound to, and a binding with no file. Both stop the program at startup.
+- `MAILBOX_RULE` is read for what it says, not only for arriving intact: that the sender's name is
+  claimed rather than verified, that silence is not permission, that reading a project is not acting,
+  that a group message was not addressed to this agent in particular, and that a sender blocked on
+  an answer has to be told the message arrived. It is the only text checked this way, because it is
+  the only one an agent reads while deciding what to do about something a stranger sent it.
 - Every marked region of every `.md` file of every skill is byte-identical to the text it names.
   Which skill carries which rule is a table, not a global set: two skills quote `SAVE_CRITERION`,
   and either copy could rot while the other kept the check green. A skill missing from the table,
@@ -733,6 +738,17 @@ the control fails.
   both ways.
 - Point the plugin's monitor at a command the binary does not have: the test that every command the
   plugin invokes exists fails.
+- Let a caller retag an address it does not hold: the retag test fails on both halves, the table and
+  the next refusal.
+- Describe a chat that has gone as still holding its name: the describe test fails.
+- Say the migration notice at every call: the moved-aside test fails.
+- Deliver a message without the rule that says what a message is, and leave its body unfenced inside
+  mnemo's own framing: the round-trip test and the forged-body test fail.
+- Count only the post that is new rather than all of it: the busy-chat test fails.
+- Record the label a client gave itself on the address: the client-label test fails, and with it the
+  promise that no group can reach a chat by a name the client chose for itself.
+- Tell a chat whose claim was refused that it is the address it asked for: the lost-name test fails.
+- Drop from `MAILBOX_RULE` what mnemo cannot verify: the test that reads what the rule says fails.
 
 **Waiting for the packages they test.**
 
