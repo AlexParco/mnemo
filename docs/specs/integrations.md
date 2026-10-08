@@ -199,10 +199,13 @@ plugin/skills/{forget,list-context,load-context,mem,rename,save-context}/SKILL.m
 A hidden command, run by the plugin's monitor. Each line it prints becomes a notification, and a
 notification wakes a chat that is idle at the prompt.
 
-- **The name** comes from `MNEMO_AGENT`. Without it the command exits 0 at once, silently. A chat
-  opened without `mnemo run` has no messages to announce.
-- **The address** is the name and this machine's label. The tool comes from `--tool`, for group
-  messages.
+- **The name** comes from `MNEMO_AGENT`. Without it, or without a machine label, the command exits
+  0 at once, silently: a chat opened without `mnemo run` has no messages to announce, and without a
+  label there is no address to watch. A missing label is already said once, by the settings.
+- **The address** is the name and this machine's label. `--tool` is accepted because the plugin
+  passes it and the interface is a contract, and it does not decide what the watcher sees: a group
+  message is matched against the tool recorded on the address when the chat claimed its name, which
+  is what the chat actually is rather than what an outside process was told it is.
 - **Every 2 seconds** it runs `peek` on the local mailbox, or asks `/v1/mailbox/unread` when
   connected, bringing the tunnel up if needed.
 - **It announces each waiting message once** per run, starting with what is already waiting when it
@@ -215,8 +218,10 @@ notification wakes a chat that is idle at the prompt.
 
   The preview is the body with runs of whitespace collapsed to one space and trimmed. Past 120 code
   points it is cut to 119 followed by `…`.
-- **Errors** go to stderr, once per distinct error, and the watch continues. A tunnel that drops for
-  a minute must not end it.
+- **Errors** go to stderr as `mnemo watch: <message>`, once per distinct error, and the watch
+  continues. A tunnel that drops for a minute must not end it. It names itself rather than saying
+  `mnemo:` like every other command, because its stderr goes into a plugin log several mnemo
+  processes write to at once.
 - **It exits** on SIGINT or SIGTERM, and when stdout is closed.
 
 ## `mnemo hook suggest-save`
@@ -226,7 +231,9 @@ unsaved work piles up, and never blocks an edit.
 
 - **Input:** the hook's JSON on stdin, with `session_id` and `transcript_path`. Without a session id
   it does nothing.
-- **It does nothing** when the store directory does not exist.
+- **It does nothing about saving** when the store directory does not exist: there is nothing
+  unsaved to nudge about yet. It still says what is below about waiting messages, which has nothing
+  to do with the store.
 - **Settings**, from the environment only:
 
   | Variable | Default | Meaning |
@@ -237,7 +244,8 @@ unsaved work piles up, and never blocks an edit.
 
 - **Language:** Spanish when the resolved `lang` is `es`, else English.
 - **State per session:** `<state>/suggest-save/<session_id>.json` holds `edits`, `editsAtLastNudge`,
-  `tokensAtLastNudge` and `storeHead`. Files older than 7 days are deleted.
+  `tokensAtLastNudge`, `storeHead` and `announcedPost`. Files older than 7 days are deleted; a file
+  from yesterday is somebody's work in progress and is left alone.
 - **A save resets the count.** The store's HEAD is read from the files in `.git` without running git.
   When it differs from the stored one, the unsaved count starts again.
 - **Edit signal:** every call counts one edit. When the unsaved edits reach the threshold, it nudges
@@ -251,6 +259,12 @@ unsaved work piles up, and never blocks an edit.
   - English: `mnemo: <reason> this session. Consider /mnemo:save-context <project> so you don't lose progress.`
     The reason is `<n> unsaved edit` or `<n> unsaved edits`, or `context at ~<k>k tokens`.
   - Spanish: `mnemo: <reason> en esta sesión. Considera /mnemo:save-context <proyecto> para no perder el avance.`
-    The reason is `<n> ediciones sin guardar`, or `contexto en ~<k>k tokens`.
+    The reason is `1 edición sin guardar`, `<n> ediciones sin guardar`, or `contexto en ~<k>k
+    tokens`. Both languages have a singular, because a threshold of one is allowed.
+- **Waiting messages** are mentioned too, which is the third way a message reaches a chat and the
+  only one that reaches a chat that is working rather than idle. The sentence is the one on every
+  tool answer, prefixed with `mnemo: `, and it is said once per message rather than before every
+  edit until it is read. It reads with `peek`, so it takes no lock and marks nothing: the chat still
+  reads with `mailbox_read`. With no name there is nothing to say.
 - **It never fails.** Every error ends silently with exit code 0. A broken hook must not get in the
   way of work.

@@ -24,7 +24,11 @@ The shape of it, in short:
 
 - **Names** match `^[a-z0-9][a-z0-9-]{0,62}$`.
 - **Machines** are normalised labels, as in [config.md](config.md#machine-label).
-- **A known address** is one that has been held at least once, or that received a message.
+- **A known address** is one that has been held at least once. Receiving a message does not make
+  an address known: it has no tool and no floor until an instance claims it, and recording one from
+  a send would put a typo in the list of names for ever. That is what makes the warning on a send
+  to an unknown address worth saying — the list of known addresses is the list of names that have
+  existed, so an address missing from it is a plausible mistake.
 
 ## Identity of a caller
 
@@ -44,6 +48,9 @@ Every mailbox operation has a caller: an address, a tool and an instance.
   That fallback is for display only, and a group address never matches it.
 - **A caller without a name** can use every memory tool, but not the mailbox. Mailbox tools
   refuse with: `This chat has no mailbox name. Open it with: mnemo run <tool> --name <name>`.
+  `peers` is the exception: it answers, with an identity line saying there is no name and how to
+  get one. It is how an agent finds out which of the two it is, and refusing it would refuse the
+  answer to the question.
 - The server trusts the machine and name headers. Anyone with the token is the user.
 
 ## Holding a name
@@ -146,7 +153,10 @@ old messages when a prune is due, and records the caller.
 ### wait(timeout_ms)
 
 - The timeout defaults to 30 000 ms and is clamped to at most 55 000 ms, because Codex cuts tool
-  calls at 60 seconds by default.
+  calls at 60 seconds by default. A timeout of zero is the default, not an immediate return: the
+  tool schema and a command both send zero for an argument nobody gave, so reading it as "return at
+  once" would make the documented default unreachable. The clamp is the engine's own defence for a
+  caller with no schema in front of it; today every caller comes through one.
 - Every 250 ms it checks the size of the log. When the size changed, it runs `read`. It returns
   as soon as that finds messages.
 - When the time runs out, or the request is cancelled, it returns an empty result that says it
@@ -154,11 +164,14 @@ old messages when a prune is due, and records the caller.
 
 ### peers()
 
-- One row per known address: address, tool, `live` or `offline`, unread count, last seen, and
-  whether it is the caller.
+- One row per known address — so one row per name that has been claimed, never one for an address
+  that has only ever been written to: address, tool, `live` or `offline`, unread count, last seen,
+  and whether it is the caller.
 - `live` means a holder was confirmed alive during this call. `offline` means nobody holds it.
   A status is never inferred from old state.
-- **The unread count** covers direct messages above the cursor.
+- **The unread count** covers everything `read` would hand over: direct messages above the cursor,
+  and group messages above both the cursor and the floor. A count that excluded groups would show
+  `0` beside an agent with unread mail, which is the confusion `peers` exists to prevent.
 - **Order:** the caller first, then live rows, then by address.
 - The result also names the machine that hosts this mailbox.
 - An address that has been offline for 90 days with nothing unread is dropped from the known
@@ -245,7 +258,10 @@ all day.
 2 message(s) waiting for you, from worker-api@laptop1 and boss@vps. Read them with mailbox_read.
 ```
 
-It is the last block, after everything else, and it is added to memory tools as much as mailbox ones:
+It is the last block, after everything else — after the identity line, and after the blocks each
+tool's own entry in [mcp.md](mcp.md) lists, which enumerate what that tool says and not this. It is
+left off `mailbox_read` and `mailbox_wait`, which have just handed over everything there was, and off
+every refusal, which is one block by contract. It is added to memory tools as much as mailbox ones:
 a chat that searched its memory has just told mnemo it is awake, and that is the cheapest moment there
 will ever be to mention the post. Nothing is marked read, and the count comes from the same `peek`
 the watcher uses.

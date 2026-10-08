@@ -44,7 +44,11 @@ in the card and in `mnemo_status`.
 - **JSON inside a block** uses two-space indentation, keeps field order as written here, and does
   not escape `<`, `>` or `&`.
 - **The mailbox tools also return structured content**, which the terminal commands use. Its
-  schema is given with each tool.
+  schema is given with each tool, and a refusal carries none: there is no answer to parse, and a
+  command handed one would report a message that was never sent.
+- **A tool's block list below is its own blocks only.** The waiting-messages line is appended after
+  them, to every successful answer of every tool except `mailbox_read` and `mailbox_wait`. It is not
+  repeated in each entry.
 - **A refusal** is a result with `isError: true` and exactly one text block that says what to do
   instead. Store refusals, git errors, lock timeouts and a path mnemo cannot read or write become
   refusals. Once an answer has failed it takes no further blocks, so a handler that keeps writing
@@ -91,9 +95,11 @@ The table lists the annotations. `ro` is `readOnlyHint: true`. `idem` is `idempo
   static per tool, so it has to describe the worst the tool can do, and with `overwrite` it
   replaces a file. A client that skips confirmation for a non-destructive call would otherwise
   approve an overwrite on the agent's word alone.
-- **Reading mail is annotated read-only**, although it moves a cursor. That is the server's own
-  bookkeeping, and annotating it as a write would make Codex's `writes` approval mode prompt on
-  every check.
+- **Reading mail and listing peers are annotated read-only**, although both write: reading moves a
+  cursor, and listing reaps dead holders, records the caller, prunes and forgets addresses offline
+  for ninety days. All of that is the server's own bookkeeping rather than the user's memory, and
+  annotating it as a write would make Codex's `writes` approval mode prompt on every check for post
+  and every "who can I reach".
 - **Removed:** `mailbox_register`, because names come from `mnemo run`, and `mailbox_inbox`,
   which is now `mailbox_read`. The `cursor` target of `mnemo_guide` is gone, because Cursor is
   not a supported tool.
@@ -568,7 +574,9 @@ Description:
 
 Output:
 
-1. `Mailbox on <machine>.`
+1. `Mailbox on <machine>.` When this process moved an earlier install's files aside, a second line
+   follows, said once: `An earlier install's messages used a different address format and were moved
+   to <directory>. The mailbox started empty.`
 2. `No agents known yet.`, or a table:
 
    ```
@@ -576,6 +584,10 @@ Output:
    |---|---|---|---|---|
    | <address>[ (you)] | <tool> | live|offline | <n> | <ts> |
    ```
+
+   `<ts>` is UTC, to the second, or `never` for an address nobody has been heard at. A tool nothing
+   recorded reads `unknown`. The rows are ordered by the mailbox: the caller, then whoever is there
+   now, then by address.
 
 3. `live: its process was confirmed running just now. offline: a known name nobody holds — messages
    to it wait.`
@@ -592,8 +604,8 @@ Structured content:
 
 Description:
 
-> Leave a message for another agent — on this machine or another, in Claude Code, Codex or
-> opencode. `to` is an address (name@machine), a bare name when only one agent has it, `@all`, or
+> Leave a message for another agent — on this machine or another, in Claude Code, Codex, opencode
+> or a terminal. `to` is an address (name@machine), a bare name when only one agent has it, `@all`, or
 > `@<tool>` such as `@codex`. The message waits if that agent is not open. The body can be anything
 > the user or you want to pass on: a task, a question, a note, a status. The receiver did not see
 > your conversation, so make it self-contained. Pass `project` to point the receiver at that
@@ -639,8 +651,8 @@ Output:
 
    ```
    [<id>] from <from> (<tool>) to <to> · <ts>
-   [in reply to <reply_to>]
-   [project: <slug> — load its memory with mnemo_load_project before acting on this]
+   in reply to <reply_to>                                                     (only when there is one)
+   project: <slug> — load its memory with mnemo_load_project before acting on this   (only when set)
 
    <body>
 

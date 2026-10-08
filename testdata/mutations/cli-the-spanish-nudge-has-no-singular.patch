@@ -1,0 +1,17 @@
+Breaks: With one unsaved edit the Spanish reminder reads "1 ediciones sin guardar", which is the sentence stopping being somebody's language and becoming a translation. A threshold of one is reachable: MNEMO_SAVE_EDITS accepts it.
+Must fail: go test ./internal/cli -run '^TestTheNudgeFollowsTheLanguage$' -count=1
+
+diff --git a/internal/cli/hook.go b/internal/cli/hook.go
+index 2508738..9d43273 100644
+--- a/internal/cli/hook.go
++++ b/internal/cli/hook.go
+@@ -222,9 +222,6 @@ func nudge(spanish bool, reason string) string {
+ 
+ func editReason(spanish bool, edits int) string {
+ 	if spanish {
+-		if edits == 1 {
+-			return "1 edición sin guardar"
+-		}
+ 		return fmt.Sprintf("%d ediciones sin guardar", edits)
+ 	}
+ 	if edits == 1 {

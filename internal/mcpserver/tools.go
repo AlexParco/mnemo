@@ -443,8 +443,8 @@ func mailboxTools() []Definition {
 			Tool: &mcp.Tool{
 				Name: "mailbox_send",
 				Description: "Leave a message for another agent — on this machine or another, in Claude Code, " +
-					"Codex or opencode. `to` is an address (name@machine), a bare name when only one agent has " +
-					"it, `@all`, or `@<tool>` such as `@codex`. The message waits if that agent is not open. " +
+					"Codex, opencode or a terminal. `to` is an address (name@machine), a bare name when " +
+					"only one agent has it, `@all`, or `@<tool>` such as `@codex`. The message waits if that agent is not open. " +
 					"The body can be anything the user or you want to pass on: a task, a question, a note, a " +
 					"status. The receiver did not see your conversation, so make it self-contained. Pass " +
 					"`project` to point the receiver at that project's memory instead of pasting context into " +
