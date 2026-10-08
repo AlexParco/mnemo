@@ -102,4 +102,16 @@ explained where it appears.
     an address: a name a client chose for itself must not be able to make `@claude` reach a chat
     that is not Claude Code.
 31. **A refusal printed into a terminal names commands, not tools.** The mailbox writes one message
-    for both surfaces; the four tool names that have a command are translated on the way out.
+    for both surfaces; the four tool names that have a command are translated on the way out, and
+    `mnemo_list_projects`, which has none, becomes `ls <store>/projects`.
+32. **A read is bounded like every other answer.** At 20 messages or 128 KiB, always at least one,
+    saying how many are left, and marking read only what it handed over.
+33. **The reader is bounded by what a line can be, not by what a body may hold.** A body is at most
+    256 KiB and the JSON it is stored as can be six times that, and a line nothing can read past
+    ends the mailbox for everyone on the machine.
+34. **What is printed into a terminal carries no control characters.** They come back as the picture
+    characters for them, because dropping them would hide that anything was tried.
+35. **A local holder is judged by its process id, and that is accepted.** A crashed chat whose id
+    was reused looks alive and its name cannot be claimed until that process ends. Telling the two
+    apart needs a process start time, and reading one differs on every system; the cost is one name
+    on one machine, and the way out is another name.

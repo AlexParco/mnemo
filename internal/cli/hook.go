@@ -316,10 +316,6 @@ func sweepOldState(dir string, now time.Time) {
 		return
 	}
 	for _, entry := range entries {
-		info, err := entry.Info()
-		if err != nil || now.Sub(info.ModTime()) <= stateLifetime {
-			continue
-		}
 		_ = os.Remove(filepath.Join(dir, entry.Name()))
 	}
 }

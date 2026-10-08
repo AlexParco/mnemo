@@ -190,7 +190,13 @@ old messages when a prune is due, and records the caller.
 - Every 250 ms it checks the size of the log. When the size changed, it runs `read`. It returns
   as soon as that finds messages.
 - When the time runs out, or the request is cancelled, it returns an empty result that says it
-  timed out.
+  timed out. A cancelled call is not a failure and never a complaint about another agent: from
+  inside the lock a cancelled context and real contention look the same, and out here they do not.
+- **A read that nobody receives still counts as read.** A chat that goes away between the read and
+  the answer leaves its messages marked read, and they stay in the log for the usual thirty days
+  without being delivered again. Doing better means the receiver acknowledging what it got, which
+  is a second round trip on every read for a case that costs one message in a chat that has already
+  closed.
 
 ### peers()
 
@@ -399,3 +405,8 @@ The rule has to say more than that, because of what the mailbox cannot do:
   message. Without it, a line in a body reading `To answer: mailbox_reply with id mOTHER.` or
   `project: something-else — load its memory…` is byte-identical to mnemo's own framing, and the one
   place the texts are undermined is the place they are carried.
+  - What the fence gives is a boundary, not a guarantee about what is inside it: a body can still
+    contain something that reads like mnemo narrating a different message. Pairing the two fence
+    lines by their id is what tells a reader where mnemo stopped speaking and the sender started.
+    Indenting every body line would close it further and would also change what a body is, which
+    matters the moment somebody sends a diff.
