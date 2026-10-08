@@ -238,8 +238,16 @@ func (m *Mailbox) Wait(ctx context.Context, caller Caller, timeout time.Duration
 	// report that nothing arrived while it was sitting in the file.
 	size := m.logSize()
 	delivered, err := m.Read(ctx, caller)
-	if err != nil || len(delivered.Messages) > 0 {
-		return Waited{Delivery: delivered}, err
+	if err != nil {
+		// A wait whose chat went away came back empty, which is what it is, and
+		// not a failure: there is nobody left to tell.
+		if ctx.Err() != nil {
+			return Waited{TimedOut: true}, nil
+		}
+		return Waited{}, err
+	}
+	if len(delivered.Messages) > 0 {
+		return Waited{Delivery: delivered}, nil
 	}
 
 	deadline := m.now().Add(timeout)
@@ -255,6 +263,9 @@ func (m *Mailbox) Wait(ctx context.Context, caller Caller, timeout time.Duration
 				size = current
 				delivered, err := m.Read(ctx, caller)
 				if err != nil {
+					if ctx.Err() != nil {
+						return Waited{TimedOut: true}, nil
+					}
 					return Waited{}, err
 				}
 				if len(delivered.Messages) > 0 {

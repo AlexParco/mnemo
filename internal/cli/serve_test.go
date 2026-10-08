@@ -1455,3 +1455,141 @@ func TestTheHookIsNotRetriggeredByOtherAgentsTraffic(t *testing.T) {
 		t.Errorf("somebody else's traffic made it repeat itself: %q", again)
 	}
 }
+
+// `mnemo run` is the command everything else starts from, and it had no test.
+//
+// What it promises is that everything which can be checked is checked before the
+// tool opens, because a chat that opens and turns out to have no memory or no
+// mailbox is a chat nobody finds out about until they need one. So each refusal
+// is checked in order, and then the tool is really opened.
+func TestRunChecksEverythingBeforeOpeningTheTool(t *testing.T) {
+	home, env := machine(t, true)
+	work := t.TempDir()
+
+	// A fake codex on the PATH that prints what it was given. That is the whole
+	// of what `run` has to get right: the directory, the environment, and the
+	// arguments after --.
+	bin := filepath.Join(home, "bin")
+	fake := filepath.Join(bin, "codex")
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake tool is a shell script")
+	}
+	write(t, fake, "#!/bin/sh\necho \"tool ran in $(pwd)\"\necho \"agent=$MNEMO_AGENT tool=$MNEMO_TOOL\"\necho \"args=$*\"\n")
+	if err := os.Chmod(fake, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	onPath := append([]string{}, env...)
+	for i, entry := range onPath {
+		if strings.HasPrefix(entry, "PATH=") {
+			onPath[i] = "PATH=" + bin + string(os.PathListSeparator) + os.Getenv("PATH")
+		}
+	}
+	codexHome := filepath.Join(work, "codex")
+	onPath = append(onPath, "CODEX_HOME="+codexHome)
+
+	// No name at all.
+	out, code := runMnemo(t, onPath, "run", "codex", work)
+	if code != 2 || !strings.Contains(out, "--name") {
+		t.Errorf("without a name it exited %d:\n%s", code, out)
+	}
+	// A name that cannot be an address.
+	out, code = runMnemo(t, onPath, "run", "codex", work, "--name", "Not A Name")
+	if code != 2 || !strings.Contains(out, "not a usable name") {
+		t.Errorf("with a bad name it exited %d:\n%s", code, out)
+	}
+	// A tool mnemo does not know.
+	out, code = runMnemo(t, onPath, "run", "emacs", work, "--name", "alex")
+	if code != 2 || !strings.Contains(out, "not a tool mnemo knows") {
+		t.Errorf("with an unknown tool it exited %d:\n%s", code, out)
+	}
+	// A directory that is not one.
+	out, code = runMnemo(t, onPath, "run", "codex", filepath.Join(work, "nowhere"), "--name", "alex")
+	if code != 1 || !strings.Contains(out, "is not a directory") {
+		t.Errorf("with a missing directory it exited %d:\n%s", code, out)
+	}
+	// Not registered: the chat would open with no memory at all, and the failure
+	// is silent from inside it.
+	out, code = runMnemo(t, onPath, "run", "codex", work, "--name", "alex")
+	if code != 1 || !strings.Contains(out, "mnemo mcp add codex") {
+		t.Errorf("unregistered it exited %d:\n%s", code, out)
+	}
+
+	if out, code := runMnemo(t, onPath, "mcp", "add", "codex"); code != 0 {
+		t.Fatalf("registering: %d\n%s", code, out)
+	}
+
+	// Not on the PATH.
+	withoutTool := append([]string{}, onPath...)
+	for i, entry := range withoutTool {
+		if strings.HasPrefix(entry, "PATH=") {
+			withoutTool[i] = "PATH=" + filepath.Join(home, "empty")
+		}
+	}
+	out, code = runMnemo(t, withoutTool, "run", "codex", work, "--name", "alex")
+	if code != 1 || !strings.Contains(out, "is not on the PATH") {
+		t.Errorf("without the tool it exited %d:\n%s", code, out)
+	}
+
+	// And then it runs, in the directory it was given, with the name and the
+	// tool in the environment and the arguments after -- passed on.
+	out, code = runMnemo(t, onPath, "run", "codex", work, "--name", "alex", "--", "--resume", "last")
+	if code != 0 {
+		t.Fatalf("opening: %d\n%s", code, out)
+	}
+	for _, want := range []string{
+		"Opening codex as alex@testbox in " + work,
+		"tool ran in " + work,
+		"agent=alex tool=codex",
+		"args=--resume last",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("it does not say %q:\n%s", want, out)
+		}
+	}
+}
+
+// And the address has to be free, checked before a window opens rather than
+// after, which is the whole reason this check is here as well as in the chat.
+func TestRunRefusesANameAChatAlreadyHolds(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake tool is a shell script")
+	}
+	home, env := machine(t, true)
+	work := t.TempDir()
+	mailboxDir := filepath.Join(home, "mailbox")
+	env = append(env, "MNEMO_MAILBOX_DIR="+mailboxDir, "CODEX_HOME="+filepath.Join(work, "codex"))
+
+	bin := filepath.Join(home, "bin")
+	write(t, filepath.Join(bin, "codex"), "#!/bin/sh\necho ran\n")
+	if err := os.Chmod(filepath.Join(bin, "codex"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for i, entry := range env {
+		if strings.HasPrefix(entry, "PATH=") {
+			env[i] = "PATH=" + bin + string(os.PathListSeparator) + os.Getenv("PATH")
+		}
+	}
+	if out, code := runMnemo(t, env, "mcp", "add", "codex"); code != 0 {
+		t.Fatalf("registering: %d\n%s", code, out)
+	}
+
+	// A chat that really holds the name: a live process, which is this test.
+	since := time.Now().UTC().Format(time.RFC3339Nano)
+	write(t, filepath.Join(mailboxDir, "state.json"), fmt.Sprintf(`{"version":2,"next_seq":1,"addresses":{
+		"alex@testbox":{"tool":"claude","floor":0,"cursor":0,"last_seen":%q,
+		"holder":{"instance":"another-chat","via":"local","pid":%d,"since":%q}}}}`,
+		since, os.Getpid(), since))
+
+	out, code := runMnemo(t, env, "run", "codex", work, "--name", "alex")
+	if code != 1 {
+		t.Fatalf("it exited %d:\n%s", code, out)
+	}
+	// Named, with the tool and the time: somebody has to know which window to
+	// close, and "another chat" does not tell them.
+	if !strings.Contains(out, "alex@testbox is already open in claude since") {
+		t.Errorf("it does not say who has the name:\n%s", out)
+	}
+	if strings.Contains(out, "ran") {
+		t.Error("the tool was opened anyway")
+	}
+}

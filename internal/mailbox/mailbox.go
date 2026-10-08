@@ -189,6 +189,14 @@ func (m *Mailbox) hold(ctx context.Context, fn func() error) error {
 	}
 	err := m.locker.Hold(ctx, m.Dir, fn)
 	if lock.IsTimeout(err) {
+		// From inside the lock, a cancelled context and real contention look the
+		// same: running out of time is what contention looks like there. Here
+		// the difference matters. Nobody is holding anything — the chat went
+		// away — and telling whoever is left that another agent is using the
+		// mailbox would send them looking for a problem that is not there.
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 		return refuse("Another agent is using the mailbox and did not let go in time (%s). Try again in a moment.",
 			err)
 	}

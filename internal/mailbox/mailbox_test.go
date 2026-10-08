@@ -1,6 +1,7 @@
 package mailbox
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -933,5 +934,35 @@ func TestABodyThatIsAllEscapesDoesNotEndTheMailbox(t *testing.T) {
 	}
 	if _, err := b.Send(t.Context(), victim, sender.Address(), "got it", ""); err != nil {
 		t.Errorf("sending afterwards: %v", err)
+	}
+}
+
+// A wait stops when the chat goes away. It is not a failure — nobody is left to
+// answer — and it must not keep a tool call open after the client has gone.
+func TestACancelledWaitStopsAndIsNotAFailure(t *testing.T) {
+	b := newBox(t)
+	waiter := b.agent(t, "boss", "claude", 100)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	stopped := make(chan Waited, 1)
+	go func() {
+		waited, err := b.Wait(ctx, waiter, MaxWait)
+		if err != nil {
+			t.Errorf("a cancelled wait failed: %v", err)
+		}
+		stopped <- waited
+	}()
+
+	cancel()
+	select {
+	case waited := <-stopped:
+		if !waited.TimedOut {
+			t.Error("a cancelled wait did not say it came back empty")
+		}
+		if len(waited.Messages) != 0 {
+			t.Errorf("it came back with %q", bodies(waited.Messages))
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("a cancelled wait is still waiting, so the tool call outlived the chat")
 	}
 }

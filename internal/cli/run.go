@@ -35,28 +35,42 @@ func runCommand() *cobra.Command {
 			"straight to it.\n\n" +
 			"Arguments after -- are passed to the tool.",
 		Args: func(cmd *cobra.Command, args []string) error {
-			if len(args) == 0 {
+			mine, _ := split(cmd, args)
+			if len(mine) == 0 {
 				return usage("name the tool to open: %s", strings.Join(integration.Names, ", "))
 			}
-			if !contains(integration.Names, args[0]) {
-				return usage("%q is not a tool mnemo knows. It knows: %s", args[0], strings.Join(integration.Names, ", "))
+			if !contains(integration.Names, mine[0]) {
+				return usage("%q is not a tool mnemo knows. It knows: %s", mine[0], strings.Join(integration.Names, ", "))
 			}
-			if len(args) > 2 {
+			if len(mine) > 2 {
 				return usage("this takes a tool and an optional directory; put the tool's own arguments after --")
 			}
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			tool := args[0]
+			mine, theirs := split(cmd, args)
 			directory := ""
-			if len(args) == 2 {
-				directory = args[1]
+			if len(mine) == 2 {
+				directory = mine[1]
 			}
-			return open(cmd, tool, name, directory, cmd.Flags().Args()[len(args):])
+			return open(cmd, mine[0], name, directory, theirs)
 		},
 	}
 	command.Flags().StringVar(&name, "name", "", "the mailbox name for this chat, e.g. worker-api")
 	return command
+}
+
+// split separates mnemo's own arguments from the tool's.
+//
+// Everything after `--` belongs to the tool, and cobra hands both halves over in
+// one slice with a mark at the dash. Reading the slice as mnemo's own made
+// `mnemo run codex . -- --resume` a usage error, so the one thing the dash is
+// for did not work.
+func split(cmd *cobra.Command, args []string) (mine, theirs []string) {
+	if dash := cmd.ArgsLenAtDash(); dash >= 0 && dash <= len(args) {
+		return args[:dash], args[dash:]
+	}
+	return args, nil
 }
 
 func contains(values []string, want string) bool {
