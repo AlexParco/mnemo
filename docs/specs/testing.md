@@ -538,8 +538,14 @@ user's machines are.
 - Version 1 files are moved aside, and the mailbox starts empty.
 - A caller without a name gets the `mnemo run` refusal from every mailbox tool, and memory tools
   still work.
-- Two real `mnemo serve` processes: a message crosses and the reply comes back; bursts from both
-  lose nothing and share no `seq`; the tool shown comes from `MNEMO_TOOL`.
+- **Two real `mnemo serve` processes**, which is the test the mailbox exists to pass and the only one
+  that proves the parts meet: each says on stderr that it holds its name; a bare name resolves,
+  because the other chat claimed it when it started; the message crosses with its project pointed
+  at; the reply comes back to exactly the chat that asked; each sees the other live, in the tool it
+  really runs in; and a third chat asking for a name that is open is turned away on stderr, keeps
+  its memory, is refused by `mailbox_read` with the same sentence, and is told by `mailbox_peers`
+  which window to close.
+- Bursts from both lose nothing and share no `seq`; the tool shown comes from `MNEMO_TOOL`.
 
 ### MCP surface
 

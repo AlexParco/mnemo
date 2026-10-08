@@ -1255,3 +1255,109 @@ func TestOldSessionStateIsSweptUp(t *testing.T) {
 		t.Errorf("yesterday's session was swept up: %v", err)
 	}
 }
+
+// invoke calls a tool on a session, failing the test if the call itself does not
+// get through. A refusal is an answer and comes back for the test to look at.
+func invoke(t *testing.T, session *mcp.ClientSession, tool string, args map[string]any) *mcp.CallToolResult {
+	t.Helper()
+	result, err := session.CallTool(t.Context(), &mcp.CallToolParams{Name: tool, Arguments: args})
+	if err != nil {
+		t.Fatalf("%s: %v", tool, err)
+	}
+	return result
+}
+
+// Two real chats, two processes, one message and the answer back. This is the
+// test the whole mailbox exists to pass, and the only one that proves the parts
+// meet: two `mnemo serve` processes that know nothing of each other, a name
+// claimed in each, and files as the only thing between them.
+func TestAMessageCrossesBetweenTwoRealChatsAndTheReplyComesBack(t *testing.T) {
+	home, env := machine(t, true)
+	mailboxDir := filepath.Join(home, "mailbox")
+	chat := func(name, tool string) (*mcp.ClientSession, *complaints) {
+		return serve(t, append(env,
+			"MNEMO_MAILBOX_DIR="+mailboxDir, "MNEMO_AGENT="+name, "MNEMO_TOOL="+tool))
+	}
+
+	boss, bossSaid := chat("boss", "claude")
+	worker, workerSaid := chat("worker-api", "codex")
+
+	// Each process says on stderr that it holds its name, which is the only
+	// place a person can see it: stdout carries the protocol.
+	for name, said := range map[string]*complaints{"boss": bossSaid, "worker-api": workerSaid} {
+		if want := "holding " + name + "@testbox"; !strings.Contains(said.String(), want) {
+			t.Errorf("%s did not say it holds its name:\n%s", name, said)
+		}
+	}
+
+	// A bare name resolves, because the other chat claimed it when it started —
+	// which is the point of claiming at startup rather than at first use.
+	sent := invoke(t, boss, "mailbox_send", map[string]any{
+		"to": "worker-api", "body": "add the coupons endpoint", "project": "shop",
+	})
+	if sent.IsError {
+		t.Fatalf("sending: %s\nstderr:\n%s", allText(sent), bossSaid)
+	}
+	first := allText(sent)[0]
+	if !strings.Contains(first, "to worker-api@testbox.") {
+		t.Errorf("the send says %q", first)
+	}
+	if strings.Contains(first, "warning") {
+		t.Errorf("a message to a chat that is open warned about waiting: %q", first)
+	}
+
+	delivered := allText(invoke(t, worker, "mailbox_read", nil))
+	if !strings.Contains(delivered[0], "from boss@testbox (claude)") ||
+		!strings.Contains(delivered[0], "add the coupons endpoint") {
+		t.Fatalf("what the worker read:\n%s", strings.Join(delivered, "\n--\n"))
+	}
+	// It names the project rather than carrying its context, and says to load it.
+	if !strings.Contains(delivered[0], "mnemo_load_project") {
+		t.Error("the project was not pointed at")
+	}
+	id := strings.TrimSuffix(strings.TrimPrefix(strings.Fields(delivered[0])[0], "["), "]")
+
+	answered := invoke(t, worker, "mailbox_reply", map[string]any{"id": id, "body": "done, tests pass"})
+	if answered.IsError {
+		t.Fatalf("replying: %s\nstderr:\n%s", allText(answered), workerSaid)
+	}
+
+	// The answer goes back to exactly the chat that asked.
+	back := allText(invoke(t, boss, "mailbox_read", nil))
+	if !strings.Contains(back[0], "in reply to "+id) || !strings.Contains(back[0], "done, tests pass") {
+		t.Fatalf("what came back:\n%s", strings.Join(back, "\n--\n"))
+	}
+
+	// And each sees the other as live, in the tool it really runs in.
+	table := strings.Join(allText(invoke(t, boss, "mailbox_peers", nil)), "\n")
+	for _, want := range []string{"boss@testbox (you)", "| claude | live |", "worker-api@testbox", "| codex | live |"} {
+		if !strings.Contains(table, want) {
+			t.Errorf("peers does not show %q:\n%s", want, table)
+		}
+	}
+
+	// A third chat asking for a name that is open is turned away, and told where
+	// to find the one that has it.
+	third, thirdSaid := chat("worker-api", "opencode")
+	if !strings.Contains(thirdSaid.String(), "worker-api@testbox is already open in codex") {
+		t.Errorf("the third chat was not told who has the name:\n%s", thirdSaid)
+	}
+	// It still has its memory — losing the mailbox is not losing the memory —
+	// and every mailbox tool but peers refuses with the same sentence.
+	if result := invoke(t, third, "mnemo_list_projects", nil); result.IsError {
+		t.Errorf("a chat that lost the name lost its memory too: %s", allText(result))
+	}
+	refused := invoke(t, third, "mailbox_read", nil)
+	if !refused.IsError {
+		t.Error("a chat that does not hold the name read its post")
+	}
+	if said := allText(refused)[0]; !strings.Contains(said, "already open in codex") {
+		t.Errorf("it refuses with %q", said)
+	}
+	// Peers answers, with the warning on the identity line: it is how the person
+	// finds out which window to close.
+	seen := allText(invoke(t, third, "mailbox_peers", nil))
+	if identity := seen[len(seen)-1]; !strings.Contains(identity, "warning: worker-api@testbox is already open") {
+		t.Errorf("the identity line is %q", identity)
+	}
+}
