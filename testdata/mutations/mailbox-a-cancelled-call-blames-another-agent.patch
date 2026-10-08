@@ -1,0 +1,67 @@
+Breaks: A chat that goes away mid-call is told that another agent is using the mailbox and did not let go in time. Nobody is holding anything, so whoever reads that — a log, a person — goes looking for a problem that is not there.
+Must fail: go test ./internal/mailbox -run '^TestACancelledWaitStopsAndIsNotAFailure$' -count=1
+
+diff --git a/internal/mailbox/mailbox.go b/internal/mailbox/mailbox.go
+index 6e1826e..7e4495e 100644
+--- a/internal/mailbox/mailbox.go
++++ b/internal/mailbox/mailbox.go
+@@ -194,9 +194,6 @@ func (m *Mailbox) hold(ctx context.Context, fn func() error) error {
+ 		// the difference matters. Nobody is holding anything — the chat went
+ 		// away — and telling whoever is left that another agent is using the
+ 		// mailbox would send them looking for a problem that is not there.
+-		if ctx.Err() != nil {
+-			return ctx.Err()
+-		}
+ 		return refuse("Another agent is using the mailbox and did not let go in time (%s). Try again in a moment.",
+ 			err)
+ 	}
+diff --git a/internal/mailbox/mailbox_test.go b/internal/mailbox/mailbox_test.go
+index 77738ad..eb04803 100644
+--- a/internal/mailbox/mailbox_test.go
++++ b/internal/mailbox/mailbox_test.go
+@@ -2,6 +2,7 @@ package mailbox
+ 
+ import (
+ 	"context"
++	"errors"
+ 	"os"
+ 	"path/filepath"
+ 	"strings"
+@@ -954,6 +955,37 @@ func TestACancelledWaitStopsAndIsNotAFailure(t *testing.T) {
+ 	}()
+ 
+ 	cancel()
++
++	// And nothing else blames another agent either. From inside the lock a
++	// cancelled context looks exactly like contention, and a refusal saying
++	// somebody else is holding the mailbox sends whoever reads it after a
++	// problem that is not there.
++	for what, err := range map[string]error{
++		"sending": func() error {
++			_, err := b.Send(ctx, waiter, "worker@here", "anything", "")
++			return err
++		}(),
++		"reading": func() error {
++			_, err := b.Read(ctx, waiter)
++			return err
++		}(),
++		"listing": func() error {
++			_, err := b.List(ctx, waiter)
++			return err
++		}(),
++	} {
++		if err == nil {
++			t.Errorf("%s went through after the chat went away", what)
++			continue
++		}
++		if strings.Contains(err.Error(), "Another agent") {
++			t.Errorf("%s blames another agent: %v", what, err)
++		}
++		if !errors.Is(err, context.Canceled) {
++			t.Errorf("%s says %v, which does not say the call was cancelled", what, err)
++		}
++	}
++
+ 	select {
+ 	case waited := <-stopped:
+ 		if !waited.TimedOut {

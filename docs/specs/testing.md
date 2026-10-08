@@ -792,6 +792,8 @@ the control fails.
 - Announce the post to a chat whose claim was refused: the not-nagged test fails.
 - Decide what is new from the top of the whole log: the test that somebody else's traffic does not
   retrigger the hook fails.
+- Read everything after `--` as mnemo's own: the `run` test fails on the one thing the dash is for.
+- Blame another agent for a call whose chat went away: the cancelled-wait test fails.
 
 **Waiting for the packages they test.**
 

@@ -1,0 +1,79 @@
+Breaks: Everything after -- is read as mnemo's own, so  is a usage error and the one thing the dash exists for does not work: no argument can ever be passed to the tool.
+Must fail: go test ./internal/cli -run '^TestRunChecksEverythingBeforeOpeningTheTool$' -count=1
+
+diff --git a/internal/cli/run.go b/internal/cli/run.go
+index b33ca1f..82cf6ef 100644
+--- a/internal/cli/run.go
++++ b/internal/cli/run.go
+@@ -67,9 +67,6 @@ func runCommand() *cobra.Command {
+ // `mnemo run codex . -- --resume` a usage error, so the one thing the dash is
+ // for did not work.
+ func split(cmd *cobra.Command, args []string) (mine, theirs []string) {
+-	if dash := cmd.ArgsLenAtDash(); dash >= 0 && dash <= len(args) {
+-		return args[:dash], args[dash:]
+-	}
+ 	return args, nil
+ }
+ 
+diff --git a/internal/mailbox/zz_probe_test.go b/internal/mailbox/zz_probe_test.go
+deleted file mode 100644
+index 07c4da2..0000000
+--- a/internal/mailbox/zz_probe_test.go
++++ /dev/null
+@@ -1,56 +0,0 @@
+-package mailbox
+-
+-import (
+-	"testing"
+-	"time"
+-)
+-
+-func TestProbeForgottenAddressRedelivery(t *testing.T) {
+-	b := newBox(t)
+-	worker := b.agent(t, "worker", "claude", 100)
+-	gone := b.agent(t, "gone", "codex", 200)
+-
+-	b.send(t, worker, "gone@here", "read this")
+-	got := b.read(t, gone)
+-	if len(got) != 1 {
+-		t.Fatalf("gone read %d messages, want 1", len(got))
+-	}
+-	// gone's process dies
+-	b.alive[200] = false
+-
+-	// clock moves past Offline
+-	b.now = b.now.Add(Offline + 48*time.Hour)
+-
+-	peers, err := b.List(t.Context(), worker)
+-	if err != nil {
+-		t.Fatalf("peers: %v", err)
+-	}
+-	for _, p := range peers.Peers {
+-		t.Logf("peer %s live=%v unread=%d", p.Address, p.Live, p.Unread)
+-	}
+-
+-	st, err := b.loadState()
+-	if err != nil {
+-		t.Fatal(err)
+-	}
+-	_, stillKnown := st.Addresses["gone@here"]
+-	log, err := b.readLog()
+-	if err != nil {
+-		t.Fatal(err)
+-	}
+-	t.Logf("gone@here still in state: %v; log has %d messages", stillKnown, len(log))
+-	for _, msg := range log {
+-		t.Logf("  log: seq=%d to=%s body=%q", msg.Seq, msg.To, msg.Body)
+-	}
+-
+-	// a new chat claims the same name
+-	fresh := b.agent(t, "gone", "codex", 300)
+-	again, err := b.Read(t.Context(), fresh)
+-	if err != nil {
+-		t.Fatal(err)
+-	}
+-	t.Logf("fresh gone@here re-read %d messages", len(again.Messages))
+-	if len(again.Messages) > 0 {
+-		t.Errorf("REPRODUCED: re-delivered %q", again.Messages[0].Body)
+-	}
+-}
