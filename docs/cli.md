@@ -130,6 +130,11 @@ mnemo tunnel                            the background process that keeps the SS
 mnemo hook suggest-save                 the save reminder run by the Claude Code plugin
 ```
 
+- **A refusal names commands, not tools.** The mailbox writes one message for both surfaces, which
+  is right — two wordings of the same refusal would drift — but the names in it are the MCP tools'.
+  From a terminal `mailbox_peers` is printed as `mnemo peers`, and so for `send`, `reply` and
+  `read`: telling somebody in a shell to check a spelling with a tool they cannot call is telling
+  them nothing.
 - Errors go to stderr as `mnemo: <message>`.
 - Exit status is 0 on success, 1 on failure and 2 on a usage error.
 

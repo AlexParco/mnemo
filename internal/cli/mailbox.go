@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -49,7 +50,7 @@ func peersCommand() *cobra.Command {
 			}
 			peers, err := box.List(cmd.Context(), caller)
 			if err != nil {
-				return err
+				return asCommand(err)
 			}
 			return printPeers(cmd.OutOrStdout(), peers, time.Now())
 		},
@@ -76,7 +77,7 @@ func sendCommand() *cobra.Command {
 			return holding(cmd.Context(), box, caller, func() error {
 				sent, err := box.Send(cmd.Context(), caller, args[0], args[1], project)
 				if err != nil {
-					return err
+					return asCommand(err)
 				}
 				return printSent(cmd.OutOrStdout(), caller, sent,
 					fmt.Sprintf("sent %s to %s", sent.Message.ID, sent.Message.To))
@@ -104,7 +105,7 @@ func replyCommand() *cobra.Command {
 			return holding(cmd.Context(), box, caller, func() error {
 				sent, err := box.Reply(cmd.Context(), caller, args[0], args[1])
 				if err != nil {
-					return err
+					return asCommand(err)
 				}
 				return printSent(cmd.OutOrStdout(), caller, sent, fmt.Sprintf("sent %s in reply to %s to %s",
 					sent.Message.ID, sent.Message.ReplyTo, sent.Message.To))
@@ -132,7 +133,7 @@ func readCommand() *cobra.Command {
 			return holding(cmd.Context(), box, caller, func() error {
 				messages, err := box.Read(cmd.Context(), caller)
 				if err != nil {
-					return err
+					return asCommand(err)
 				}
 				return printMessages(cmd.OutOrStdout(), caller, messages, time.Now())
 			})
@@ -140,6 +141,37 @@ func readCommand() *cobra.Command {
 	}
 	command.Flags().StringVar(&name, "name", "", "the name to read for, e.g. alex")
 	return command
+}
+
+// asCommand turns the tool names in a refusal into the commands a person can
+// actually type.
+//
+// The mailbox writes one message for both surfaces, which is right — two
+// wordings of the same refusal would drift — but the names in it belong to the
+// MCP tools. Telling somebody in a shell to "check the spelling with
+// mailbox_peers" is telling them to do something they cannot do.
+func asCommand(err error) error {
+	if err == nil {
+		return nil
+	}
+	said := err.Error()
+	for tool, command := range map[string]string{
+		"mailbox_peers": "mnemo peers",
+		"mailbox_send":  "mnemo send",
+		"mailbox_reply": "mnemo reply",
+		"mailbox_read":  "mnemo read",
+	} {
+		said = strings.ReplaceAll(said, tool, command)
+	}
+	if said == err.Error() {
+		return err
+	}
+	// Kept as a refusal rather than rewritten into a plain error: what it is
+	// decides the exit status.
+	if mailbox.IsRefusal(err) {
+		return &mailbox.Refusal{Message: said}
+	}
+	return errors.New(said)
 }
 
 // terminal works out who the person is: the name they gave, else MNEMO_AGENT,
@@ -182,7 +214,7 @@ func terminal(name string, needed bool) (config.Settings, *mailbox.Mailbox, mail
 // refused rather than quietly reading the chat's post out from under it.
 func holding(ctx context.Context, box *mailbox.Mailbox, caller mailbox.Caller, fn func() error) error {
 	if _, err := box.Claim(ctx, caller); err != nil {
-		return err
+		return asCommand(err)
 	}
 	// Released on the way out, including on a failure: a command that leaves the
 	// name held would keep a chat from opening under it until the lease or the
@@ -291,9 +323,18 @@ func sameDay(a, b time.Time) bool {
 func printSent(out io.Writer, caller mailbox.Caller, sent mailbox.Sent, first string) error {
 	lines := []string{first + " as " + caller.Address()}
 	if sent.Warning != "" {
-		lines = append(lines, "warning: "+sent.Warning)
+		lines = append(lines, "warning: "+warnAsCommand(sent.Warning))
 	}
 	return say(out, lines)
+}
+
+// warnAsCommand is asCommand for a warning, which is a string rather than an
+// error because nothing failed.
+func warnAsCommand(warning string) string {
+	if warning == "" {
+		return ""
+	}
+	return asCommand(errors.New(warning)).Error()
 }
 
 func printMessages(out io.Writer, caller mailbox.Caller, messages []mailbox.Message, now time.Time) error {

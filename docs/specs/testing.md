@@ -633,6 +633,7 @@ user's machines are.
   because it is how somebody finds out which chat has the name.
 - A mailbox command with no name stops with a usage status rather than guessing one, and says both
   ways to give it. The name may come from the environment.
+- A refusal and a warning printed from a terminal name `mnemo peers`, not `mailbox_peers`.
 
 ### Config and release
 

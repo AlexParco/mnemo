@@ -110,6 +110,32 @@ func TestTheTerminalCommandsCarryTheConversation(t *testing.T) {
 	}
 }
 
+// A refusal reaches a person in a shell, and the mailbox writes it with the
+// names of the MCP tools in it. Telling somebody to check the spelling with
+// mailbox_peers is telling them to do something they cannot do.
+func TestARefusalFromATerminalNamesCommandsAndNotTools(t *testing.T) {
+	_, env := mailboxEnv(t)
+
+	// A bare name nobody has used: the refusal points at the list of names.
+	out, code := runMnemo(t, env, "send", "nobody-here", "hello", "--name", "alex")
+	if code != 1 {
+		t.Fatalf("it exited %d:\n%s", code, out)
+	}
+	if !strings.Contains(out, "mnemo peers") || strings.Contains(out, "mailbox_peers") {
+		t.Errorf("the refusal reads:\n%s", out)
+	}
+
+	// And the same for a warning on a send that went through, which is the one
+	// a person sees most: it is what tells them they typed the name wrong.
+	out, code = runMnemo(t, env, "send", "typo@testbox", "hello", "--name", "alex")
+	if code != 0 {
+		t.Fatalf("it exited %d:\n%s", code, out)
+	}
+	if !strings.Contains(out, "mnemo peers") || strings.Contains(out, "mailbox_peers") {
+		t.Errorf("the warning reads:\n%s", out)
+	}
+}
+
 // A terminal command may not use the name of an open chat. Reading its post
 // would mark it read, and the chat would never see what was sent to it.
 func TestATerminalCommandWillNotTakeAnOpenChatsName(t *testing.T) {
