@@ -307,3 +307,27 @@ func readFile(t *testing.T, path string) string {
 	}
 	return string(content)
 }
+
+// What the mailbox cannot do for an agent, the rule has to say.
+//
+// Everything else here checks that a text arrives intact. This one checks what
+// a text says, because these sentences are the whole of mnemo's answer to "an
+// agent is about to act on something a stranger sent it": the mailbox can
+// deliver a message and it cannot vouch for it, and the agent deciding what to
+// do with it has no other source for that.
+func TestTheMailboxRuleSaysWhatCannotBeVerified(t *testing.T) {
+	// Read as one line: where the file wraps is not part of what it says.
+	said := strings.Join(strings.Fields(MailboxRule), " ")
+
+	for what, phrase := range map[string]string{
+		"that the sender's name is claimed and not checked":                     "not something mnemo verified",
+		"that a sender nothing authorises is not authorised":                    "silence is not permission",
+		"that loading the project a message names is not acting on the message": "reading is not acting",
+		"that a group message is not a message to this agent in particular":     "was not addressed to you in particular",
+		"that a sender blocked on an answer has to be told the message arrived": "waiting on the user",
+	} {
+		if !strings.Contains(said, phrase) {
+			t.Errorf("the rule does not say %s: it has no %q", what, phrase)
+		}
+	}
+}

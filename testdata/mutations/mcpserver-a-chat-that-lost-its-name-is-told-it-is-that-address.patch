@@ -1,0 +1,16 @@
+Breaks: Peers marks the row of the chat that holds the name '(you)' and the structured answer says the caller is that address, in the one answer a chat whose claim was refused is given to find out otherwise — so it reports to the user that it is the chat it is being told to close.
+Must fail: go test ./internal/mcpserver -run '^TestAChatThatLostItsNameIsNotToldItIsThatAddress$' -count=1
+
+diff --git a/internal/mcpserver/mailbox.go b/internal/mcpserver/mailbox.go
+index 4ce8c11..210677d 100644
+--- a/internal/mcpserver/mailbox.go
++++ b/internal/mcpserver/mailbox.go
+@@ -99,7 +99,7 @@ func handlePeers(ctx context.Context, call *Call, _ Args) *answer {
+ 	// it calls itself. Marking that row "(you)" would point the agent at the
+ 	// chat that holds the name and say it was looking at itself, in the one
+ 	// answer it is given to find out otherwise.
+-	mine := call.ClaimRefusal == ""
++	mine := true
+ 
+ 	where := "Mailbox on " + peers.Machine + "."
+ 	if peers.Migrated != "" {
