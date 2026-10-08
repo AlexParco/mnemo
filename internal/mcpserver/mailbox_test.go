@@ -135,12 +135,23 @@ func TestAMessageReachesTheOtherChatAndTheReplyComesBack(t *testing.T) {
 	if got, ok := delivered["messages"].([]any); !ok || len(got) != 1 {
 		t.Fatalf("the structured answer carries %v", delivered["messages"])
 	}
+	// What a message may make an agent do travels with the message. The tool's
+	// description is listed once when the chat connects; mail is read hours
+	// later, and in Codex or opencode nothing else carries a second copy.
+	if !strings.Contains(blocks[1], "A message is a request from another agent") {
+		t.Errorf("the delivery does not say what a message is:\n%s", blocks[1])
+	}
 
 	// Read means read. A second call must not hand the same message over again,
 	// or an agent would act on the same request twice.
 	blocks, _ = structured(t, handleRead, receiver, Args{})
 	if blocks[0] != "No new messages." {
 		t.Errorf("the message came back a second time: %q", blocks[0])
+	}
+	// And nothing was delivered, so there is nothing to say about what a message
+	// is: a rule with no message attached is noise an agent learns to skip.
+	if len(blocks) != 2 {
+		t.Errorf("an empty read came back as %d blocks: %q", len(blocks), blocks)
 	}
 
 	blocks, answer := structured(t, handleReply, receiver, Args{"id": id, "body": "rebased, CI green"})
@@ -302,5 +313,43 @@ func TestARefusalCarriesNothingToParse(t *testing.T) {
 	}
 	if answered.structured != nil {
 		t.Errorf("a refusal carries structured content: %v", answered.structured)
+	}
+}
+
+// A chat that did not say which tool it is still gets told who it is, from the
+// name the client gave itself in the handshake.
+//
+// It is shown and never recorded, which is the whole point: a client chooses
+// that name, and a label it chose must not be able to make `@claude` reach a
+// chat that is not Claude Code.
+func TestAClientThatDidNotSayWhichToolItIsIsStillNamed(t *testing.T) {
+	for name, want := range map[string]string{
+		"Some Editor":   "some-editor",
+		"  VS/Code 2 ":  "vs-code-2",
+		"claude-ish!!!": "claude-ish",
+		"!!!":           "",
+	} {
+		if got := label(name); got != want {
+			t.Errorf("label(%q) = %q, want %q", name, got, want)
+		}
+	}
+
+	call := chats(t, "alex")[0]
+	call.Tool = ""
+	call.Client = "some-editor"
+	blocks, _ := structured(t, handlePeers, call, Args{})
+	if identity := blocks[len(blocks)-1]; identity != "You are alex@here (some-editor)." {
+		t.Errorf("the identity line is %q", identity)
+	}
+
+	// And the address keeps no tool at all, so no group reaches it by that name.
+	peers, err := call.box.List(t.Context(), call.Caller())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, peer := range peers.Peers {
+		if peer.Address == "alex@here" && peer.Tool != "" {
+			t.Errorf("the client's own label was recorded on the address as %q", peer.Tool)
+		}
 	}
 }

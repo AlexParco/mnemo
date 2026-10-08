@@ -330,8 +330,8 @@ func (m *Mailbox) operate(ctx context.Context, caller Caller, fn func(*State, []
 		}
 		now := m.now()
 		m.reap(state, now)
-		if caller.Address() != "" {
-			state.see(caller.Address(), caller.Tool, highest(messages), now)
+		if address := caller.Address(); address != "" {
+			state.see(address, m.tellable(state, caller), highest(messages), now)
 		}
 
 		if err := fn(state, messages, now); err != nil {
@@ -352,6 +352,24 @@ func (m *Mailbox) operate(ctx context.Context, caller Caller, fn func(*State, []
 		}
 		return m.saveState(state)
 	})
+}
+
+// tellable is the tool to record for this caller, which is nothing at all when
+// another live instance holds the address.
+//
+// A caller that does not hold a name may still be heard from — `peers` answers
+// for a chat whose claim was refused, because that is how a user finds out which
+// chat has the name. What it may not do is retag the address: the tool on an
+// address decides which group messages reach it, so a refused chat in Codex
+// calling peers would quietly take `@claude` away from the chat that holds the
+// name and point `@codex` at it. Claim guards this for itself; every other
+// operation goes through here.
+func (m *Mailbox) tellable(state *State, caller Caller) string {
+	entry, known := state.Addresses[caller.Address()]
+	if known && entry.Holder != nil && entry.Holder.Instance != caller.Instance {
+		return ""
+	}
+	return caller.Tool
 }
 
 // prune drops what nobody needs any more, at most once a day.

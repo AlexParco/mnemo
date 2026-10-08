@@ -119,6 +119,32 @@ func (m *Mailbox) HeldBy(ctx context.Context, address string) (Holder, bool, err
 	return holder, live, err
 }
 
+// Describe is how a live holder is named to a person: the tool it runs in, when
+// it opened, and whether it is on another machine. It is empty when nobody holds
+// the address.
+//
+// It exists so that `mnemo run`, which checks before it opens a chat, refuses in
+// the same words the claim itself would — and above all with the same facts. The
+// holder record carries no tool, so a command reading only that could say no more
+// than "another chat", which is of no use to somebody deciding which window to
+// close.
+func (m *Mailbox) Describe(ctx context.Context, address string) (string, error) {
+	var said string
+	err := m.hold(ctx, func() error {
+		state, err := m.loadState()
+		if err != nil {
+			return err
+		}
+		entry, known := state.Addresses[address]
+		if !known || entry.Holder == nil || !m.holderAlive(entry.Holder, m.now()) {
+			return nil
+		}
+		said = describe(entry)
+		return nil
+	})
+	return said, err
+}
+
 // describe is how a refusal names the chat that already has a name: the tool it
 // runs in, when it opened, and whether it is on another machine.
 func describe(entry *Address) string {

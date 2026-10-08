@@ -45,7 +45,10 @@ Every mailbox operation has a caller: an address, a tool and an instance.
   mnemo command starts.
 - **The tool** is one of `claude`, `codex`, `opencode` or `terminal`. When nothing sets it, the
   MCP client name from the handshake is lower-cased with runs outside `a-z0-9` turned into `-`.
-  That fallback is for display only, and a group address never matches it.
+  That fallback is shown — in the identity line, so somebody can tell which chat they are looking
+  at — and never recorded on an address. A client chooses that name itself, and a name it chose
+  must not be able to make `@claude` reach a chat that is not Claude Code. An address whose tool
+  nothing recorded reads `unknown` in the table.
 - **A caller without a name** can use every memory tool, but not the mailbox. Mailbox tools
   refuse with: `This chat has no mailbox name. Open it with: mnemo run <tool> --name <name>`.
   `peers` is the exception: it answers, with an identity line saying there is no name and how to
@@ -71,7 +74,14 @@ One address is held by at most one live instance. That is what lets a reply find
   - If the address has no live holder, the caller takes it.
   - If another live instance holds it, the claim is refused. The operation fails with a message
     naming the holder's tool and when it started.
-  - `mnemo run` checks before launching the tool, so the usual collision stops before a chat opens.
+  - **A caller that does not hold the address cannot retag it.** Every operation records that its
+    caller was seen, and the tool recorded on an address is what the table reports, what a claim
+    refusal names and which group messages reach it. A chat whose claim was refused may still call
+    `peers`, so without this it would take `@claude` from the chat that holds the name and send the
+    next person who asks to the wrong window.
+  - `mnemo run` checks before launching the tool, so the usual collision stops before a chat
+    opens, and it refuses in the same words with the same facts: the holder's tool and when it
+    opened. "Another chat" is of no use to somebody deciding which window to close.
 - **Releasing** happens when the process exits cleanly: the local serve process removes its hold,
   and the relay sends a release. A crash is covered by the process check or by the lease.
 - **Commands from a terminal that send or read** hold their `--name` for as long as the command

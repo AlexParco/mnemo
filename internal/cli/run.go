@@ -118,11 +118,15 @@ func open(cmd *cobra.Command, tool, name, directory string, toolArgs []string) e
 	// collision before a window opens rather than after.
 	box := mailboxFor(resolved)
 	address := name + "@" + machine
-	if holder, live, err := box.HeldBy(cmd.Context(), address); err != nil {
+	held, err := box.Describe(cmd.Context(), address)
+	if err != nil {
 		return err
-	} else if live {
-		return fmt.Errorf("%s is already open in %s. Close that chat, or pick another name",
-			address, heldSince(holder))
+	}
+	if held != "" {
+		// The same sentence the claim would refuse with, with the same facts in
+		// it: the tool and when it opened are what somebody needs to find the
+		// window they have to close.
+		return fmt.Errorf("%s is already open in %s. Close that chat, or pick another name", address, held)
 	}
 
 	if _, err := fmt.Fprintf(cmd.OutOrStdout(), "Opening %s as %s in %s.\n", tool, address, directory); err != nil {
@@ -130,15 +134,6 @@ func open(cmd *cobra.Command, tool, name, directory string, toolArgs []string) e
 	}
 	return launch(directory, executable, toolArgs, append(os.Environ(),
 		"MNEMO_AGENT="+name, "MNEMO_TOOL="+tool))
-}
-
-// heldSince says who has the name, in the words a person needs to go and find it.
-func heldSince(holder mailbox.Holder) string {
-	where := "another chat"
-	if holder.Via == "remote" {
-		where = "a chat on another machine"
-	}
-	return fmt.Sprintf("%s since %s", where, holder.Since.Local().Format("15:04"))
 }
 
 // registeredFor reports whether mnemo is registered for a tool, globally or in

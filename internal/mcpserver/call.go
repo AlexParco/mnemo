@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/AlexParco/mnemo/internal/config"
 	"github.com/AlexParco/mnemo/internal/gitx"
@@ -38,6 +39,12 @@ type Call struct {
 	ServedBy string
 	// Instance is this process, which is what holds a mailbox name.
 	Instance string
+	// Client is what the MCP client called itself in the handshake, as a label.
+	// It is used when nothing said which tool this is, and only to show somebody
+	// which chat they are looking at: it is never recorded on an address, so a
+	// group address can never match it. A label a client chose for itself must
+	// not be able to make `@claude` reach a chat that is not Claude Code.
+	Client string
 	// ClaimRefusal is why this chat does not hold its mailbox name: another live
 	// chat has it. It is carried here because the claim happens at startup,
 	// before any tool is called, and the agent has to be told — otherwise it
@@ -83,6 +90,25 @@ func (c *Call) writable() (*store.Store, error) {
 		return nil, errNowhere
 	}
 	return c.store, nil
+}
+
+// label turns a name a client gave itself into something that can be shown:
+// lower-case, with runs of anything else turned into a single dash.
+func label(name string) string {
+	var out strings.Builder
+	dashed := false
+	for _, letter := range strings.ToLower(name) {
+		if (letter >= 'a' && letter <= 'z') || (letter >= '0' && letter <= '9') {
+			out.WriteRune(letter)
+			dashed = false
+			continue
+		}
+		if !dashed && out.Len() > 0 {
+			out.WriteByte('-')
+			dashed = true
+		}
+	}
+	return strings.Trim(out.String(), "-")
 }
 
 // Caller is who this is, in the mailbox's terms.

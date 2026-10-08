@@ -48,7 +48,11 @@ func Register(server *mcp.Server, call *Call) {
 func add(server *mcp.Server, definition Definition, call *Call) {
 	handle := definition.Handle
 	mcp.AddTool(server, definition.Tool,
-		func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		func(ctx context.Context, req *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			// Who is calling can only be known from the connection, and a Call
+			// is built before there is one. A copy rather than a write: one Call
+			// serves every request of a session, and over HTTP it serves one.
+			call := withClient(call, req)
 			// Whatever a handler panics on is this program's fault, not the
 			// caller's, and it must not take the whole server down: one bad call
 			// would end the chat's memory for the rest of the session.
@@ -72,6 +76,26 @@ func announcePost(result *mcp.CallToolResult, tool string, call *Call) {
 	if line := call.waiting(); line != "" {
 		result.Content = append(result.Content, &mcp.TextContent{Text: line})
 	}
+}
+
+// withClient fills in the label of the client that connected, when nothing said
+// which tool this is. It is what makes an answer say "you are worker@laptop1
+// (some-editor)" rather than naming no tool at all.
+func withClient(call *Call, req *mcp.CallToolRequest) *Call {
+	if call == nil || call.Tool != "" || req == nil || req.Session == nil {
+		return call
+	}
+	params := req.Session.InitializeParams()
+	if params == nil || params.ClientInfo == nil {
+		return call
+	}
+	named := label(params.ClientInfo.Name)
+	if named == "" || named == call.Client {
+		return call
+	}
+	copied := *call
+	copied.Client = named
+	return &copied
 }
 
 // safely runs a handler and turns a panic into a result that says so. It never

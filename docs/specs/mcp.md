@@ -585,9 +585,13 @@ Output:
    | <address>[ (you)] | <tool> | live|offline | <n> | <ts> |
    ```
 
-   `<ts>` is UTC, to the second, or `never` for an address nobody has been heard at. A tool nothing
-   recorded reads `unknown`. The rows are ordered by the mailbox: the caller, then whoever is there
-   now, then by address.
+   `<ts>` is UTC with milliseconds, as everywhere else mnemo sends a time, or `never` for an
+   address nobody has been heard at — in the table only. A tool nothing recorded reads `unknown`.
+   The rows are ordered by the mailbox: the caller, then whoever is there now, then by address.
+
+   In the structured content `last_seen` is the same stamp and is left out for an address nobody
+   has been heard at, because that is a fact about the address and not a moment; `you` is left out
+   for a caller with no name. A word is not a time, and a client reads this with a parser.
 
 3. `live: its process was confirmed running just now. offline: a known name nobody holds — messages
    to it wait.`
@@ -597,7 +601,8 @@ Structured content:
 
 ```json
 { "mailbox_machine": "vps", "you": "chat-a@laptop1",
-  "peers": [{ "address": "…", "tool": "claude", "status": "live", "unread": 0, "last_seen": "…", "you": false }] }
+  "peers": [{ "address": "…", "tool": "claude", "status": "live", "unread": 0,
+              "last_seen": "2026-09-15T14:03:12.345Z", "you": false }] }
 ```
 
 ### `mailbox_send`
@@ -659,9 +664,13 @@ Output:
    To answer: mailbox_reply with id <id>.
    ```
 
-2. The identity line.
+2. `MAILBOX_RULE`, when something was delivered and not otherwise. It travels with the delivery
+   because a description is listed once when a chat connects while mail is read hours later, and in
+   Codex or opencode there is no prompt and no skill carrying a second copy.
+3. The identity line.
 
-Structured content: `{ "you": "…", "messages": [ … ] }`.
+Structured content: `{ "you": "…", "messages": [ … ] }`, with `you` left out for a caller that has
+no name, and `messages` an empty array rather than `null`.
 
 ### `mailbox_wait`
 
@@ -673,8 +682,9 @@ Description:
 
 `timeout_ms`: "How long to wait, in milliseconds."
 
-Output: as `mailbox_read`, with the empty text `Nothing arrived before the timeout. Call
-mailbox_wait again to keep waiting.` Structured content adds `"timed_out": true|false`.
+Output: as `mailbox_read`, including the rule block when something arrived, with the empty text
+`Nothing arrived before the timeout. Call mailbox_wait again to keep waiting.` Structured content
+adds `"timed_out": true|false`.
 
 ### Identity line
 
@@ -709,8 +719,13 @@ Each prompt is assembled from the rule texts below, in the order its row gives.
 
 Rule texts are one file each in `internal/criterion/rules/`, named after the text in lower case with
 dashes: `save-criterion.md` is `SAVE_CRITERION`. The file is the text, byte for byte, without its
-trailing newline. Those files are the originals; nothing here restates them, so there is no second
-copy to fall behind.
+trailing newline. Those files are the originals, and the copies that have to be identical — the
+plugin's skills — are compared to them by a test.
+
+**A tool description is not a copy.** `SERVER_INSTRUCTIONS` and the tool descriptions above say some
+of the same things in fewer words, because each has to fit where it is read. They are summaries and
+will differ from the rule text; the rule text is what is authoritative, which is why it travels with
+a delivery rather than only in a description listed once when a chat connects.
 
 | Name | Where it is read |
 |---|---|
@@ -721,7 +736,7 @@ copy to fall behind.
 | `CONFLICT_RULE` | the `sync_memory` prompt, the guide, one skill |
 | `CONFIRM_NOTE` | the response of every two-phase tool, and `CONFIRMATION_RULE` |
 | `CONFIRMATION_RULE` | the guide |
-| `MAILBOX_RULE` | the guide |
+| `MAILBOX_RULE` | the guide, and the result of `mailbox_read` and `mailbox_wait` when they deliver |
 | `GUIDE` | `mnemo_guide` |
 
 - **A text carries another with `{{NAME}}`**, resolved when the binary starts. `CONFIRMATION_RULE`

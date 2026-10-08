@@ -665,6 +665,17 @@ func TestFilesFromAnEarlierInstallAreMovedAside(t *testing.T) {
 		t.Errorf("the old log was not kept: %v", err)
 	}
 
+	// Once. The next call does not say it again: being told at every call for
+	// the life of the process is a different thing from being told, and it is
+	// the kind of line somebody learns to skip.
+	again, err := b.List(t.Context(), caller)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again.Migrated != "" {
+		t.Errorf("the move was mentioned a second time: %q", again.Migrated)
+	}
+
 	// And the mailbox starts empty rather than carrying addresses of a shape it
 	// cannot resolve.
 	messages, err := b.readLog()
@@ -753,5 +764,85 @@ func TestReleasingFreesTheName(t *testing.T) {
 		t.Fatal(err)
 	} else if !live {
 		t.Error("a stranger's release freed somebody else's name")
+	}
+}
+
+// A chat that does not hold a name may be heard from, and may not retag the
+// address.
+//
+// The tool recorded on an address is what the table reports and what a claim
+// refusal names, and an address is retagged by every operation the caller is
+// recorded by. The holder's own next operation puts it back, so what is
+// reachable is the window while the holder sits idle — which is most of the
+// time, because a chat that is waiting for post touches nothing.
+func TestACallerThatDoesNotHoldTheNameCannotRetagIt(t *testing.T) {
+	box := newBox(t)
+	box.agent(t, "worker", "claude", 11)
+
+	// Somebody else, under the same name, in another tool. Its claim is refused
+	// and peers still answers it: that is how a user finds out who has the name.
+	box.alive[12] = true
+	intruder := Caller{Name: "worker", Machine: "here", Tool: "codex",
+		Instance: Instance(), Via: "local", PID: 12}
+	if _, err := box.Claim(t.Context(), intruder); err == nil {
+		t.Fatal("the name was given away twice")
+	}
+	if _, err := box.List(t.Context(), intruder); err != nil {
+		t.Fatal(err)
+	}
+
+	// Asked by somebody else, while the holder sits idle.
+	observer := box.agent(t, "boss", "claude", 13)
+	peers, err := box.List(t.Context(), observer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, peer := range peers.Peers {
+		if peer.Address == "worker@here" && peer.Tool != "claude" {
+			t.Errorf("the table says worker@here runs in %q", peer.Tool)
+		}
+	}
+
+	// And a third chat asking for the name is sent to the right window.
+	box.alive[14] = true
+	_, err = box.Claim(t.Context(), Caller{Name: "worker", Machine: "here", Tool: "opencode",
+		Instance: Instance(), Via: "local", PID: 14})
+	if err == nil {
+		t.Fatal("the name was given away")
+	}
+	if !strings.Contains(err.Error(), "already open in claude") {
+		t.Errorf("the refusal sends the user to the wrong chat: %v", err)
+	}
+}
+
+// `mnemo run` checks before it opens a chat, and what it says has to send
+// somebody to the right window: the tool and the time, not "another chat".
+func TestAHeldNameIsDescribedBeforeAChatIsOpened(t *testing.T) {
+	b := newBox(t)
+
+	if said, err := b.Describe(t.Context(), "worker@here"); err != nil {
+		t.Fatal(err)
+	} else if said != "" {
+		t.Errorf("a name nobody holds is described as %q", said)
+	}
+
+	b.agent(t, "worker", "claude", 100)
+	said, err := b.Describe(t.Context(), "worker@here")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The same words the claim refuses with, because they answer the same
+	// question and two wordings would eventually disagree.
+	if want := "claude since " + fixed.Local().Format("15:04"); said != want {
+		t.Errorf("it is described as %q, want %q", said, want)
+	}
+
+	// And a chat that has gone is not described at all: liveness is checked, not
+	// remembered.
+	b.alive[100] = false
+	if said, err := b.Describe(t.Context(), "worker@here"); err != nil {
+		t.Fatal(err)
+	} else if said != "" {
+		t.Errorf("a closed chat is still described as %q", said)
 	}
 }

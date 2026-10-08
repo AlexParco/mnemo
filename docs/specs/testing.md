@@ -370,7 +370,11 @@ Every one of these is a way to damage a file mnemo did not write.
   and the refusal says how to get one. That is the whole of the admission control.
 - One address, one live instance. A second chat is refused, and the refusal names **the tool that
   has the name**, not the one being turned away, with when it opened. The same instance claiming
-  again is a renewal and keeps when it started.
+  again is a renewal and keeps when it started. Describing a held name, which is what `mnemo run`
+  asks before it opens a chat, says the same words, says nothing for a name nobody holds, and says
+  nothing for a chat that has gone.
+- A caller that does not hold an address cannot retag it: while the holder sits idle, the table
+  still names its tool and the next claim refusal still sends the user to the right window.
 - A local holder lives while its process does; a remote one lives on a 45-second lease, held while
   the lease lasts and free once it runs out. A closed chat is reaped, so `live` is never inferred.
 - Releasing frees a name, and another instance's release does not take one away from its holder.
@@ -394,7 +398,8 @@ Every one of these is a way to damage a file mnemo did not write.
   after the counter goes backwards.
 - A prune never drops a message nobody has read, however old, and never swallows the message being
   sent in the same operation.
-- A mailbox left by an earlier install is moved aside, kept, and mentioned once.
+- A mailbox left by an earlier install is moved aside, kept, and mentioned once — the second call
+  says nothing, because being told at every call is a different thing from being told.
 - Waiting returns at once for something already there, times out saying so, and picks up a message
   that arrives while it waits. The ceiling is below the minute a client gives up at.
 
@@ -414,6 +419,10 @@ Every one of these is a way to damage a file mnemo did not write.
   because it is how an agent finds out that it has none.
 - A chat whose name another live chat holds is refused by every tool but `peers`, with the sentence
   the claim itself was refused with, and its identity line carries that sentence as a warning.
+- A delivery carries `MAILBOX_RULE`; an empty read carries nothing but the identity line.
+- A client that did not say which tool it is is still named, from the name it gave itself in the
+  handshake, and that name is never recorded on the address — so no group can reach a chat by a
+  label the client chose for itself. The labelling itself is checked against its own table.
 - `peers` puts the caller first, marks it `(you)`, counts what waits for each address, and explains
   both words: `offline` reads as unreachable and is not.
 - Waiting that finds nothing says so without failing, and says how to keep waiting.
@@ -594,7 +603,9 @@ user's machines are.
   state while leaving yesterday's session alone, and never fails.
 - The hook also tells a chat it has post, once per message, and marks nothing read: it is the only
   way in that reaches a chat that is neither idle nor calling mnemo. A chat with no name is told
-  nothing.
+  nothing. The count is everything waiting, not only what is new, because it is the number the next
+  `mailbox_read` will hand over. Two senders read as "a and b", the same way the tool answers say
+  it: the two surfaces share the rendering, having already drifted once.
 - The mailbox from a terminal, in the order somebody uses it: `peers` on an empty mailbox, a `send`
   to a name nobody has used yet and its warning, `peers` showing the caller, `read` which delivers
   and then has nothing, `reply`, and the answer arriving.

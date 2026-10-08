@@ -144,11 +144,17 @@ func (m *Mailbox) rememberMoved(dir string) {
 }
 
 // Moved is the directory an earlier install's files were put in, if this process
-// did the moving.
+// did the moving — once, and then never again.
+//
+// Said once is the promise: a person whose messages vanished on an upgrade is
+// owed the directory they went to, and being told at every call for the life of
+// the process is a different thing, which they would learn to skip.
 func (m *Mailbox) Moved() string {
 	m.movedMu.Lock()
 	defer m.movedMu.Unlock()
-	return m.moved
+	said := m.moved
+	m.moved = ""
+	return said
 }
 
 // New returns a mailbox for a directory, which need not exist yet.

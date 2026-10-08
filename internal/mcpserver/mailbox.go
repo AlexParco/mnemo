@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/AlexParco/mnemo/internal/criterion"
 	"github.com/AlexParco/mnemo/internal/mailbox"
 )
 
@@ -52,6 +53,12 @@ func (c *Call) identity() string {
 			"mnemo run <tool> --name <name>"
 	}
 	tool := caller.Tool
+	if tool == "" {
+		// What the client called itself, when nothing said which tool this is.
+		// Shown, never recorded: a label a client chose must not be able to make
+		// a group address reach a chat it does not belong to.
+		tool = c.Client
+	}
 	if tool == "" {
 		tool = "an unknown tool"
 	}
@@ -126,7 +133,7 @@ func handlePeers(ctx context.Context, call *Call, _ Args) *answer {
 	for _, peer := range peers.Peers {
 		rowsOut = append(rowsOut, peerRow{
 			Address: peer.Address, Tool: peer.Tool, Status: status(peer.Live),
-			Unread: peer.Unread, LastSeen: lastSeen(peer.LastSeen), You: peer.Caller,
+			Unread: peer.Unread, LastSeen: stamped(peer.LastSeen), You: peer.Caller,
 		})
 	}
 	return a.with(peersOut{
@@ -135,17 +142,22 @@ func handlePeers(ctx context.Context, call *Call, _ Args) *answer {
 }
 
 type peersOut struct {
-	Machine string    `json:"mailbox_machine"`
-	You     string    `json:"you"`
-	Peers   []peerRow `json:"peers"`
+	Machine string `json:"mailbox_machine"`
+	// You is left out for a caller with no name rather than sent empty: a client
+	// reading it would otherwise have an address that is not one.
+	You   string    `json:"you,omitempty"`
+	Peers []peerRow `json:"peers"`
 }
 
 type peerRow struct {
-	Address  string `json:"address"`
-	Tool     string `json:"tool"`
-	Status   string `json:"status"`
-	Unread   int    `json:"unread"`
-	LastSeen string `json:"last_seen"`
+	Address string `json:"address"`
+	Tool    string `json:"tool"`
+	Status  string `json:"status"`
+	Unread  int    `json:"unread"`
+	// LastSeen is a stamp in the same shape a message carries, and absent for an
+	// address nobody has been heard at. The table says "never" in words; this is
+	// read by a program, and a word is not a time.
+	LastSeen string `json:"last_seen,omitempty"`
 	You      bool   `json:"you"`
 }
 
@@ -163,12 +175,23 @@ func orUnknown(tool string) string {
 	return tool
 }
 
-// lastSeen is a stamp, or the word for an address nobody has ever been heard at.
+// lastSeen is for the table an agent reads: a stamp, or the word for an address
+// nobody has ever been heard at.
 func lastSeen(at time.Time) string {
 	if at.IsZero() {
 		return "never"
 	}
-	return at.UTC().Format("2006-01-02T15:04:05Z")
+	return stamped(at)
+}
+
+// stamped is a time in the shape every other time mnemo sends is in: UTC, with
+// milliseconds. Empty for a zero time, which is a fact about the address rather
+// than a moment.
+func stamped(at time.Time) string {
+	if at.IsZero() {
+		return ""
+	}
+	return at.UTC().Format("2006-01-02T15:04:05.000Z")
 }
 
 func handleSend(ctx context.Context, call *Call, args Args) *answer {
@@ -240,12 +263,13 @@ func handleRead(ctx context.Context, call *Call, _ Args) *answer {
 		return a.fromMailbox(err)
 	}
 	return a.say("%s", delivered(messages, "No new messages.")).
+		block(rule(messages)).
 		say("%s", call.identity()).
 		with(readOut{You: call.Caller().Address(), Messages: messageList(messages)})
 }
 
 type readOut struct {
-	You      string            `json:"you"`
+	You      string            `json:"you,omitempty"`
 	Messages []mailbox.Message `json:"messages"`
 }
 
@@ -265,6 +289,7 @@ func handleWait(ctx context.Context, call *Call, args Args) *answer {
 	}
 	return a.say("%s", delivered(waited.Messages,
 		"Nothing arrived before the timeout. Call mailbox_wait again to keep waiting.")).
+		block(rule(waited.Messages)).
 		say("%s", call.identity()).
 		with(waitOut{
 			You: call.Caller().Address(), Messages: messageList(waited.Messages), TimedOut: waited.TimedOut,
@@ -272,7 +297,7 @@ func handleWait(ctx context.Context, call *Call, args Args) *answer {
 }
 
 type waitOut struct {
-	You      string            `json:"you"`
+	You      string            `json:"you,omitempty"`
 	Messages []mailbox.Message `json:"messages"`
 	TimedOut bool              `json:"timed_out"`
 }
@@ -284,6 +309,21 @@ func messageList(messages []mailbox.Message) []mailbox.Message {
 		return []mailbox.Message{}
 	}
 	return messages
+}
+
+// rule is what an agent is told about a message it has just been handed, and
+// nothing when it was handed none.
+//
+// It travels with the delivery and not only in the tool's description, because a
+// description is listed once when a chat connects while mail is read hours later,
+// and in Codex or opencode there is no prompt and no skill carrying a second
+// copy. What a message may make an agent do is the one thing here that must not
+// depend on something it read at the start of the session.
+func rule(messages []mailbox.Message) string {
+	if len(messages) == 0 {
+		return ""
+	}
+	return criterion.MailboxRule
 }
 
 // delivered is the messages as an agent reads them, or the word for none.

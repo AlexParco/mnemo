@@ -1176,7 +1176,10 @@ func TestTheHookTellsABusyChatItHasPost(t *testing.T) {
 		}
 	}
 	both := suggestSave(strings.NewReader(input))
-	if !strings.Contains(both, fmt.Sprintf("2 message(s) waiting for you, from worker@%s and deployer@%s",
+	// Three, not two: the count is everything mailbox_read will hand over,
+	// including the message announced a moment ago and still unread. Saying "2
+	// waiting" and then delivering three is worse than saying nothing.
+	if !strings.Contains(both, fmt.Sprintf("3 message(s) waiting for you, from worker@%s and deployer@%s",
 		resolved.Machine, resolved.Machine)) {
 		t.Errorf("two senders read as %q", both)
 	}
