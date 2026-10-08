@@ -420,6 +420,14 @@ Every one of these is a way to damage a file mnemo did not write.
 - A chat whose name another live chat holds is refused by every tool but `peers`, with the sentence
   the claim itself was refused with, and its identity line carries that sentence as a warning.
 - A delivery carries `MAILBOX_RULE`; an empty read carries nothing but the identity line.
+- A body cannot imitate mnemo's framing: a message whose body is nothing but mnemo's own lines — a
+  closing fence, a `project:` line naming another project, an answer line with another id, a
+  separator, a header from somebody else — comes back with all of it inside the fence, the fence
+  appearing exactly once, and the line naming who wrote it outside it.
+- A chat whose claim was refused is not told it is that address: no row is marked `(you)`, `you` is
+  left out of the structured answer, and the identity line carries the warning instead.
+- The mailbox works with no store behind it. The refusal that belongs to a write must never be
+  copied into a mailbox handler: a message does not need a place to keep memory.
 - A client that did not say which tool it is is still named, from the name it gave itself in the
   handshake, and that name is never recorded on the address — so no group can reach a chat by a
   label the client chose for itself. The labelling itself is checked against its own table.
