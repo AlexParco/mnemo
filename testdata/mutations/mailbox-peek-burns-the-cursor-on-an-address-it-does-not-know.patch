@@ -1,16 +1,47 @@
-Breaks: A watcher that looks before the chat has claimed its name is told how far the log goes, so it records itself as having announced everything already waiting. The chat then opens and sits idle next to post nobody ever mentions — the one path that reaches an idle chat, silent in exactly the case where somebody was sent work before they opened the chat.
+Breaks: A watcher that looks before the chat has claimed its name is told how far the log goes and handed nothing, so it records itself as having announced everything already waiting. The chat then opens and sits idle next to post nobody ever mentions — the one path that reaches an idle chat, silent in exactly the case where somebody was sent work before they opened the chat.
 Must fail: go test ./internal/cli -run '^TestWatchStartedBeforeTheChatAnnouncesWhatWasAlreadyThere$' -count=1
 
 diff --git a/internal/mailbox/ops.go b/internal/mailbox/ops.go
-index 0b87744..8737bac 100644
+index ceb1b97..37184da 100644
 --- a/internal/mailbox/ops.go
 +++ b/internal/mailbox/ops.go
-@@ -321,7 +321,7 @@ func (m *Mailbox) Peek(address string, after int) (int, []Message, error) {
- 		// can easily look before the name has been claimed; told how far the log
- 		// goes, it would record itself as having announced messages it never
- 		// announced, and the chat would sit idle next to post nobody mentioned.
+@@ -356,20 +356,18 @@ func (m *Mailbox) Peek(address string, after int) (int, []Message, error) {
+ 	top := highest(messages)
+ 	entry, known := state.Addresses[address]
+ 	if !known {
+-		// An address nobody has ever held receives no group messages: it has no
+-		// floor, so every group message would look new for ever.
+-		//
+-		// It is given back the `after` it was asked with, not the top of the
+-		// log. A watcher starts at the same moment as the chat it watches and
+-		// can easily look before the name has been claimed; told how far the log
+-		// goes, it would record itself as having announced messages it never
+-		// announced, and the chat would sit idle next to post nobody mentioned.
 -		return after, nil, nil
 +		return top, nil, nil
  	}
  	from := *entry
  	if after > from.Cursor {
+ 		from.Cursor = after
+ 	}
++	// An address nobody has ever held is read with its floor at the top of the
++	// log, which is where its floor will be set when somebody claims it. So the
++	// messages sent straight to it are returned — somebody was given work before
++	// they opened the chat, and a watcher starting alongside that chat is the one
++	// thing that will tell it — while no group message is, because an agent that
++	// did not exist when a group was addressed was not part of it.
+ 	return top, unread(messages, address, &from), nil
+ }
+ 
+diff --git a/internal/mcpserver/mailbox.go b/internal/mcpserver/mailbox.go
+index 43c190f..091b56c 100644
+--- a/internal/mcpserver/mailbox.go
++++ b/internal/mcpserver/mailbox.go
+@@ -386,6 +386,7 @@ func one(message mailbox.Message) string {
+ 	// byte-identical to mnemo's own framing. A sender cannot write the fence of
+ 	// its own message, because it cannot know the id until after it has sent it.
+ 	lines = append(lines,
++		"",
+ 		"--- message "+message.ID+" begins ---",
+ 		message.Body,
+ 		"--- message "+message.ID+" ends ---",

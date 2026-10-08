@@ -398,7 +398,8 @@ Every one of these is a way to damage a file mnemo did not write.
 - `peers` puts the caller first, then who is there now, then by address, and counts what is waiting
   for each. An address with nothing waiting is forgotten after ninety days; one with unread
   messages never is.
-- `peek` reads without the lock, marks nothing read, and gives an unknown address no group messages.
+- `peek` reads without the lock, marks nothing read, and gives an unknown address the messages sent
+  straight to it and no group messages.
 - A line torn by a crash is skipped and the message after it survives. A seq is never reused, even
   after the counter goes backwards.
 - A prune never drops a message nobody has read, however old, and never swallows the message being
@@ -769,8 +770,8 @@ the control fails.
 - Drop from `MAILBOX_RULE` what mnemo cannot verify: the test that reads what the rule says fails.
 - Print a refusal into a terminal with the tool names left in it: the test that a terminal names
   commands fails.
-- Hand a watcher the top of the log for an address nobody has claimed: the test that a watcher
-  started before the chat still announces what was waiting fails.
+- Hand a watcher the top of the log and no messages for an address nobody has claimed: the test
+  that a watcher started before the chat still announces what was waiting fails.
 - Forget an address while its messages are still in the log: the test that its finished work is not
   handed to the next chat of that name fails.
 - Bound the reader by the size of a body rather than by the size of a line: the all-escapes test

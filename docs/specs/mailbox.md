@@ -219,11 +219,14 @@ line is skipped.
 
 - It returns the highest `seq` in the log and the messages that `read` would return for that
   address with a cursor of `max(after, cursor)`.
-- An address that is not known receives no group messages, and the `seq` it gets back is the
-  `after` it asked with rather than the top of the log. A watcher starts at the same moment as the
-  chat it watches and can look before the name is claimed; told how far the log goes, it would
-  record itself as having announced messages it never announced, and the chat would sit idle beside
-  post nobody mentioned.
+- An address that is not known is read with its floor at the top of the log, which is where its
+  floor will be set when somebody claims it. So the messages sent straight to it are returned —
+  somebody was given work before they opened the chat, and a watcher starting alongside that chat is
+  the one thing that will tell it — and no group message is, because an agent that did not exist
+  when a group was addressed was not part of it. What this must never do is return the top of the
+  log with no messages: a watcher looking before the name is claimed would record itself as having
+  announced what it never announced, and the chat would open and sit idle beside post nobody
+  mentioned.
 
 ## Retention
 
