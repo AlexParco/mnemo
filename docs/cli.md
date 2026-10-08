@@ -134,7 +134,8 @@ mnemo hook suggest-save                 the save reminder run by the Claude Code
   is right — two wordings of the same refusal would drift — but the names in it are the MCP tools'.
   From a terminal `mailbox_peers` is printed as `mnemo peers`, and so for `send`, `reply` and
   `read`: telling somebody in a shell to check a spelling with a tool they cannot call is telling
-  them nothing.
+  them nothing. Listing projects is the one thing with no command, so `mnemo_list_projects` becomes
+  `ls <store>/projects`.
 - Errors go to stderr as `mnemo: <message>`.
 - Exit status is 0 on success, 1 on failure and 2 on a usage error.
 

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -154,15 +155,7 @@ func asCommand(err error) error {
 	if err == nil {
 		return nil
 	}
-	said := err.Error()
-	for tool, command := range map[string]string{
-		"mailbox_peers": "mnemo peers",
-		"mailbox_send":  "mnemo send",
-		"mailbox_reply": "mnemo reply",
-		"mailbox_read":  "mnemo read",
-	} {
-		said = strings.ReplaceAll(said, tool, command)
-	}
+	said := commandsFor(err.Error())
 	if said == err.Error() {
 		return err
 	}
@@ -172,6 +165,31 @@ func asCommand(err error) error {
 		return &mailbox.Refusal{Message: said}
 	}
 	return errors.New(said)
+}
+
+// commandsFor is the translation itself, on a plain string.
+func commandsFor(said string) string {
+	commands := map[string]string{
+		"mailbox_peers": "mnemo peers",
+		"mailbox_send":  "mnemo send",
+		"mailbox_reply": "mnemo reply",
+		"mailbox_read":  "mnemo read",
+	}
+	// Listing projects is the one thing a person has no command for, so they
+	// are pointed at the directory rather than at a tool they cannot call. The
+	// settings are read here, in a path that is already a failure, so that no
+	// command has to carry the store around for the sake of one sentence.
+	if strings.Contains(said, "mnemo_list_projects") {
+		if file, err := config.Load(); err == nil {
+			if store := config.Resolve(file, flags).Paths.Store; store != "" {
+				commands["mnemo_list_projects"] = "ls " + filepath.Join(store, "projects")
+			}
+		}
+	}
+	for tool, command := range commands {
+		said = strings.ReplaceAll(said, tool, command)
+	}
+	return said
 }
 
 // terminal works out who the person is: the name they gave, else MNEMO_AGENT,
@@ -331,10 +349,7 @@ func printSent(out io.Writer, caller mailbox.Caller, sent mailbox.Sent, first st
 // warnAsCommand is asCommand for a warning, which is a string rather than an
 // error because nothing failed.
 func warnAsCommand(warning string) string {
-	if warning == "" {
-		return ""
-	}
-	return asCommand(errors.New(warning)).Error()
+	return commandsFor(warning)
 }
 
 func printMessages(out io.Writer, caller mailbox.Caller, messages []mailbox.Message, now time.Time) error {

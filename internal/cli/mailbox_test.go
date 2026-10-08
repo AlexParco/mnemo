@@ -125,6 +125,17 @@ func TestARefusalFromATerminalNamesCommandsAndNotTools(t *testing.T) {
 		t.Errorf("the refusal reads:\n%s", out)
 	}
 
+	// Listing projects is the one thing a person has no command for, so the
+	// refusal points at the directory instead of at a tool they cannot call.
+	out, code = runMnemo(t, env, "send", "alex@testbox", "hello", "--name", "worker",
+		"--project", "not-a-project")
+	if code != 1 {
+		t.Fatalf("it exited %d:\n%s", code, out)
+	}
+	if strings.Contains(out, "mnemo_list_projects") || !strings.Contains(out, "ls ") {
+		t.Errorf("the refusal reads:\n%s", out)
+	}
+
 	// And the same for a warning on a send that went through, which is the one
 	// a person sees most: it is what tells them they typed the name wrong.
 	out, code = runMnemo(t, env, "send", "typo@testbox", "hello", "--name", "alex")
