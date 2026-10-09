@@ -2,10 +2,17 @@ Breaks: unsetting a key that was never set reports that it was removed, so a per
 Must fail: go test ./internal/cli -run '^TestUnsettingSomethingThatWasNeverSet$'
 
 diff --git a/internal/cli/config.go b/internal/cli/config.go
-index 8a9994d..b30db8d 100644
+index 8a9994d..be53cb3 100644
 --- a/internal/cli/config.go
 +++ b/internal/cli/config.go
-@@ -214,11 +214,6 @@ func configUnsetCommand() *cobra.Command {
+@@ -208,17 +208,13 @@ func configUnsetCommand() *cobra.Command {
+ 				return err
+ 			}
+ 			had := file.Has(args[0])
++			_ = had
+ 			if err := file.Unset(args[0]); err != nil {
+ 				return err
+ 			}
  			if err := file.Save(); err != nil {
  				return err
  			}

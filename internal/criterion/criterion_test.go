@@ -19,17 +19,28 @@ const skills = "../../plugin/skills"
 var region = regexp.MustCompile(`(?s)<!-- mnemo:rule (\w+) -->\n(.*?)\n<!-- /mnemo:rule -->`)
 
 func TestEveryTextIsThere(t *testing.T) {
+	// Names and Text read the same table, so asking whether one knows what the
+	// other lists is asking a table about itself. What can go wrong is a text
+	// that is bound and empty — a rule that reaches an agent as nothing — and
+	// that is what this checks.
 	for _, name := range Names() {
-		text, ok := Text(name)
-		if !ok {
-			t.Fatalf("%s is listed by Names but Text does not know it", name)
-		}
+		text, _ := Text(name)
 		if strings.TrimSpace(text) == "" {
 			t.Errorf("%s is empty", name)
 		}
 	}
-	if len(Names()) != len(bound) {
-		t.Errorf("Names lists %d of %d texts", len(Names()), len(bound))
+	// Every name the specs give, checked against the table rather than against
+	// itself: a text dropped from the bindings is a rule nothing sends.
+	for _, name := range []string{
+		"SERVER_INSTRUCTIONS", "SAVE_CRITERION", "PENDING_CRITERION", "MACHINE_RULE",
+		"CONFLICT_RULE", "CONFIRM_NOTE", "CONFIRMATION_RULE", "MAILBOX_RULE", "GUIDE",
+	} {
+		if _, ok := Text(name); !ok {
+			t.Errorf("%s is in the specs and not in the bindings", name)
+		}
+	}
+	if len(Names()) != 9 {
+		t.Errorf("there are %d texts, and the specs name 9: %v", len(Names()), Names())
 	}
 }
 

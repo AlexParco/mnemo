@@ -2,10 +2,18 @@ Breaks: an opencode config with comments in it — which opencode accepts — is
 Must fail: go test ./internal/integration -run '^TestOpencode$'
 
 diff --git a/internal/integration/opencode.go b/internal/integration/opencode.go
-index 2a3c3c3..cb87ab4 100644
+index ab41dea..b4e1e4b 100644
 --- a/internal/integration/opencode.go
 +++ b/internal/integration/opencode.go
-@@ -56,13 +56,6 @@ func AddOpencode(path, mnemo string) (Result, error) {
+@@ -40,6 +40,7 @@ func AddOpencode(path, mnemo string) (Result, error) {
+ 		"environment": map[string]string{"MNEMO_TOOL": "opencode"},
+ 	}
+ 	shown, err := json.MarshalIndent(map[string]any{"mcp": map[string]any{"mnemo": entry}}, "", "  ")
++	_ = shown
+ 	if err != nil {
+ 		return result, err
+ 	}
+@@ -59,14 +60,6 @@ func AddOpencode(path, mnemo string) (Result, error) {
  		return result, nil
  	}
  
@@ -16,6 +24,7 @@ index 2a3c3c3..cb87ab4 100644
 -		result.Advice = "This file is not plain JSON, so mnemo left it alone. Add this by hand:\n" + string(shown)
 -		return result, nil
 -	}
- 
+-
  	if existing := gjson.Get(content, "mcp.mnemo"); existing.Exists() && !oursOpencode(existing, mnemo) {
  		result.Outcome = Refused
+ 		result.Advice = "There is already an mcp.mnemo in this file that does not look like mnemo's.\n" +

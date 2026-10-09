@@ -2,7 +2,7 @@ Breaks: the merge tool writes and stages any file in the store, not only the one
 Must fail: go test ./internal/mcpserver -run '^TestResolvingIsOnlyForConflictedFiles$'
 
 diff --git a/internal/gitx/sync.go b/internal/gitx/sync.go
-index 1c3dbc2..0e1ff0f 100644
+index 1c3dbc2..4a90fef 100644
 --- a/internal/gitx/sync.go
 +++ b/internal/gitx/sync.go
 @@ -114,9 +114,6 @@ func (r *Repo) ResolveConflict(file, content string) ([]string, error) {
@@ -15,3 +15,9 @@ index 1c3dbc2..0e1ff0f 100644
  	// A symlink defeats the check above: the path stays inside the store while
  	// the write follows the link out of it. Git tracks symlinks, so one can
  	// arrive from the hub.
+@@ -270,3 +267,5 @@ func (r *Repo) Push(acknowledge string) PushResult {
+ 		Detail:  fmt.Sprintf("Pushed %d commit(s) to the hub.", commits),
+ 	}
+ }
++
++var _ = slices.Contains([]string{}, "")

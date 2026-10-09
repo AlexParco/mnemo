@@ -2,7 +2,7 @@ Breaks: the server sends no instructions, so a client that supports neither prom
 Must fail: go test ./internal/mcpserver -run '^TestTheInstructionsTravelWithTheConnection$'
 
 diff --git a/internal/mcpserver/server.go b/internal/mcpserver/server.go
-index f45acae..ec3aa83 100644
+index 0056953..f6031b6 100644
 --- a/internal/mcpserver/server.go
 +++ b/internal/mcpserver/server.go
 @@ -23,7 +23,7 @@ func New(version string, call *Call) *mcp.Server {
@@ -14,3 +14,9 @@ index f45acae..ec3aa83 100644
  	)
  	Register(server, call)
  	return server
+@@ -117,3 +117,5 @@ func safely(ctx context.Context, handle Handler, call *Call, args Args) (
+ func Serve(ctx context.Context, version string, call *Call, transport mcp.Transport) error {
+ 	return New(version, call).Run(ctx, transport)
+ }
++
++var _ = criterion.ConflictRule

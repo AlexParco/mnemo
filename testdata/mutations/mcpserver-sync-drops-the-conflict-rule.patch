@@ -2,10 +2,10 @@ Breaks: a conflict comes back without the rule that says to keep both sides, so 
 Must fail: go test ./internal/mcpserver -run '^TestTwoMachinesCollideAndTheMergeGoesThrough$'
 
 diff --git a/internal/mcpserver/sync.go b/internal/mcpserver/sync.go
-index e7d9676..b8df524 100644
+index 8a72080..e0db626 100644
 --- a/internal/mcpserver/sync.go
 +++ b/internal/mcpserver/sync.go
-@@ -46,8 +46,7 @@ func handleSync(ctx context.Context, call *Call, args Args) *answer {
+@@ -52,8 +52,7 @@ func handleSync(ctx context.Context, call *Call, args Args) *answer {
  	// the agent to read: it has to merge them, and a file it fetched separately
  	// could already be a different one.
  	return a.say("%s\n\n%d conflicted file(s): %s", result.Detail, len(files), strings.Join(files, ", ")).
@@ -15,3 +15,9 @@ index e7d9676..b8df524 100644
  }
  
  func handleResolveConflict(ctx context.Context, call *Call, args Args) *answer {
+@@ -153,3 +152,5 @@ func handlePush(ctx context.Context, call *Call, args Args) *answer {
+ 	}
+ 	return a.block(result.Detail)
+ }
++
++var _ = criterion.ConflictRule

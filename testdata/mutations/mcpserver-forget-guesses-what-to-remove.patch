@@ -2,11 +2,14 @@ Breaks: "forget X" with no kind deletes the project called X, so asking to drop 
 Must fail: go test ./internal/mcpserver -run '^TestForgettingOneMemory$'
 
 diff --git a/internal/mcpserver/destructive.go b/internal/mcpserver/destructive.go
-index d8f6fc2..e9bd675 100644
+index d8f6fc2..eb39c7d 100644
 --- a/internal/mcpserver/destructive.go
 +++ b/internal/mcpserver/destructive.go
-@@ -87,10 +87,6 @@ func handleForget(ctx context.Context, call *Call, args Args) *answer {
+@@ -85,12 +85,9 @@ func handleForget(ctx context.Context, call *Call, args Args) *answer {
+ 		return a.from(err)
+ 	}
  	kind, target, confirm := args.str("kind"), args.str("target"), args.str("confirm")
++	_ = kind
  
  	switch {
 -	case kind == "memory" && confirm == "":

@@ -2,10 +2,18 @@ Breaks: older ticked items are left out of a load with nothing saying so, which 
 Must fail: go test ./internal/mcpserver -run '^TestTheAnswerIsBoundedAndTheFileIsNot$'
 
 diff --git a/internal/mcpserver/read.go b/internal/mcpserver/read.go
-index 972c7c5..050d8d6 100644
+index 3aaa00e..3221407 100644
 --- a/internal/mcpserver/read.go
 +++ b/internal/mcpserver/read.go
-@@ -378,11 +378,7 @@ func buildDetail(storeDir string, loaded memory.ProjectContext) (detail, string)
+@@ -365,6 +365,7 @@ func buildDetail(storeDir string, loaded memory.ProjectContext) (detail, string)
+ 		skipDone = 0
+ 	}
+ 	dropped := skipDone
++	_ = dropped
+ 	for _, section := range project.Pending {
+ 		items := make([]detailItem, 0, len(section.Items))
+ 		for _, item := range section.Items {
+@@ -413,11 +414,7 @@ func buildDetail(storeDir string, loaded memory.ProjectContext) (detail, string)
  		left = append(left, "pending.md was too long to send back in full, so `pending_file` is cut. Do not rebuild "+
  			"the file from it: tell the user, and leave the pending list alone this time.")
  	}

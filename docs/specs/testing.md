@@ -145,6 +145,10 @@ Each list below is behaviour, not a test-per-function list.
   the program dies.
 - The bindings and the files must match, proved against a `rules/` that is wrong on purpose: a file
   nothing is bound to, and a binding with no file. Both stop the program at startup.
+- Every text is bound and none is empty, checked against the names the specs give rather than
+  against the table itself: `Names` and `Text` read the same map, so asking whether one knows what
+  the other lists is asking a table about itself, and two of that test's three assertions could
+  never fire.
 - `MAILBOX_RULE` is read for what it says, not only for arriving intact: that the sender's name is
   claimed rather than verified, that silence is not permission, that reading a project is not acting,
   that a group message was not addressed to this agent in particular, and that a sender blocked on
@@ -662,6 +666,11 @@ user's machines are.
 
 - **Every control is a patch** in `testdata/mutations/<name>.patch`, with a header naming the tests
   that must fail.
+- **A control counts as failing only when a test failed.** The sweep requires `--- FAIL` in the
+  output, not merely a non-zero exit: a mutation that stops the package compiling, or a `Must fail`
+  naming a test that does not exist, also exits non-zero, and eleven controls were passing that way
+  — their tests never ran. A mutation therefore has to compile, which sometimes means one line that
+  keeps a variable or an import used without restoring what was removed.
 - **`go run ./internal/testutil/mutate`** copies the repository to a temporary directory. For each
   patch it checks that the patch applies, so a patch whose anchor moved fails instead of silently
   doing nothing. It then runs the named tests and requires them to fail.

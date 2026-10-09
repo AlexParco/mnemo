@@ -2,10 +2,10 @@ Breaks: a scan refusal never hands back the value that would let a confirmed fal
 Must fail: go test ./internal/mcpserver -run '^TestPushRefusesASecretAndCanBeAcknowledged$'
 
 diff --git a/internal/mcpserver/sync.go b/internal/mcpserver/sync.go
-index 8a72080..0a86bfd 100644
+index 8a72080..c021ef6 100644
 --- a/internal/mcpserver/sync.go
 +++ b/internal/mcpserver/sync.go
-@@ -142,7 +142,7 @@ func handlePush(ctx context.Context, call *Call, args Args) *answer {
+@@ -142,10 +142,10 @@ func handlePush(ctx context.Context, call *Call, args Args) *answer {
  		return a.say("Nothing was pushed, and nothing you can do here will push it until a person has looked at "+
  			"these findings. Show them to the user now, in this conversation, and stop. Only after they have "+
  			"said in their own words that these are false positives, call mnemo_push again with acknowledge: "+
@@ -13,4 +13,8 @@ index 8a72080..0a86bfd 100644
 +			"omitted. Do not open the files and decide for yourself — you cannot tell a test fixture from the "+
  			"user's live credential — and do not send that value back in the same turn you received it. If the "+
  			"user does not answer, leave the work committed and tell them it is not on the hub yet: a "+
- 			"credential published to a hub cannot be taken back, a delayed push can.", result.Acknowledge)
+-			"credential published to a hub cannot be taken back, a delayed push can.", result.Acknowledge)
++			"credential published to a hub cannot be taken back, a delayed push can.")
+ 	default:
+ 		// No hub, or a rebase still in progress: nothing was published and
+ 		// there is something to fix first.

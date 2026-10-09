@@ -2,10 +2,10 @@ Breaks: a sync reports conflicts without handing back the files, so the agent ha
 Must fail: go test ./internal/mcpserver -run '^TestTwoMachinesCollideAndTheMergeGoesThrough$'
 
 diff --git a/internal/mcpserver/sync.go b/internal/mcpserver/sync.go
-index e7d9676..a988099 100644
+index 8a72080..88adb84 100644
 --- a/internal/mcpserver/sync.go
 +++ b/internal/mcpserver/sync.go
-@@ -45,9 +45,7 @@ func handleSync(ctx context.Context, call *Call, args Args) *answer {
+@@ -51,9 +51,7 @@ func handleSync(ctx context.Context, call *Call, args Args) *answer {
  	// The conflicted files come back with the answer rather than being left for
  	// the agent to read: it has to merge them, and a file it fetched separately
  	// could already be a different one.
@@ -16,3 +16,9 @@ index e7d9676..a988099 100644
  }
  
  func handleResolveConflict(ctx context.Context, call *Call, args Args) *answer {
+@@ -153,3 +151,5 @@ func handlePush(ctx context.Context, call *Call, args Args) *answer {
+ 	}
+ 	return a.block(result.Detail)
+ }
++
++var _ = criterion.ConflictRule
