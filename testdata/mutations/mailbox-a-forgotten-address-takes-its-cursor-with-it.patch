@@ -2,14 +2,14 @@ Breaks: An address forgotten after ninety days takes with it the only record tha
 Must fail: go test ./internal/mailbox -run '^TestAnAddressIsNotForgottenWhileItsMessagesAreStillThere$' -count=1
 
 diff --git a/internal/mailbox/ops.go b/internal/mailbox/ops.go
-index 0b87744..1729552 100644
+index 01ffcf1..e823af2 100644
 --- a/internal/mailbox/ops.go
 +++ b/internal/mailbox/ops.go
-@@ -266,8 +266,8 @@ func (m *Mailbox) List(ctx context.Context, caller Caller) (Peers, error) {
- 			// while they are still there and nothing can ever prune them, and a
- 			// new chat opened under the same name is handed, as new work, what
- 			// the last one finished three months ago.
--			if waiting == 0 && !addressed(messages, address) && entry.Holder == nil &&
+@@ -325,8 +325,8 @@ func (m *Mailbox) List(ctx context.Context, caller Caller) (Peers, error) {
+ 			// group message is pruned at thirty days whoever has read it, so by
+ 			// ninety days of silence the only unread message an address can
+ 			// still have is one addressed to it by name.
+-			if !addressed(messages, address) && entry.Holder == nil &&
 -				!entry.LastSeen.IsZero() && now.Sub(entry.LastSeen) > Offline {
 +			if waiting == 0 && entry.Holder == nil && !entry.LastSeen.IsZero() &&
 +				now.Sub(entry.LastSeen) > Offline {

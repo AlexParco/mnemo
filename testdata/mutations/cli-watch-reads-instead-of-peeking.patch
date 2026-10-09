@@ -2,7 +2,7 @@ Breaks: The watcher marks the post read as it announces it, so mailbox_read find
 Must fail: go test ./internal/cli -run '^TestWatchAnnouncesWithoutTouchingAnything$' -count=1
 
 diff --git a/internal/cli/watch.go b/internal/cli/watch.go
-index f7ee0b3..71e2224 100644
+index a61b22c..e35b78b 100644
 --- a/internal/cli/watch.go
 +++ b/internal/cli/watch.go
 @@ -4,6 +4,7 @@ import (
@@ -21,13 +21,14 @@ index f7ee0b3..71e2224 100644
  	box := mailboxFor(resolved)
  
  	// The tool is accepted because the plugin passes it and the flag is part of
-@@ -81,7 +81,9 @@ func watch(ctx context.Context, resolved config.Settings, tool string, out, errO
+@@ -81,7 +81,10 @@ func watch(ctx context.Context, resolved config.Settings, tool string, out, errO
  	defer ticker.Stop()
  
  	for {
 -		top, waiting, err := box.Peek(address, announced)
-+		waiting, err := box.Read(ctx, mailbox.Caller{Name: resolved.Agent, Machine: resolved.Machine,
++		got, err := box.Read(ctx, mailbox.Caller{Name: resolved.Agent, Machine: resolved.Machine,
 +			Tool: tool, Instance: mailbox.Instance(), Via: "local", PID: os.Getpid()})
++		waiting := got.Messages
 +		top := announced
  		switch {
  		case err != nil:

@@ -666,11 +666,14 @@ user's machines are.
 
 - **Every control is a patch** in `testdata/mutations/<name>.patch`, with a header naming the tests
   that must fail.
-- **A control counts as failing only when a test failed.** The sweep requires `--- FAIL` in the
-  output, not merely a non-zero exit: a mutation that stops the package compiling, or a `Must fail`
-  naming a test that does not exist, also exits non-zero, and eleven controls were passing that way
-  — their tests never ran. A mutation therefore has to compile, which sometimes means one line that
-  keeps a variable or an import used without restoring what was removed.
+- **A control counts only when the test ran.** A non-zero exit is not enough: a mutation that stops
+  the package compiling, and a `Must fail` naming a test that does not exist, both exit non-zero
+  while the test binary never ran, and eleven controls were passing that way. The sweep rejects
+  `[build failed]` and `no tests to run` instead of asking for `--- FAIL`, because a mutation is
+  allowed to make a test crash rather than fail — one of them removes the cycle check and the
+  program recurses until it dies, which is exactly what it claims. A mutation therefore has to
+  compile, which sometimes means one line that keeps a variable or an import used without restoring
+  what was removed.
 - **`go run ./internal/testutil/mutate`** copies the repository to a temporary directory. For each
   patch it checks that the patch applies, so a patch whose anchor moved fails instead of silently
   doing nothing. It then runs the named tests and requires them to fail.
