@@ -2,12 +2,12 @@ Breaks: A terminal command leaves its name held after it exits. The process chec
 Must fail: go test ./internal/cli -run '^TestATerminalCommandWillNotTakeAnOpenChatsName$' -count=1
 
 diff --git a/internal/cli/mailbox.go b/internal/cli/mailbox.go
-index 79f6991..55587ba 100644
+index 04d1c1a..f8f1925 100644
 --- a/internal/cli/mailbox.go
 +++ b/internal/cli/mailbox.go
-@@ -184,10 +184,6 @@ func holding(ctx context.Context, box *mailbox.Mailbox, caller mailbox.Caller, f
+@@ -234,10 +234,6 @@ func holding(ctx context.Context, box *mailbox.Mailbox, caller mailbox.Caller, f
  	if _, err := box.Claim(ctx, caller); err != nil {
- 		return err
+ 		return asCommand(err)
  	}
 -	// Released on the way out, including on a failure: a command that leaves the
 -	// name held would keep a chat from opening under it until the lease or the

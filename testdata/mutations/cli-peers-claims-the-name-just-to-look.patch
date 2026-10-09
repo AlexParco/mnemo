@@ -2,28 +2,22 @@ Breaks: Looking is refused. 'mnemo peers' claims the name before it reads, so so
 Must fail: go test ./internal/cli -run '^TestATerminalCommandWillNotTakeAnOpenChatsName$' -count=1
 
 diff --git a/internal/cli/mailbox.go b/internal/cli/mailbox.go
-index 79f6991..0bf9fce 100644
+index 04d1c1a..692b674 100644
 --- a/internal/cli/mailbox.go
 +++ b/internal/cli/mailbox.go
-@@ -41,17 +41,17 @@ func peersCommand() *cobra.Command {
- 			"other agents can find your address.",
- 		Args: noArgs,
- 		RunE: func(cmd *cobra.Command, _ []string) error {
--			// No claim: looking is not holding. A name given here is only so the
--			// caller appears in the list and can be written to.
- 			_, box, caller, err := terminal(name, false)
+@@ -49,11 +49,13 @@ func peersCommand() *cobra.Command {
  			if err != nil {
  				return err
  			}
 -			peers, err := box.List(cmd.Context(), caller)
 -			if err != nil {
--				return err
+-				return asCommand(err)
 -			}
 -			return printPeers(cmd.OutOrStdout(), peers, time.Now())
 +			return holding(cmd.Context(), box, caller, func() error {
 +				peers, err := box.List(cmd.Context(), caller)
 +				if err != nil {
-+					return err
++					return asCommand(err)
 +				}
 +				return printPeers(cmd.OutOrStdout(), peers, time.Now())
 +			})

@@ -1,16 +1,25 @@
 Breaks: mentioning waiting messages marks them read, so the chat is told it has post and then finds an empty mailbox.
-Must fail: go test ./internal/mcpserver -run '^TestEveryAnswerCarriesTheWaitingPost$'
+Must fail: go test ./internal/mcpserver -run '^TestEveryAnswerCarriesTheWaitingPost$' -count=1
 
 diff --git a/internal/mcpserver/call.go b/internal/mcpserver/call.go
-index 13e278d..025c1fb 100644
+index 1c1967d..e190347 100644
 --- a/internal/mcpserver/call.go
 +++ b/internal/mcpserver/call.go
-@@ -99,7 +99,7 @@ func (c *Call) waiting() string {
- 	if c.box == nil || c.Agent == "" || c.Machine == "" {
+@@ -1,6 +1,7 @@
+ package mcpserver
+ 
+ import (
++	"context"
+ 	"encoding/json"
+ 	"fmt"
+ 	"os"
+@@ -136,7 +137,8 @@ func (c *Call) waiting() string {
+ 	if c.ClaimRefusal != "" {
  		return ""
  	}
 -	_, unread, err := c.box.Peek(c.Caller().Address(), 0)
-+	unread, err := c.box.Read(context.Background(), c.Caller())
++	got, err := c.box.Read(context.Background(), c.Caller())
++	unread := got.Messages
  	if err != nil || len(unread) == 0 {
  		return ""
  	}

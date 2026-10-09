@@ -386,6 +386,7 @@ func one(message mailbox.Message) string {
 	// byte-identical to mnemo's own framing. A sender cannot write the fence of
 	// its own message, because it cannot know the id until after it has sent it.
 	lines = append(lines,
+		"",
 		"--- message "+message.ID+" begins ---",
 		message.Body,
 		"--- message "+message.ID+" ends ---",

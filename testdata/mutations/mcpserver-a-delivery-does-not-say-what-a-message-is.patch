@@ -2,14 +2,14 @@ Breaks: A message is handed over with nothing saying it is a request from anothe
 Must fail: go test ./internal/mcpserver -run '^TestAMessageReachesTheOtherChatAndTheReplyComesBack$' -count=1
 
 diff --git a/internal/mcpserver/mailbox.go b/internal/mcpserver/mailbox.go
-index ae1ad6d..0f50d6a 100644
+index 43c190f..2a84a41 100644
 --- a/internal/mcpserver/mailbox.go
 +++ b/internal/mcpserver/mailbox.go
-@@ -263,7 +263,6 @@ func handleRead(ctx context.Context, call *Call, _ Args) *answer {
- 		return a.fromMailbox(err)
+@@ -271,7 +271,6 @@ func handleRead(ctx context.Context, call *Call, _ Args) *answer {
  	}
- 	return a.say("%s", delivered(messages, "No new messages.")).
--		block(rule(messages)).
+ 	return a.say("%s", delivered(got.Messages, "No new messages.")).
+ 		block(more(got)).
+-		block(rule(got.Messages)).
  		say("%s", call.identity()).
- 		with(readOut{You: call.Caller().Address(), Messages: messageList(messages)})
+ 		with(readOut{You: call.Caller().Address(), Messages: messageList(got.Messages), Left: got.Left})
  }

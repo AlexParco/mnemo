@@ -2,25 +2,18 @@ Breaks: The hook mentions the same waiting messages before every single edit, so
 Must fail: go test ./internal/cli -run '^TestTheHookTellsABusyChatItHasPost$' -count=1
 
 diff --git a/internal/cli/hook.go b/internal/cli/hook.go
-index 5af390d..38befdd 100644
+index 2275ef7..8348cc9 100644
 --- a/internal/cli/hook.go
 +++ b/internal/cli/hook.go
-@@ -195,17 +195,10 @@ func waitingPost(resolved config.Settings, state *sessionState, spanish bool) st
- 	// Everything unread, not only what has not been announced: the number has to
- 	// be the number mailbox_read will hand over. Saying "1 message(s) waiting"
- 	// and then delivering three is worse than saying nothing.
--	top, waiting, err := mailboxFor(resolved).Peek(address, 0)
-+	_, waiting, err := mailboxFor(resolved).Peek(address, 0)
- 	if err != nil || len(waiting) == 0 {
- 		return ""
- 	}
--	// What is announced once is each message. Nothing new since the last time
--	// means nothing to say, however much is still waiting: the chat has been
--	// told, and a hook that repeats itself is the thing in the way.
--	if top <= state.AnnouncedPost {
+@@ -207,11 +207,6 @@ func waitingPost(resolved config.Settings, state *sessionState, spanish bool) st
+ 	// log: the log is shared by every agent on the machine, so two others
+ 	// talking to each other would move the top and this chat would hear about
+ 	// its own old post again at the next edit.
+-	newest := waiting[len(waiting)-1].Seq
+-	if newest <= state.AnnouncedPost {
 -		return ""
 -	}
--	state.AnnouncedPost = top
+-	state.AnnouncedPost = newest
  	// The same sentence the tool answers carry, so a chat hears one wording
  	// whichever way it was reached, and the senders are joined the same way.
  	senders := mailbox.Names(mailbox.Senders(waiting))

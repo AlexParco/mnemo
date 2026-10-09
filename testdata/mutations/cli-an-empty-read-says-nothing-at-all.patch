@@ -2,15 +2,15 @@ Breaks: 'mnemo read' with nothing waiting prints nothing, which reads as a comma
 Must fail: go test ./internal/cli -run '^TestTheTerminalCommandsCarryTheConversation$' -count=1
 
 diff --git a/internal/cli/mailbox.go b/internal/cli/mailbox.go
-index 79f6991..0265d5e 100644
+index 04d1c1a..6925b02 100644
 --- a/internal/cli/mailbox.go
 +++ b/internal/cli/mailbox.go
-@@ -298,7 +298,7 @@ func printSent(out io.Writer, caller mailbox.Caller, sent mailbox.Sent, first st
+@@ -354,7 +354,7 @@ func warnAsCommand(warning string) string {
  
- func printMessages(out io.Writer, caller mailbox.Caller, messages []mailbox.Message, now time.Time) error {
- 	if len(messages) == 0 {
+ func printMessages(out io.Writer, caller mailbox.Caller, got mailbox.Delivery, now time.Time) error {
+ 	if len(got.Messages) == 0 {
 -		return say(out, []string{"no new messages for " + caller.Address()})
 +		return nil
  	}
  	var lines []string
- 	for _, message := range messages {
+ 	for _, message := range got.Messages {

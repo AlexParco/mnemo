@@ -365,22 +365,24 @@ func (m *Mailbox) Peek(address string, after int) (int, []Message, error) {
 		return 0, nil, err
 	}
 	top := highest(messages)
-	entry, known := state.Addresses[address]
-	if !known {
-		// An address nobody has ever held receives no group messages: it has no
-		// floor, so every group message would look new for ever.
-		//
-		// It is given back the `after` it was asked with, not the top of the
-		// log. A watcher starts at the same moment as the chat it watches and
-		// can easily look before the name has been claimed; told how far the log
-		// goes, it would record itself as having announced messages it never
-		// announced, and the chat would sit idle next to post nobody mentioned.
-		return after, nil, nil
+	from := Address{Cursor: after, Floor: top}
+	if entry, known := state.Addresses[address]; known {
+		from = *entry
+		if after > from.Cursor {
+			from.Cursor = after
+		}
 	}
-	from := *entry
-	if after > from.Cursor {
-		from.Cursor = after
-	}
+	// An address nobody has ever held is read with its floor at the top of the
+	// log, which is where its floor will be set when somebody claims it. So the
+	// messages sent straight to it are returned — somebody was given work before
+	// they opened the chat, and a watcher starting alongside that chat is the one
+	// thing that will tell it — while no group message is, because an agent that
+	// did not exist when a group was addressed was not part of it.
+	//
+	// What it must never do is give back the top of the log with no messages: a
+	// watcher looking before the name is claimed would record itself as having
+	// announced what it never announced, and the chat would open and sit idle
+	// beside post nobody mentioned.
 	return top, unread(messages, address, &from), nil
 }
 

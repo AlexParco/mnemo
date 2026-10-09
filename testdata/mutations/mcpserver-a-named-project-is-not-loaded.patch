@@ -2,10 +2,10 @@ Breaks: A message names a project and the receiver is not told to load its memor
 Must fail: go test ./internal/mcpserver -run '^TestAMessageReachesTheOtherChatAndTheReplyComesBack$' -count=1
 
 diff --git a/internal/mcpserver/mailbox.go b/internal/mcpserver/mailbox.go
-index 784eba0..ac4d93d 100644
+index 43c190f..1c66365 100644
 --- a/internal/mcpserver/mailbox.go
 +++ b/internal/mcpserver/mailbox.go
-@@ -308,10 +308,7 @@ func one(message mailbox.Message) string {
+@@ -374,10 +374,7 @@ func one(message mailbox.Message) string {
  		lines = append(lines, "in reply to "+message.ReplyTo)
  	}
  	if message.Project != "" {
@@ -15,5 +15,5 @@ index 784eba0..ac4d93d 100644
 -			" — load its memory with mnemo_load_project before acting on this")
 +		lines = append(lines, "project: "+message.Project)
  	}
- 	lines = append(lines, "", message.Body, "", "To answer: mailbox_reply with id "+message.ID+".")
- 	return strings.Join(lines, "\n")
+ 	// The body is fenced, and the fence carries the message's own id — four of
+ 	// whose characters are random and assigned when it was stored. A body is
