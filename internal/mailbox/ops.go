@@ -312,15 +312,20 @@ func (m *Mailbox) List(ctx context.Context, caller Caller) (Peers, error) {
 		for _, address := range state.Known() {
 			entry := state.Addresses[address]
 			waiting := len(unread(messages, address, entry))
-			// Forgotten only when nothing is waiting: an address with unread
-			// messages is somebody who has not come back yet, not somebody gone.
+			// Forgotten only when nothing in the log is addressed to it. That
+			// covers both reasons to keep it. A message it has not read is
+			// somebody who has not come back yet rather than somebody gone; and
+			// its cursor is the only record that the messages it did read were
+			// read, so forgetting it while they are still there leaves nothing
+			// that can ever prune them, and a new chat opened under the same
+			// name is handed what the last one finished three months ago as new
+			// work.
 			//
-			// And only when nothing in the log is addressed to it at all. Its
-			// cursor is the only record that those messages were read: forget it
-			// while they are still there and nothing can ever prune them, and a
-			// new chat opened under the same name is handed, as new work, what
-			// the last one finished three months ago.
-			if waiting == 0 && !addressed(messages, address) && entry.Holder == nil &&
+			// The unread count is not part of the condition, and cannot be: a
+			// group message is pruned at thirty days whoever has read it, so by
+			// ninety days of silence the only unread message an address can
+			// still have is one addressed to it by name.
+			if !addressed(messages, address) && entry.Holder == nil &&
 				!entry.LastSeen.IsZero() && now.Sub(entry.LastSeen) > Offline {
 				delete(state.Addresses, address)
 				continue

@@ -2,7 +2,7 @@ Breaks: The hook marks the post read as it mentions it, so mailbox_read finds no
 Must fail: go test ./internal/cli -run '^TestTheHookTellsABusyChatItHasPost$' -count=1
 
 diff --git a/internal/cli/hook.go b/internal/cli/hook.go
-index 5af390d..c424091 100644
+index 98a93ac..cf3aaa6 100644
 --- a/internal/cli/hook.go
 +++ b/internal/cli/hook.go
 @@ -1,6 +1,7 @@
@@ -21,10 +21,10 @@ index 5af390d..c424091 100644
 -	// Everything unread, not only what has not been announced: the number has to
 -	// be the number mailbox_read will hand over. Saying "1 message(s) waiting"
 -	// and then delivering three is worse than saying nothing.
--	top, waiting, err := mailboxFor(resolved).Peek(address, 0)
-+	waiting, err := mailboxFor(resolved).Read(context.Background(), mailbox.Caller{Name: resolved.Agent,
+-	_, waiting, err := mailboxFor(resolved).Peek(address, 0)
++	got, err := mailboxFor(resolved).Read(context.Background(), mailbox.Caller{Name: resolved.Agent,
 +		Machine: resolved.Machine, Tool: "claude", Instance: mailbox.Instance(), Via: "local", PID: os.Getpid()})
-+	top := state.AnnouncedPost + len(waiting)
++	waiting := got.Messages
  	if err != nil || len(waiting) == 0 {
  		return ""
  	}
