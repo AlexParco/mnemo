@@ -663,6 +663,16 @@ user's machines are.
   patch it checks that the patch applies, so a patch whose anchor moved fails instead of silently
   doing nothing. It then runs the named tests and requires them to fail.
 - **CI runs the controls** before every release, and on any change to a package they cover.
+- **A patch is only ever generated from a clean tree.** A diff taken while other work is in the
+  files carries that work too, so the patch stops applying the moment the work is committed — and a
+  patch that does not apply is a control that tests nothing.
+- **Putting the tree back must not touch what is not the mutation.** Restoring every path, rather
+  than only the ones a patch can touch, silently reverts whatever was being written at the time.
+  That has cost real work: a fix landed in a commit that carried only its spec, and once a mutation
+  itself was committed and broke the save reminder for every session.
+- **Every patch is checked in reverse before a release**: a patch that applies backwards means the
+  defect it describes is in the code. It is one pass over the whole set and it is the only thing
+  that catches a mutation that was committed by accident.
 
 The minimum set. Each control names the behaviour it breaks.
 
