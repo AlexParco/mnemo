@@ -49,6 +49,14 @@ Every mailbox operation has a caller: an address, a tool and an instance.
   at — and never recorded on an address. A client chooses that name itself, and a name it chose
   must not be able to make `@claude` reach a chat that is not Claude Code. An address whose tool
   nothing recorded reads `unknown` in the table.
+- **A name is checked for shape wherever it comes from**, not only in `mnemo run`: a chat started
+  by hand with `MNEMO_AGENT` set never goes through that command. The name is written into `from` on
+  every message it sends and into the line a watcher turns into a notification, so a newline in it
+  is a line of mnemo's own that somebody else wrote. The same for the machine label.
+- **A stored record is checked as well as parsed.** Every agent on the machine runs as the owner of
+  the mailbox directory, so a line can be appended without going through a send. A record whose
+  `from` or `to` is not an address or a group is skipped on read: what comes back is what a send
+  could have written.
 - **A caller without a name** can use every memory tool, but not the mailbox. Mailbox tools
   refuse with: `This chat has no mailbox name. Open it with: mnemo run <tool> --name <name>`.
   `peers` is the exception: it answers, with an identity line saying there is no name and how to

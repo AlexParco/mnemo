@@ -119,8 +119,11 @@ func notice(message mailbox.Message) string {
 	if message.ReplyTo != "" {
 		reply = " in reply to " + message.ReplyTo
 	}
-	return fmt.Sprintf("[mnemo] message %s from %s%s: %q Read it with mailbox_read.",
-		message.ID, message.From, reply, preview(message.Body))
+	// Every part is made printable, not only the body: one line here becomes one
+	// notification, and a newline anywhere in it becomes a second notification
+	// that mnemo did not write.
+	return printable(fmt.Sprintf("[mnemo] message %s from %s%s: %q Read it with mailbox_read.",
+		message.ID, message.From, reply, preview(message.Body)))
 }
 
 // preview is the body on one line, short enough to read at a glance.

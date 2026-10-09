@@ -90,6 +90,14 @@ func (m *Mailbox) readLog() ([]Message, error) {
 		if err := json.Unmarshal([]byte(line), &message); err != nil || message.Seq <= 0 {
 			continue
 		}
+		// A record is checked as well as parsed. Every agent on the machine runs
+		// as the owner of the mailbox directory, so a line can be appended
+		// without going through a send — and a `from` or a `to` with a newline
+		// in it writes a line of mnemo's own into a message header or into a
+		// notification. What is read back is what a send could have written.
+		if !IsAddress(message.From) || !(IsAddress(message.To) || isGroup(message.To)) {
+			continue
+		}
 		messages = append(messages, message)
 	}
 	if err := scanner.Err(); err != nil {

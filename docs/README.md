@@ -94,9 +94,10 @@ explained where it appears.
 28. **A caller that does not hold an address cannot retag it.** The tool recorded on an address
     decides which group messages reach it and what a refusal names, so only its holder may change
     it.
-29. **A message body is fenced, and the fence carries the message's own id.** Four of an id's
-    characters are random and assigned when the message was stored, so a sender cannot write the
-    fence of its own message — and a body is otherwise byte-identical to mnemo's own framing.
+29. **A message body is fenced, and the fence carries a token made when the answer is written.**
+    Four random bytes that do not exist when any body is written, however that body got there. The
+    message's own id is not enough: an agent that appends to the log rather than sending picks its
+    own id, and would then own its fence.
 30. **A client's own name is shown and never recorded.** When nothing says which tool a chat is,
     the name the client gave in the handshake is used in the identity line, and never written onto
     an address: a name a client chose for itself must not be able to make `@claude` reach a chat

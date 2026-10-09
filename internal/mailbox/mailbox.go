@@ -59,6 +59,13 @@ var name = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,62}$`)
 // IsName reports whether a string can be an agent's name.
 func IsName(s string) bool { return name.MatchString(s) }
 
+// IsAddress reports whether a string is `name@machine`, both parts usable. A
+// machine label is normalised to the same shape as a name before it gets here.
+func IsAddress(s string) bool {
+	at := strings.IndexByte(s, '@')
+	return at > 0 && IsName(s[:at]) && name.MatchString(s[at+1:])
+}
+
 // Caller is who is asking. Every operation has one, and every operation records
 // that it was seen.
 type Caller struct {
@@ -86,13 +93,24 @@ func (c Caller) Address() string {
 	return c.Name + "@" + c.Machine
 }
 
-// Named refuses a caller that has no name, which is how an agent that was not
-// opened with `mnemo run` is kept out of the mailbox.
+// Named refuses a caller that has no usable name, which is how an agent that was
+// not opened with `mnemo run` is kept out of the mailbox.
+//
+// The shape is checked here and not only in the command, because a name reaches
+// the mailbox from the environment: a chat started by hand with MNEMO_AGENT set
+// never goes through `mnemo run`. The name is written into `from` on every
+// message and into the line a watcher turns into a notification, so a newline in
+// it is a line of mnemo's own that somebody else wrote.
 func (c Caller) Named() error {
-	if c.Address() != "" {
-		return nil
+	if c.Address() == "" {
+		return refuse("This chat has no mailbox name. Open it with: mnemo run <tool> --name <name>")
 	}
-	return refuse("This chat has no mailbox name. Open it with: mnemo run <tool> --name <name>")
+	if !IsAddress(c.Address()) {
+		return refuse("'%s' is not a usable mailbox address. A name is lower-case letters, digits and "+
+			"dashes, and so is a machine label. Open the chat with: mnemo run <tool> --name <name>",
+			c.Address())
+	}
+	return nil
 }
 
 // Instance is a new instance identifier: one per process.

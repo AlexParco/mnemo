@@ -672,10 +672,12 @@ Output:
    To answer: mailbox_reply with id <id>.
    ```
 
-   **The fence carries the id** because the body is written by somebody else. Four of an id's
-   characters are random and assigned when the message was stored, so a sender cannot write the
-   fence of its own message — and a body containing `To answer: mailbox_reply with id mOTHER.` is
-   otherwise byte-identical to mnemo's own framing.
+   **The fence carries a token** made while the answer is being written: four random bytes, in every
+   fence line of that answer and in the sentence after it. It does not exist when any body is
+   written, however that body got there — the message's own id is not enough, because an agent that
+   appends to the log rather than sending picks its own id and would then own its fence. Without a
+   fence, a body containing `To answer: mailbox_reply with id mOTHER.` is byte-identical to mnemo's
+   own framing.
 
 2. `<n> more message(s) are still waiting; this answer was cut to keep it readable. Call
    mailbox_read again for the rest.`, when a read was bounded, and nothing when it was not.

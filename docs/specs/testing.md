@@ -373,6 +373,9 @@ Every one of these is a way to damage a file mnemo did not write.
 
 - An agent with no name has memory and no mailbox: sending, reading and claiming are all refused,
   and the refusal says how to get one. That is the whole of the admission control.
+- A name with a newline in it is refused by claiming, sending and reading alike, and a record
+  written straight into the log with such a `from` is skipped on read. Both reach the line a watcher
+  turns into a notification, which is one line by definition.
 - One address, one live instance. A second chat is refused, and the refusal names **the tool that
   has the name**, not the one being turned away, with when it opened. The same instance claiming
   again is a renewal and keeps when it started. Describing a held name, which is what `mnemo run`
