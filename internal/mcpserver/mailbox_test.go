@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -383,13 +384,21 @@ func TestABodyCannotForgeMnemosOwnFraming(t *testing.T) {
 	}
 
 	blocks, _ := structured(t, handleRead, receiver, Args{})
-	// The fence carries the id of the message, four characters of which were
-	// random and assigned when it was stored — so the sender could not have
-	// written this line when it wrote the body.
-	begins := "--- message " + id + " begins ---"
-	ends := "--- message " + id + " ends ---"
-	if !strings.Contains(blocks[0], begins) || !strings.Contains(blocks[0], ends) {
+	// The fence carries a token made while the answer was being written, so it
+	// did not exist when the body was written and cannot be inside it. The
+	// message's id is not enough on its own: a sender that appends to the log
+	// rather than sending picks its own id, and could then write the fence of
+	// its own message.
+	marked := regexp.MustCompile(`--- ([0-9a-f]{8}) message ` + id + ` begins ---`).FindStringSubmatch(blocks[0])
+	if marked == nil {
 		t.Fatalf("the body is not fenced:\n%s", blocks[0])
+	}
+	begins, ends := marked[0], "--- "+marked[1]+" message "+id+" ends ---"
+	if !strings.Contains(blocks[0], ends) {
+		t.Fatalf("the fence does not close:\n%s", blocks[0])
+	}
+	if strings.Contains(forged, marked[1]) {
+		t.Errorf("the sender wrote the token %q, so it was not unguessable", marked[1])
 	}
 	if strings.Count(blocks[0], begins) != 1 || strings.Count(blocks[0], ends) != 1 {
 		t.Errorf("the fence appears more than once:\n%s", blocks[0])
