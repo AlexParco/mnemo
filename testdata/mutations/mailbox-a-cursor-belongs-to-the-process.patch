@@ -1,18 +1,27 @@
 Breaks: reading does not move the cursor past everything in the log, so a chat that restarts under the same name reads its whole history again as if it were new.
-Must fail: go test ./internal/mailbox -run '^TestSendAndRead$|^TestACursorSurvivesTheChatThatOwnedIt$'
+Must fail: go test ./internal/mailbox -run '^TestSendAndRead$|^TestACursorSurvivesTheChatThatOwnedIt$' -count=1
 
 diff --git a/internal/mailbox/ops.go b/internal/mailbox/ops.go
-index f88c653..759db4f 100644
+index 6b9732e..e28f8f8 100644
 --- a/internal/mailbox/ops.go
 +++ b/internal/mailbox/ops.go
-@@ -150,9 +150,7 @@ func (m *Mailbox) Read(ctx context.Context, caller Caller) ([]Message, error) {
- 		// The cursor goes to the top of the log, not to the last message read:
- 		// anything below it was either read, sent by this address, or addressed
- 		// to a group it is not in, and none of those should come back later.
--		if top := highest(messages); top > entry.Cursor {
--			entry.Cursor = top
+@@ -183,19 +183,6 @@ func (m *Mailbox) Read(ctx context.Context, caller Caller) (Delivery, error) {
+ 		waiting := unread(messages, address, entry)
+ 		out = fit(waiting)
+ 
+-		if len(out.Messages) == len(waiting) {
+-			// Everything went, so the cursor goes to the top of the log rather
+-			// than to the last message: anything below it was either read, sent
+-			// by this address, or addressed to a group it is not in, and none of
+-			// those should come back later.
+-			if top := highest(messages); top > entry.Cursor {
+-				entry.Cursor = top
+-			}
+-			return nil
 -		}
-+
+-		// Only what was handed over is marked read, so the next read starts
+-		// where this one stopped.
+-		entry.Cursor = out.Messages[len(out.Messages)-1].Seq
  		return nil
  	})
  	return out, err

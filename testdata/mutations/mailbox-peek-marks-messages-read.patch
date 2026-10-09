@@ -1,25 +1,25 @@
 Breaks: a watcher polling the mailbox marks messages read, so the chat it was meant to wake never sees them.
-Must fail: go test ./internal/mailbox -run '^TestPeekChangesNothing$'
+Must fail: go test ./internal/mailbox -run '^TestPeekChangesNothing$' -count=1
 
 diff --git a/internal/mailbox/ops.go b/internal/mailbox/ops.go
-index f88c653..b97ede0 100644
+index 6b9732e..2f4a02d 100644
 --- a/internal/mailbox/ops.go
 +++ b/internal/mailbox/ops.go
-@@ -307,11 +307,15 @@ func (m *Mailbox) Peek(address string, after int) (int, []Message, error) {
- 		// floor, so every group message would look new for ever.
- 		return top, nil, nil
- 	}
--	from := *entry
--	if after > from.Cursor {
--		from.Cursor = after
-+	if after > entry.Cursor {
-+		entry.Cursor = after
- 	}
+@@ -379,11 +379,14 @@ func (m *Mailbox) Peek(address string, after int) (int, []Message, error) {
+ 	// thing that will tell it — while no group message is, because an agent that
+ 	// did not exist when a group was addressed was not part of it.
+ 	//
+-	// What it must never do is give back the top of the log with no messages: a
+-	// watcher looking before the name is claimed would record itself as having
+-	// announced what it never announced, and the chat would open and sit idle
+-	// beside post nobody mentioned.
 -	return top, unread(messages, address, &from), nil
-+	waiting := unread(messages, address, entry)
-+	entry.Cursor = top
-+	if err := m.saveState(state); err != nil {
-+		return 0, nil, err
++	waiting := unread(messages, address, &from)
++	if entry, known := state.Addresses[address]; known {
++		entry.Cursor = top
++		if err := m.saveState(state); err != nil {
++			return 0, nil, err
++		}
 +	}
 +	return top, waiting, nil
  }
