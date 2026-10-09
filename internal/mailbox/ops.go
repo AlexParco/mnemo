@@ -178,6 +178,14 @@ func (m *Mailbox) Read(ctx context.Context, caller Caller) (Delivery, error) {
 		return out, err
 	}
 	err := m.operate(ctx, caller, func(state *State, messages []Message, now time.Time) error {
+		// Nothing is marked read for a chat that has already gone. The answer
+		// would be dropped by the transport and the messages would be read and
+		// undelivered — gone for good, since nothing hands a message over twice.
+		// It only narrows the window: a chat that goes away while the answer is
+		// being written still loses what this call marked.
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		address := caller.Address()
 		entry := state.Addresses[address]
 		waiting := unread(messages, address, entry)

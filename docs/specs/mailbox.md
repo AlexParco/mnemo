@@ -200,11 +200,12 @@ old messages when a prune is due, and records the caller.
 - When the time runs out, or the request is cancelled, it returns an empty result that says it
   timed out. A cancelled call is not a failure and never a complaint about another agent: from
   inside the lock a cancelled context and real contention look the same, and out here they do not.
-- **A read that nobody receives still counts as read.** A chat that goes away between the read and
-  the answer leaves its messages marked read, and they stay in the log for the usual thirty days
-  without being delivered again. Doing better means the receiver acknowledging what it got, which
-  is a second round trip on every read for a case that costs one message in a chat that has already
-  closed.
+- **A read marks nothing for a chat that has already gone.** The answer would be dropped by the
+  transport and the messages would be read and undelivered, which nothing hands over twice.
+  - That only narrows the window. A chat that goes away *while* the answer is being written still
+    loses what that call marked. Closing it completely means the receiver acknowledging what it
+    got — a second round trip on every read, for a case that costs one message in a chat that has
+    already closed.
 
 ### peers()
 

@@ -1012,3 +1012,23 @@ func TestAnUnusableNameIsRefusedWhereverItCameFrom(t *testing.T) {
 		t.Errorf("a forged record was read back as a message: %+v", messages)
 	}
 }
+
+// A read marks nothing for a chat that has already gone: the answer would be
+// dropped by the transport, and nothing hands a message over twice.
+func TestAReadForAChatThatWentAwayConsumesNothing(t *testing.T) {
+	b := newBox(t)
+	receiver := b.agent(t, "boss", "claude", 100)
+	sender := b.agent(t, "worker", "codex", 200)
+	b.send(t, sender, receiver.Address(), "the parser is done")
+
+	gone, leave := context.WithCancel(t.Context())
+	leave()
+	if _, err := b.Read(gone, receiver); err == nil {
+		t.Error("a read went through for a chat that had gone")
+	}
+
+	// And it is still there for the chat that comes back.
+	if waiting := b.read(t, receiver); bodies(waiting) != "the parser is done" {
+		t.Errorf("what is left to read is %q", bodies(waiting))
+	}
+}
