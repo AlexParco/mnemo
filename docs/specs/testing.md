@@ -546,7 +546,8 @@ user's machines are.
 - A torn last line does not corrupt the next message.
 - Wait returns as soon as a message lands, times out empty, and stops when cancelled — and a
   cancelled wait is an empty answer, not a failure, and never a complaint about another agent
-  holding the mailbox.
+  holding the mailbox. A read by a chat that has already gone marks nothing, which the lock
+  guarantees: it refuses a cancelled call before anything is read.
 - `peek` shows what waits without marking it read or recording anyone.
 - Version 1 files are moved aside, and the mailbox starts empty.
 - A caller without a name gets the `mnemo run` refusal from every mailbox tool, and memory tools
