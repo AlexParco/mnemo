@@ -62,11 +62,11 @@ An arrow means "may import". Anything not listed may not.
 | `config` | `memory`, `BurntSushi/toml` |
 | `mcpserver` | `store`, `gitx`, `mailbox`, `memory`, `criterion`, `config`, MCP SDK |
 | `httpapi` | `mcpserver`, `mailbox`, `config`, `store`, `build`, MCP SDK |
-| `remote` | `mcpserver`, `mailbox`, `config`, `tunnel`, MCP SDK |
+| `remote` | `mcpserver`, `mailbox`, `config`, `build`, MCP SDK. Not `tunnel`: bringing the tunnel up is injected, so the relay does not depend on how that is done and a test does not need one. |
 | `tunnel` | `config`, `lock` |
-| `service` | `config` |
+| `service` | `config`. The programs it drives — systemctl, loginctl, launchctl, sudo — go through an injected runner, which is what lets one machine's tests exercise both platforms and neither for real. |
 | `integration` | `config`, `mailbox`, `remote`, `sjson`/`gjson`, `BurntSushi/toml` |
-| `selfupdate` | `build`, `config`, `service`, `tunnel` |
+| `selfupdate` | standard library. The running version, restarting the server and the tunnel, and updating the plugin arrive through its options: the package that replaces a binary should not also decide what a service is, and a test can then drive every step with no network. |
 | `cli` | all of the above, Cobra |
 | `archtest` | standard library |
 

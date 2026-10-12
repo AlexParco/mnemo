@@ -53,13 +53,16 @@ var allowed = map[string][]string{
 	"internal/criterion":   {},
 	"internal/mcpserver":   {"internal/store", "internal/gitx", "internal/mailbox", "internal/memory", "internal/criterion", "internal/config", sdk},
 	"internal/httpapi":     {"internal/mcpserver", "internal/mailbox", "internal/config", "internal/store", "internal/build", sdk},
-	"internal/remote":      {"internal/mcpserver", "internal/mailbox", "internal/config", "internal/tunnel", sdk},
+	"internal/remote":      {"internal/mcpserver", "internal/mailbox", "internal/config", "internal/build", sdk},
 	"internal/tunnel":      {"internal/config", "internal/lock"},
 	"internal/service":     {"internal/config"},
 	"internal/integration": {"internal/config", "internal/mailbox", "internal/remote", sjson, gjson, toml},
-	"internal/selfupdate":  {"internal/build", "internal/config", "internal/service", "internal/tunnel"},
-	"internal/archtest":    {},
-	"templates":            {},
+	// selfupdate imports nothing of ours: the running version, the restarts and
+	// the plugin update all arrive through its options. That is what lets a test
+	// drive every one of its steps with no network and no services.
+	"internal/selfupdate": {},
+	"internal/archtest":   {},
+	"templates":           {},
 }
 
 type goPackage struct {
