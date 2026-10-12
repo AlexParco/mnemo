@@ -80,9 +80,10 @@ func Execute(ctx context.Context) int {
 	root.PersistentFlags().StringVar(&flags.Machine, "machine", "", "label for this machine")
 	root.PersistentFlags().StringVar(&flags.Lang, "lang", "", "language mnemo writes in: en or es")
 
-	root.AddCommand(configCommand(), hookCommand(), mcpCommand(), peersCommand(), readCommand(),
-		replyCommand(), runCommand(), sendCommand(), serveCommand(), serverCommand(), storeCommand(),
-		versionCommand(), watchCommand())
+	root.AddCommand(configCommand(), connectCommand(), disconnectCommand(), hookCommand(), mcpCommand(),
+		peersCommand(), readCommand(), replyCommand(), runCommand(), sendCommand(), serveCommand(),
+		serverCommand(), storeCommand(), tunnelCommand(), updateCommand(), versionCommand(),
+		watchCommand())
 
 	root.SetFlagErrorFunc(func(_ *cobra.Command, err error) error { return usageError{err} })
 	if err := root.ExecuteContext(ctx); err != nil {
