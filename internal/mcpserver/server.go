@@ -117,3 +117,39 @@ func safely(ctx context.Context, handle Handler, call *Call, args Args) (
 func Serve(ctx context.Context, version string, call *Call, transport mcp.Transport) error {
 	return New(version, call).Run(ctx, transport)
 }
+
+// Instructions are what every connection is told, wherever it is answered.
+//
+// A relay answers the handshake itself — it costs a round trip and cannot
+// differ, because a client refuses to work with a server whose api number is not
+// its own — so the text has to be reachable without building a server.
+func Instructions() string { return criterion.ServerInstructions }
+
+// Forwarder answers one tool call somewhere else. It is given the name and the
+// arguments as they arrived, and gives back what the other end said.
+type Forwarder func(ctx context.Context, name string, arguments map[string]any) (*mcp.CallToolResult, error)
+
+// RegisterForwarding offers every tool and sends each call through the forwarder.
+//
+// The definitions are this binary's own: the list, the descriptions and the
+// schemas are the same on both sides by construction, which is what the api
+// number is for. What travels is the call and the answer, and the answer is
+// handed back exactly as it came — a relay that reinterpreted a result would be
+// a second place where the contract lives, and the two would drift.
+func RegisterForwarding(server *mcp.Server, forward Forwarder) {
+	for _, definition := range allTools() {
+		tool := definition.Tool
+		mcp.AddTool(server, tool,
+			func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+				result, err := forward(ctx, tool.Name, args)
+				if err != nil {
+					// The failure is the agent's to act on — whether the call
+					// was sent decides what it should do next — so it is the
+					// answer rather than a protocol error, which a client would
+					// show as mnemo being broken.
+					return (&answer{}).refuse("%s", err.Error()).result(), nil, nil
+				}
+				return result, nil, nil
+			})
+	}
+}
