@@ -1,0 +1,16 @@
+Breaks: The server starts with no token configured, so everything on the machine that can reach the port can read and write the user's whole memory — and the port is the one thing a tunnel exposes.
+Must fail: go test ./internal/cli -run '^TestServingOverHTTPWithoutAServerRefuses$' -count=1
+
+diff --git a/internal/httpapi/httpapi.go b/internal/httpapi/httpapi.go
+index 751d285..042a0de 100644
+--- a/internal/httpapi/httpapi.go
++++ b/internal/httpapi/httpapi.go
+@@ -54,7 +54,7 @@ var ErrNoServer = errors.New("this machine has no server configured, so there is
+ 
+ // New checks that there is a server to run and prepares it.
+ func New(opts Options) (*Server, error) {
+-	if !opts.Settings.Server.Set() {
++	if false {
+ 		return nil, ErrNoServer
+ 	}
+ 	return &Server{opts: opts, digest: sha256.Sum256([]byte(opts.Settings.Server.Token))}, nil

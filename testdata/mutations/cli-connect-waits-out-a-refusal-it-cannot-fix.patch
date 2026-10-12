@@ -1,0 +1,16 @@
+Breaks: A token the server does not know, or an api it does not speak, is retried for the whole fifteen seconds before the same answer arrives. The one thing the person is waiting for is the sentence telling them to ask for a new pairing code.
+Must fail: go test ./internal/cli -run '^TestConnectSavesNothingUntilTheServerHasAnswered$' -count=1
+
+diff --git a/internal/cli/connect.go b/internal/cli/connect.go
+index c12f010..0338893 100644
+--- a/internal/cli/connect.go
++++ b/internal/cli/connect.go
+@@ -206,7 +206,7 @@ func waitForServer(cmd *cobra.Command, trying config.Settings, keeper *tunnel.Ke
+ 		// or an api it does not speak. Trying again for fifteen seconds would
+ 		// only delay the same answer.
+ 		var notSent *remote.NotSent
+-		if !errors.As(err, &notSent) {
++		if errors.As(err, &notSent) && false {
+ 			return health, err
+ 		}
+ 		time.Sleep(250 * time.Millisecond)

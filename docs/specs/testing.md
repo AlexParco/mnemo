@@ -663,6 +663,65 @@ user's machines are.
   ways to give it. The name may come from the environment.
 - A refusal and a warning printed from a terminal name `mnemo peers`, not `mailbox_peers`.
 
+### The server's HTTP interface
+
+- Nothing is answered without the token: no header, an empty one, another scheme, a wrong token, the
+  right one with a character added — each is a 401 with `WWW-Authenticate: Bearer realm="mnemo"` and
+  a body of the same shape as every other error, and none of them carries the token back. A
+  lower-case `bearer` is accepted, because a client that sends it is not wrong.
+- Health says the version, the api number and the machine. The api number is the point: a client
+  checks it before it trusts anything else.
+- A heartbeat claims a name on a lease and says how long it is; the same instance again is a renewal;
+  another instance is a 409 whose body names the holder's tool and when it opened. A release takes
+  only an instance, because that is all a client sends, and releasing nothing is not an error.
+- The holder endpoint answers what `mnemo run` on another machine asks. Unread is a peek: asked twice
+  it answers twice, and an empty answer is an empty list rather than `null`.
+- A tool call says which machine and which tool is asking, and an agent without an instance is
+  refused: a name is held by an instance. The caller's machine is the caller's and the files are the
+  server's, which is what decides whose pending work is whose — the answer says both.
+- A wrong path is a 404, a wrong method a 405 with `Allow`, a body over the limit a 413, a body that
+  is not the JSON expected a 400. Half a server — a port with no token, or a token with no port — is
+  not a server. It listens on loopback and nowhere else.
+- The test mailbox fails the test if anything asks whether a process is alive: a remote holder lives
+  on a lease, and nothing may fall back to a process check for a machine it cannot see.
+
+### The relay
+
+- Tested against the real server in the same process, not against a stand-in: two halves tested
+  against each other's imitations agree about the imitation.
+- The check before anything else is the api number, not merely that something answered. A server
+  speaking another one is refused by number, and the refusal says to update the older machine. A
+  token the server does not know says the code was probably rotated.
+- A name refused on the server comes back as something to say, not as a failure: the chat carries on
+  without a mailbox and the identity line says why. Losing the mailbox is not losing the memory.
+- The relay offers the same tools as a local mnemo and forwards every call. What the server said
+  arrives unchanged, refusals included.
+- A call that cannot reach the server says whether it was sent, because the agent has to do a
+  different thing about each. A run of failures prods the tunnel once, not once per call.
+- A chat that was refused its name does not release somebody else's hold on the way out.
+
+### `serve --http`, `connect` and the pairing code
+
+- The server reads its port and token from the config, logs the version, the address and whose files
+  it answers for, refuses without a server, and never writes the token to its log.
+- A pairing code round-trips, carries exactly the three fields the spec gives with the port as a
+  number, and survives the whitespace a terminal adds. Every way of being wrong is its own sentence
+  and a usage status: not a code, cut short, not JSON, no machine, no token, a port that is not one.
+- A token is 32 bytes from the operating system, base64url without padding, and never the same twice.
+- `connect` saves nothing until the server has answered: a wrong token leaves the config as it was,
+  and it stops at once rather than waiting out the timeout — a refusal that waiting cannot fix is
+  checked for promptness, because without that check the test passed and merely took seventeen
+  seconds.
+- The happy path runs against a real server through a real forward: the `ssh` stand-in in `testdata`
+  reads the `-L` it was given and listens on it, which is also what proves the keeper passes the
+  right one. A script that only slept would prove something was started and nothing about whether
+  the tunnel asked for is the tunnel got.
+- A machine that runs a server refuses to connect to another. A code for this machine's own label is
+  refused, because two machines with one label collide on every address. `connect` with no code and
+  nothing saved says where a code comes from.
+- `disconnect` keeps the entry and says which files are in use again; `connect` with no code returns
+  to it. `mnemo config` reports the same mode every other command acts on.
+
 ### Config and release
 
 - Resolution order for every setting. Normalisation of the machine label. File mode `0600`.
@@ -733,6 +792,12 @@ check ever changes shape, and a test asserts the refusal, but no mutation of it 
 an internal fault reported as advice the agent could act on. It would need an error out of the
 store that is neither a refusal nor reachable from a handler's arguments, and constructing one
 means putting the store in a state it cannot be in.
+
+**Also deliberately absent.** The constant-time token comparison has no control. Replacing it with
+an ordinary `!=` still refuses every wrong token, so every test still passes: what changes is only
+how long the refusal takes, and a timing measurement on a shared machine is a test that fails for
+the weather. What the tests do pin is the shape — both tokens hashed, the hashes compared with
+`subtle.ConstantTimeCompare` — and that a refusal never carries the token back.
 
 **Also deliberately absent.** The order of the two steps a wait begins with — sampling the log's
 size, then reading — has no test. Sampling after the read would mean a message appended in between
@@ -812,6 +877,12 @@ the control fails.
 - Drop from `MAILBOX_RULE` what mnemo cannot verify: the test that reads what the rule says fails.
 - Print a refusal into a terminal with the tool names left in it: the test that a terminal names
   commands fails.
+- Answer a tool call with no machine header, keep a session on the MCP endpoint, or start a server
+  with no token at all: each fails the test that covers it. The last one is why every command a test
+  runs has a time limit — without one it does not fail, it hangs, and takes the suite with it.
+- Accept any api number, turn a refused name into a failure, let the relay clear the error flag on
+  the server's answer, save a connection before the server has answered, or wait out a refusal that
+  waiting cannot fix: each fails the test that covers it.
 - Take a `yes` as the store's path, show nothing of what would go, hide where a retired store went,
   or say `--purge` moves the store aside: each fails the `store remove` test that covers it. The
   first of those was written before the test could tell the difference — the refusal for a store

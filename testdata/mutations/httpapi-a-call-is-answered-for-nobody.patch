@@ -1,0 +1,16 @@
+Breaks: A tool call with no X-Mnemo-Machine is answered anyway, so every pending item the caller writes is stamped for the server's machine rather than their own — and the card on their own machine then says somebody else's work belongs to them.
+Must fail: go test ./internal/httpapi -run '^TestAToolCallSaysWhichMachineAndWhichToolIsAsking$' -count=1
+
+diff --git a/internal/httpapi/httpapi.go b/internal/httpapi/httpapi.go
+index 751d285..d194435 100644
+--- a/internal/httpapi/httpapi.go
++++ b/internal/httpapi/httpapi.go
+@@ -167,7 +167,7 @@ func requesterFrom(r *http.Request) (mcpserver.Requester, error) {
+ 		Instance: strings.TrimSpace(r.Header.Get("X-Mnemo-Instance")),
+ 	}
+ 	switch {
+-	case requester.Machine == "":
++	case false:
+ 		return requester, errors.New("X-Mnemo-Machine is required: without it mnemo cannot tell which " +
+ 			"machine's work is which")
+ 	case requester.Tool == "":

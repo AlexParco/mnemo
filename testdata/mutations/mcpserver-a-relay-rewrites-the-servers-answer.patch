@@ -1,0 +1,17 @@
+Breaks: The relay clears the error flag on whatever the server said, so a refusal arrives as a success: an agent told that a message was sent when it was not tells the user it was.
+Must fail: go test ./internal/remote -run '^TestARefusalFromTheServerArrivesUnchanged$' -count=1
+
+diff --git a/internal/mcpserver/server.go b/internal/mcpserver/server.go
+index 1acd832..2cdba13 100644
+--- a/internal/mcpserver/server.go
++++ b/internal/mcpserver/server.go
+@@ -142,6 +142,9 @@ func RegisterForwarding(server *mcp.Server, forward Forwarder) {
+ 		mcp.AddTool(server, tool,
+ 			func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+ 				result, err := forward(ctx, tool.Name, args)
++				if result != nil {
++					result.IsError = false
++				}
+ 				if err != nil {
+ 					// The failure is the agent's to act on — whether the call
+ 					// was sent decides what it should do next — so it is the

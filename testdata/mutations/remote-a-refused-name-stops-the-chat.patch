@@ -1,0 +1,18 @@
+Breaks: A name another chat already holds comes back as an error rather than as something to say, so the chat gets no memory either — and losing the mailbox is not losing the memory.
+Must fail: go test ./internal/remote -run '^TestAHeartbeatHoldsTheNameAndAReleaseGivesItBack$' -count=1
+
+diff --git a/internal/remote/client.go b/internal/remote/client.go
+index 8e869f8..f21af4a 100644
+--- a/internal/remote/client.go
++++ b/internal/remote/client.go
+@@ -133,9 +133,7 @@ func (c *Client) Heartbeat(ctx context.Context) (string, error) {
+ 		if err := json.Unmarshal(body, &refused); err != nil || refused.Error == "" {
+ 			return "", fmt.Errorf("the server refused the name %s and did not say why", c.Caller.Address())
+ 		}
+-		// Handed back as the message, not as an error: the caller shows it to
+-		// the agent and carries on without a mailbox.
+-		return refused.Error, nil
++		return "", fmt.Errorf("%s", refused.Error)
+ 	default:
+ 		return "", fmt.Errorf("the server on %s answered %d to a heartbeat: %s",
+ 			c.Connection.Machine, status, strings.TrimSpace(string(body)))

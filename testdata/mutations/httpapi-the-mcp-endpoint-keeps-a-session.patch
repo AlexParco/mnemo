@@ -1,0 +1,16 @@
+Breaks: The MCP endpoint keeps sessions, so a server that restarts — which every update does — breaks every chat that was open on another machine, and each of them has to be restarted by hand.
+Must fail: go test ./internal/httpapi -run '^TestAToolCallSaysWhichMachineAndWhichToolIsAsking$' -count=1
+
+diff --git a/internal/httpapi/httpapi.go b/internal/httpapi/httpapi.go
+index 751d285..cf1c341 100644
+--- a/internal/httpapi/httpapi.go
++++ b/internal/httpapi/httpapi.go
+@@ -135,7 +135,7 @@ func (s *Server) mcp() http.Handler {
+ 		}
+ 		return mcpserver.New(build.Version, mcpserver.ForRequest(
+ 			s.opts.Settings, s.opts.Store, s.opts.Mailbox, requester))
+-	}, &mcp.StreamableHTTPOptions{Stateless: true, JSONResponse: true})
++	}, &mcp.StreamableHTTPOptions{JSONResponse: true})
+ 
+ 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+ 		// GET and DELETE have no meaning for a stateless server, and the SDK

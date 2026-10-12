@@ -567,11 +567,26 @@ func TestTheBinaryRegistersItselfWithoutDamagingTheFile(t *testing.T) {
 }
 
 // run is the binary, with its output and its exit code.
+// runWait is how long a command is given before the test calls it hung.
+//
+// Every command here either does something and stops or refuses and stops, so a
+// command still running after this is a defect — and a defect that, without a
+// bound, takes the whole suite down with it rather than failing one test. A
+// negative control that makes `serve --http` start instead of refusing did
+// exactly that.
+const runWait = 60 * time.Second
+
 func runMnemo(t *testing.T, env []string, args ...string) (string, int) {
 	t.Helper()
-	command := exec.Command(built(t), args...)
+	ctx, cancel := context.WithTimeout(t.Context(), runWait)
+	defer cancel()
+	command := exec.CommandContext(ctx, built(t), args...)
 	command.Env = env
 	out, err := command.CombinedOutput()
+	if ctx.Err() != nil {
+		t.Fatalf("mnemo %v was still running after %s, so it is not doing what it says:\n%s",
+			args, runWait, out)
+	}
 	code := 0
 	if exit, ok := err.(*exec.ExitError); ok {
 		code = exit.ExitCode()
@@ -1841,10 +1856,15 @@ func TestStoreRemovePurgeSaysItIsDeletingBeforeItAsks(t *testing.T) {
 // asks a question.
 func runMnemoWith(t *testing.T, env []string, stdin string, args ...string) (string, int) {
 	t.Helper()
-	command := exec.Command(built(t), args...)
+	ctx, cancel := context.WithTimeout(t.Context(), runWait)
+	defer cancel()
+	command := exec.CommandContext(ctx, built(t), args...)
 	command.Env = env
 	command.Stdin = strings.NewReader(stdin)
 	out, err := command.CombinedOutput()
+	if ctx.Err() != nil {
+		t.Fatalf("mnemo %v was still running after %s:\n%s", args, runWait, out)
+	}
 	code := 0
 	if exit, ok := err.(*exec.ExitError); ok {
 		code = exit.ExitCode()

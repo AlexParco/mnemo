@@ -1,0 +1,16 @@
+Breaks: A client works with a server speaking another api, so the two exchange answers in shapes neither can read and the failure arrives later as something unrelated — with nothing telling the person that one of the two machines needs updating.
+Must fail: go test ./internal/remote -run '^TestReachableChecksTheApiAndNotOnlyThatSomethingAnswered$' -count=1
+
+diff --git a/internal/remote/client.go b/internal/remote/client.go
+index 8e869f8..e8f759e 100644
+--- a/internal/remote/client.go
++++ b/internal/remote/client.go
+@@ -100,7 +100,7 @@ func (c *Client) Reachable(ctx context.Context) (Health, error) {
+ 		return health, fmt.Errorf("the server on %s answered something that is not a health check: %s",
+ 			c.Connection.Machine, strings.TrimSpace(string(body)))
+ 	}
+-	if health.API != build.API {
++	if false {
+ 		return health, fmt.Errorf("this machine speaks api %d and the server on %s speaks api %d, so they "+
+ 			"cannot understand each other. Run mnemo update on whichever of the two is older — this one is "+
+ 			"mnemo %s", build.API, c.Connection.Machine, health.API, build.Version)

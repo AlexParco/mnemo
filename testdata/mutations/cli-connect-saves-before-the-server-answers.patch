@@ -1,0 +1,20 @@
+Breaks: A connection is saved before the server has answered, so a machine whose code or tunnel is wrong ends up pointed at something that is not there — and because a connected machine never falls back to its own files, it then has neither its own memory nor anybody else's.
+Must fail: go test ./internal/cli -run '^TestConnectSavesNothingUntilTheServerHasAnswered$' -count=1
+
+diff --git a/internal/cli/connect.go b/internal/cli/connect.go
+index c12f010..16d3016 100644
+--- a/internal/cli/connect.go
++++ b/internal/cli/connect.go
+@@ -116,10 +116,9 @@ func connectTo(cmd *cobra.Command, given, sshTarget string, yes bool) error {
+ 	}
+ 	health, err := waitForServer(cmd, trying, keeper)
+ 	if err != nil {
+-		undo()
+-		_ = keeper.Stop(cmd.Context())
+-		return err
++		health.Machine = wanted.Machine
+ 	}
++	_ = undo
+ 
+ 	return say(out, []string{
+ 		fmt.Sprintf("Connected to %s through %s.", health.Machine, wanted.SSH),
