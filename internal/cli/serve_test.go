@@ -5,6 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -12,6 +15,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -1848,4 +1852,103 @@ func runMnemoWith(t *testing.T, env []string, stdin string, args ...string) (str
 		t.Fatalf("mnemo %v: %v", args, err)
 	}
 	return string(out), code
+}
+
+// The server is the process a machine runs so that others can reach its memory.
+// It is started by a service, which has none of the user's shell environment, so
+// everything it needs comes from the config file.
+func TestServingOverHTTPAnswersOnLoopbackBehindTheToken(t *testing.T) {
+	home, env := machine(t, true)
+	const token = "a-secret-for-this-test"
+	port := freePortFor(t)
+	write(t, filepath.Join(home, "config", "mnemo", "config.toml"),
+		fmt.Sprintf("[server]\nport = %d\ntoken = %q\n", port, token))
+
+	command := exec.Command(built(t), "serve", "--http")
+	command.Env = env
+	said := &complaints{}
+	command.Stderr = said
+	if err := command.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = command.Process.Signal(syscall.SIGTERM)
+		_ = command.Wait()
+	})
+
+	address := fmt.Sprintf("http://127.0.0.1:%d/v1/health", port)
+	client := &http.Client{Timeout: 2 * time.Second}
+	var response *http.Response
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		request, err := http.NewRequestWithContext(t.Context(), http.MethodGet, address, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		request.Header.Set("Authorization", "Bearer "+token)
+		if response, err = client.Do(request); err == nil {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	if response == nil {
+		t.Fatalf("the server never answered on %s\nstderr:\n%s", address, said)
+	}
+	body, err := io.ReadAll(response.Body)
+	response.Body.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.StatusCode != http.StatusOK || !strings.Contains(string(body), `"api":`) {
+		t.Fatalf("%d: %s", response.StatusCode, body)
+	}
+
+	// Without the token, nothing — which is the whole of what stands between
+	// another process on this machine and the user's memory.
+	plain, err := client.Get(address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plain.Body.Close()
+	if plain.StatusCode != http.StatusUnauthorized {
+		t.Errorf("without the token it answered %d", plain.StatusCode)
+	}
+
+	// What it says on stderr is what somebody reading a service log needs: the
+	// version, where it listens, and whose files it answers for.
+	for _, want := range []string{"api 1", fmt.Sprintf("127.0.0.1:%d", port), "store:", "mailbox:"} {
+		if !strings.Contains(said.String(), want) {
+			t.Errorf("the log does not say %q:\n%s", want, said)
+		}
+	}
+	// And the token is never in it. A log is the one place a secret ends up by
+	// accident and stays for ever.
+	if strings.Contains(said.String(), token) {
+		t.Errorf("the token is in the log:\n%s", said)
+	}
+}
+
+// A machine with no server section has nothing to serve, and says so rather than
+// listening on a default port with no token.
+func TestServingOverHTTPWithoutAServerRefuses(t *testing.T) {
+	_, env := machine(t, true)
+	out, code := runMnemo(t, env, "serve", "--http")
+	if code != 1 {
+		t.Fatalf("it exited %d:\n%s", code, out)
+	}
+	if !strings.Contains(out, "mnemo server setup") {
+		t.Errorf("the refusal does not say what to do:\n%s", out)
+	}
+}
+
+// freePortFor is a port nothing is listening on. The server is told which port
+// to use because a test cannot use the real one: another mnemo may be running.
+func freePortFor(t *testing.T) int {
+	t.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	return listener.Addr().(*net.TCPAddr).Port
 }

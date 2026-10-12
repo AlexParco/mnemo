@@ -81,8 +81,8 @@ func Execute(ctx context.Context) int {
 	root.PersistentFlags().StringVar(&flags.Lang, "lang", "", "language mnemo writes in: en or es")
 
 	root.AddCommand(configCommand(), hookCommand(), mcpCommand(), peersCommand(), readCommand(),
-		replyCommand(), runCommand(), sendCommand(), serveCommand(), storeCommand(), versionCommand(),
-		watchCommand())
+		replyCommand(), runCommand(), sendCommand(), serveCommand(), serverCommand(), storeCommand(),
+		versionCommand(), watchCommand())
 
 	root.SetFlagErrorFunc(func(_ *cobra.Command, err error) error { return usageError{err} })
 	if err := root.ExecuteContext(ctx); err != nil {
@@ -174,7 +174,8 @@ func memoryStore(resolved config.Settings) *store.Store {
 }
 
 func serveCommand() *cobra.Command {
-	return &cobra.Command{
+	var overHTTP bool
+	command := &cobra.Command{
 		Use:   "serve",
 		Short: "Answer MCP tool calls on stdin and stdout",
 		Long: "Started by the tool that opened the chat, never by hand. stdout carries the protocol, so nothing " +
@@ -198,9 +199,15 @@ func serveCommand() *cobra.Command {
 			// The store is not created here. A chat that only reads gets an
 			// answer saying there is nothing saved yet, which is true, and the
 			// first write is what brings a store into being.
+			if overHTTP {
+				return serveOverHTTP(cmd, resolved)
+			}
 			return answerCalls(cmd, resolved)
 		},
 	}
+	command.Flags().BoolVar(&overHTTP, "http", false,
+		"answer on 127.0.0.1 for other machines, instead of on stdin and stdout")
+	return command
 }
 
 func versionCommand() *cobra.Command {
