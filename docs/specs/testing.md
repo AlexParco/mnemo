@@ -812,6 +812,11 @@ the control fails.
 - Drop from `MAILBOX_RULE` what mnemo cannot verify: the test that reads what the rule says fails.
 - Print a refusal into a terminal with the tool names left in it: the test that a terminal names
   commands fails.
+- Take a `yes` as the store's path, show nothing of what would go, hide where a retired store went,
+  or say `--purge` moves the store aside: each fails the `store remove` test that covers it. The
+  first of those was written before the test could tell the difference — the refusal for a store
+  that is the only copy ends with the same sentence as a rejected answer, so a `yes` that was
+  accepted and then stopped for an unrelated reason read as a pass.
 - Hand a watcher the top of the log and no messages for an address nobody has claimed: the test
   that a watcher started before the chat still announces what was waiting fails.
 - Forget an address while its messages are still in the log: the test that its finished work is not

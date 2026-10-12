@@ -1,0 +1,16 @@
+Breaks: The store is retired without the person being shown what is in it: no path, no projects by name, no counts, and nothing about whether a hub has a copy. They are asked to confirm something they cannot see.
+Must fail: go test ./internal/cli -run '^TestStoreRemoveShowsWhatWouldGoAndAsksForThePath$' -count=1
+
+diff --git a/internal/cli/store.go b/internal/cli/store.go
+index 6f3e9f6..e7fac15 100644
+--- a/internal/cli/store.go
++++ b/internal/cli/store.go
+@@ -53,7 +53,7 @@ func storeRemoveCommand() *cobra.Command {
+ 			// A store that is not there is refused by the plan itself, with the
+ 			// path in the message, so there is nothing to check for here.
+ 			out := cmd.OutOrStdout()
+-			if err := showPlan(out, plan, purge); err != nil {
++			if _, err := fmt.Fprintln(out, "  type the store's path to go ahead:"); err != nil {
+ 				return err
+ 			}
+ 

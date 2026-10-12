@@ -1,0 +1,18 @@
+Breaks: A retired store is moved aside and the command does not say where, so the copy is on the disk and the person has no way to find it, delete it, or get anything back out of it.
+Must fail: go test ./internal/cli -run '^TestStoreRemoveShowsWhatWouldGoAndAsksForThePath$' -count=1
+
+diff --git a/internal/cli/store.go b/internal/cli/store.go
+index 6f3e9f6..97cf2ca 100644
+--- a/internal/cli/store.go
++++ b/internal/cli/store.go
+@@ -142,9 +142,7 @@ func showResult(out io.Writer, result store.RetireResult) error {
+ 	if result.Purged {
+ 		lines = append(lines, "deleted "+result.Store)
+ 	} else {
+-		lines = append(lines,
+-			"moved "+result.Store+" to "+result.MovedTo,
+-			"delete it for good with: rm -rf "+shellQuote(result.MovedTo))
++		lines = append(lines, "moved aside")
+ 	}
+ 	if result.Remote != "" {
+ 		lines = append(lines, "the hub still has what was pushed to it: "+result.Remote)

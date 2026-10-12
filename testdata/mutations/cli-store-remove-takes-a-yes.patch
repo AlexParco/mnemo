@@ -1,0 +1,35 @@
+Breaks: A yes retires the store. The one operation with no undo is then one keystroke away from somebody who was answering a different question, and a yes is what every other prompt they have ever seen asks for.
+Must fail: go test ./internal/cli -run '^TestStoreRemoveShowsWhatWouldGoAndAsksForThePath$' -count=1
+
+diff --git a/internal/cli/serve_test.go b/internal/cli/serve_test.go
+index 818e715..6d602e8 100644
+--- a/internal/cli/serve_test.go
++++ b/internal/cli/serve_test.go
+@@ -1719,9 +1719,12 @@ func TestStoreRemoveShowsWhatWouldGoAndAsksForThePath(t *testing.T) {
+ 		t.Fatalf("the store went anyway: %v", err)
+ 	}
+ 
+-	// A yes is not the path.
++	// A yes is not the path. Checked against the words that mean the answer was
++	// rejected, not against "Nothing was done." — the refusal for a store that
++	// is the only copy ends with that sentence too, so a yes that was accepted
++	// and then stopped for an unrelated reason would read as a pass.
+ 	out, _ = runMnemoWith(t, env, "yes\n", "store", "remove")
+-	if !strings.Contains(out, "Nothing was done.") {
++	if !strings.Contains(out, "that is not the store's path. Nothing was done.") {
+ 		t.Errorf("\"yes\" was taken as the path:\n%s", out)
+ 	}
+ 	if _, err := os.Stat(storeDir); err != nil {
+diff --git a/internal/cli/store.go b/internal/cli/store.go
+index 6f3e9f6..eb7aaaf 100644
+--- a/internal/cli/store.go
++++ b/internal/cli/store.go
+@@ -61,7 +61,7 @@ func storeRemoveCommand() *cobra.Command {
+ 			// flag: a flag can sit in a shell history and be run again by
+ 			// somebody who has forgotten what it does.
+ 			typed, err := line(cmd.InOrStdin())
+-			if err != nil || typed != plan.Store {
++			if err != nil || (typed != plan.Store && typed != "yes") {
+ 				_, err := fmt.Fprintln(out, "  that is not the store's path. Nothing was done.")
+ 				return err
+ 			}
