@@ -47,7 +47,9 @@ func (m *Mailbox) Claim(ctx context.Context, caller Caller) (Held, error) {
 			// Named, with the tool and the time: "already taken" is not enough
 			// for somebody deciding whether to close a chat or rename this one.
 			return refuse("%s is already open in %s. Close that chat, or pick another name.",
-				address, describe(existing))
+				address, Occupant{
+					Tool: existing.Tool, Via: existing.Holder.Via, Since: existing.Holder.Since,
+				}.Describe())
 		}
 		entry := state.see(address, caller.Tool, highest(messages), now)
 
@@ -96,40 +98,46 @@ func (m *Mailbox) Release(ctx context.Context, caller Caller) error {
 	})
 }
 
-// HeldBy says who holds an address, and whether they are alive, without claiming
-// anything. It is what `mnemo run` asks before it opens a chat.
-func (m *Mailbox) HeldBy(ctx context.Context, address string) (Holder, bool, error) {
-	var holder Holder
-	var live bool
-	err := m.hold(ctx, func() error {
-		state, err := m.loadState()
-		if err != nil {
-			return err
-		}
-		entry, known := state.Addresses[address]
-		if !known || entry.Holder == nil {
-			return nil
-		}
-		if !m.holderAlive(entry.Holder, m.now()) {
-			return nil
-		}
-		holder, live = *entry.Holder, true
-		return nil
-	})
-	return holder, live, err
+// Occupant is who holds an address, for whoever has to say so: a person
+// choosing which window to close, or another machine asking over HTTP.
+//
+// It carries the tool, which the holder record does not: the tool belongs to the
+// address and the holder to the instance, and anybody answering "who has this
+// name" needs both. Without it the only honest answer is "another chat", which
+// is of no use to somebody deciding what to close.
+type Occupant struct {
+	Tool string
+	// Via is "local" or "remote", which is why a holder can be on another
+	// machine and still hold a name here.
+	Via string
+	// Instance is which process holds it, so that "is this still me" has an
+	// answer. It is never shown to anybody: it is 16 random characters.
+	Instance string
+	Since    time.Time
 }
 
-// Describe is how a live holder is named to a person: the tool it runs in, when
-// it opened, and whether it is on another machine. It is empty when nobody holds
-// the address.
+// Describe is the occupant in the words a refusal uses.
+func (o Occupant) Describe() string {
+	tool := o.Tool
+	if tool == "" {
+		tool = "another chat"
+	}
+	where := ""
+	if o.Via == "remote" {
+		where = " on another machine"
+	}
+	return fmt.Sprintf("%s%s since %s", tool, where, o.Since.Local().Format("15:04"))
+}
+
+// Occupied says who holds an address and whether they are alive, without
+// claiming anything.
 //
-// It exists so that `mnemo run`, which checks before it opens a chat, refuses in
-// the same words the claim itself would — and above all with the same facts. The
-// holder record carries no tool, so a command reading only that could say no more
-// than "another chat", which is of no use to somebody deciding which window to
-// close.
-func (m *Mailbox) Describe(ctx context.Context, address string) (string, error) {
-	var said string
+// One question with one answer: `mnemo run` asks it before opening a chat, and
+// the server answers /v1/mailbox/holder with it so another machine's `mnemo run`
+// can ask the same thing. Liveness is checked rather than remembered.
+func (m *Mailbox) Occupied(ctx context.Context, address string) (Occupant, bool, error) {
+	var occupant Occupant
+	var live bool
 	err := m.hold(ctx, func() error {
 		state, err := m.loadState()
 		if err != nil {
@@ -139,22 +147,37 @@ func (m *Mailbox) Describe(ctx context.Context, address string) (string, error) 
 		if !known || entry.Holder == nil || !m.holderAlive(entry.Holder, m.now()) {
 			return nil
 		}
-		said = describe(entry)
+		occupant = Occupant{
+			Tool: entry.Tool, Via: entry.Holder.Via,
+			Instance: entry.Holder.Instance, Since: entry.Holder.Since,
+		}
+		live = true
 		return nil
 	})
-	return said, err
+	return occupant, live, err
 }
 
-// describe is how a refusal names the chat that already has a name: the tool it
-// runs in, when it opened, and whether it is on another machine.
-func describe(entry *Address) string {
-	tool := entry.Tool
-	if tool == "" {
-		tool = "another chat"
+// ReleaseInstance gives back whatever name an instance holds, which is at most
+// one.
+//
+// Release takes a caller because a chat knows its own name. A server releasing
+// on behalf of a client that has gone knows only the instance — that is all the
+// client sends — so the address is found rather than given.
+func (m *Mailbox) ReleaseInstance(ctx context.Context, instance string) error {
+	if instance == "" {
+		return nil
 	}
-	where := ""
-	if entry.Holder != nil && entry.Holder.Via == "remote" {
-		where = " on another machine"
-	}
-	return fmt.Sprintf("%s%s since %s", tool, where, entry.Holder.Since.Local().Format("15:04"))
+	return m.hold(ctx, func() error {
+		state, err := m.loadState()
+		if err != nil {
+			return err
+		}
+		for _, entry := range state.Addresses {
+			if entry.Holder != nil && entry.Holder.Instance == instance {
+				entry.Holder = nil
+				return m.saveState(state)
+			}
+		}
+		return nil
+	})
 }

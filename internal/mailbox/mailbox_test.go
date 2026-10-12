@@ -772,7 +772,7 @@ func TestReleasingFreesTheName(t *testing.T) {
 	if err := b.Release(t.Context(), stranger); err != nil {
 		t.Fatal(err)
 	}
-	if _, live, err := b.HeldBy(t.Context(), "worker@here"); err != nil {
+	if _, live, err := b.Occupied(t.Context(), "worker@here"); err != nil {
 		t.Fatal(err)
 	} else if !live {
 		t.Error("a stranger's release freed somebody else's name")
@@ -832,17 +832,21 @@ func TestACallerThatDoesNotHoldTheNameCannotRetagIt(t *testing.T) {
 func TestAHeldNameIsDescribedBeforeAChatIsOpened(t *testing.T) {
 	b := newBox(t)
 
-	if said, err := b.Describe(t.Context(), "worker@here"); err != nil {
+	if _, held, err := b.Occupied(t.Context(), "worker@here"); err != nil {
 		t.Fatal(err)
-	} else if said != "" {
-		t.Errorf("a name nobody holds is described as %q", said)
+	} else if held {
+		t.Error("a name nobody holds is described as held")
 	}
 
 	b.agent(t, "worker", "claude", 100)
-	said, err := b.Describe(t.Context(), "worker@here")
+	occupant, held, err := b.Occupied(t.Context(), "worker@here")
 	if err != nil {
 		t.Fatal(err)
 	}
+	if !held {
+		t.Fatal("the name it just claimed is not held")
+	}
+	said := occupant.Describe()
 	// The same words the claim refuses with, because they answer the same
 	// question and two wordings would eventually disagree.
 	if want := "claude since " + fixed.Local().Format("15:04"); said != want {
@@ -852,10 +856,10 @@ func TestAHeldNameIsDescribedBeforeAChatIsOpened(t *testing.T) {
 	// And a chat that has gone is not described at all: liveness is checked, not
 	// remembered.
 	b.alive[100] = false
-	if said, err := b.Describe(t.Context(), "worker@here"); err != nil {
+	if _, held, err := b.Occupied(t.Context(), "worker@here"); err != nil {
 		t.Fatal(err)
-	} else if said != "" {
-		t.Errorf("a closed chat is still described as %q", said)
+	} else if held {
+		t.Error("a closed chat is still described as holding its name")
 	}
 }
 

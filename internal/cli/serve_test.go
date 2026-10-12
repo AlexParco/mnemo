@@ -806,7 +806,7 @@ func TestWatchAnnouncesWithoutTouchingAnything(t *testing.T) {
 		t.Errorf("announcing consumed the post: %d left to read", len(unread.Messages))
 	}
 	// Nor did it take the name: the holder is still the chat.
-	if holder, live, err := box.HeldBy(t.Context(), "boss@"+resolved.Machine); err != nil {
+	if holder, live, err := box.Occupied(t.Context(), "boss@"+resolved.Machine); err != nil {
 		t.Fatal(err)
 	} else if !live || holder.Instance != receiver.Instance {
 		t.Errorf("the watcher disturbed the holder: live=%v holder=%+v", live, holder)

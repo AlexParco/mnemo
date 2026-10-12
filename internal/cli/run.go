@@ -132,15 +132,16 @@ func open(cmd *cobra.Command, tool, name, directory string, toolArgs []string) e
 	// collision before a window opens rather than after.
 	box := mailboxFor(resolved)
 	address := name + "@" + machine
-	held, err := box.Describe(cmd.Context(), address)
+	holder, held, err := box.Occupied(cmd.Context(), address)
 	if err != nil {
 		return err
 	}
-	if held != "" {
+	if held {
 		// The same sentence the claim would refuse with, with the same facts in
 		// it: the tool and when it opened are what somebody needs to find the
 		// window they have to close.
-		return fmt.Errorf("%s is already open in %s. Close that chat, or pick another name", address, held)
+		return fmt.Errorf("%s is already open in %s. Close that chat, or pick another name",
+			address, holder.Describe())
 	}
 
 	if _, err := fmt.Fprintf(cmd.OutOrStdout(), "Opening %s as %s in %s.\n", tool, address, directory); err != nil {
