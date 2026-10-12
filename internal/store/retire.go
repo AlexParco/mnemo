@@ -167,12 +167,22 @@ func requireSafeToRetire(plan RetirePlan, force bool) error {
 		return refuse("The store has changes that are not even committed, so they exist nowhere else. "+
 			"Commit and push them first, or retire it anyway with --force. Nothing was done. (%s)", plan.Store)
 	case plan.Remote == "":
-		return refuse("This store has no hub, so these %d memories exist only here and retiring it would be the end "+
-			"of them. Set a hub and push first, or retire it anyway with --force. Nothing was done.", plan.Memories)
+		return refuse("This store has no hub, so %s exist only here and retiring it would be the end of them. "+
+			"Set a hub and push first, or retire it anyway with --force. Nothing was done.",
+			memoriesCount(plan.Memories))
 	default:
 		return refuse("%d commit(s) have not reached the hub, so that work exists only here. Push first, or retire "+
 			"it anyway with --force. Nothing was done.", plan.Unpushed)
 	}
+}
+
+// memoriesCount is the count as a person reads it, because the one place this
+// appears is the sentence somebody reads before they lose everything.
+func memoriesCount(n int) string {
+	if n == 1 {
+		return "its 1 memory"
+	}
+	return fmt.Sprintf("these %d memories", n)
 }
 
 // retiredName is where a retired store goes, with a counter when a store was

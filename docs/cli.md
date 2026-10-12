@@ -50,8 +50,9 @@ destructive operation no agent can perform.
 
 - **It shows what would go first**: the path, every project with how many memories it holds, the
   total, whether there is a hub and how many commits have not reached it.
-- **It asks the user to type the store's path** to go ahead. A yes or no is too easy to give by
-  accident for something with no undo.
+- **It asks the user to type the store's path** to go ahead, read from stdin rather than given as a
+  flag: a flag sits in a shell history and gets run again by somebody who has forgotten what it
+  does. A yes or no is too easy to give by accident for something with no undo.
 - **By default it moves the store aside**, to `<store>.retired-<date>`, and prints where it went and
   the one command that deletes it for good. `--purge` skips that and deletes it.
 - **It never touches the hub.** If the store was pushed, the memory is still there, and that is the

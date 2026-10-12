@@ -630,6 +630,12 @@ user's machines are.
 - `mcp add` for Claude Code runs the plugin commands in order, prints them when `claude` is missing,
   and writes a `.mcp.json` entry with `--path`.
 - `mcp remove` removes only what mnemo wrote.
+- `store remove` shows the path, the projects by name with their own counts and whether anything
+  else has a copy; refuses an empty answer and a `yes`, leaving the store where it was; refuses a
+  store that is the only copy and says `--force`; with `--force` moves it aside, says where it went
+  and gives the one line that deletes it for good, and the memories are all in the moved copy; says
+  the config is unchanged; and says so with the path when there is no store. `--purge` says it is
+  deleting before it asks, deletes, and leaves no copy behind.
 - `run` checks everything in order and stops at the first failure with its message: no name, a name
   that cannot be an address, a tool it does not know, a directory that is not one, not registered,
   not on the PATH, and a name a live chat holds — which says which tool holds it and since when,

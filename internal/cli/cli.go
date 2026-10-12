@@ -74,7 +74,8 @@ func Execute(ctx context.Context) int {
 	root.PersistentFlags().StringVar(&flags.Lang, "lang", "", "language mnemo writes in: en or es")
 
 	root.AddCommand(configCommand(), hookCommand(), mcpCommand(), peersCommand(), readCommand(),
-		replyCommand(), runCommand(), sendCommand(), serveCommand(), versionCommand(), watchCommand())
+		replyCommand(), runCommand(), sendCommand(), serveCommand(), storeCommand(), versionCommand(),
+		watchCommand())
 
 	root.SetFlagErrorFunc(func(_ *cobra.Command, err error) error { return usageError{err} })
 	if err := root.ExecuteContext(ctx); err != nil {

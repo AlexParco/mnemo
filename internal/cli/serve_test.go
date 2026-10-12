@@ -1683,3 +1683,150 @@ func TestBurstsFromTwoProcessesLoseNothingAndShareNoSeq(t *testing.T) {
 		t.Errorf("%d of %d arrived; missing %v", len(bodies), 2*each, missing)
 	}
 }
+
+// Retiring a store is the one destructive operation no agent can reach, so what
+// it asks for is the store's own path. A yes is too easy to give by accident for
+// something with no undo.
+func TestStoreRemoveShowsWhatWouldGoAndAsksForThePath(t *testing.T) {
+	home, env := machine(t, true)
+	storeDir := filepath.Join(home, "store")
+
+	// What it shows has to be enough to decide on: the path, the projects by
+	// name with their own counts, and whether anything else has a copy.
+	out, code := runMnemoWith(t, env, "", "store", "remove")
+	if code != 0 {
+		t.Fatalf("it exited %d:\n%s", code, out)
+	}
+	for _, want := range []string{
+		"store: " + storeDir,
+		"projects: 1",
+		"shop",
+		"1 memory",
+		"memories: 1",
+		"hub: none — these memories exist only here",
+		"the store is moved aside, next to itself, not deleted",
+		"type the store's path to go ahead",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("it does not say %q:\n%s", want, out)
+		}
+	}
+	// Nothing typed is nothing done.
+	if !strings.Contains(out, "that is not the store's path. Nothing was done.") {
+		t.Errorf("an empty answer was not refused:\n%s", out)
+	}
+	if _, err := os.Stat(storeDir); err != nil {
+		t.Fatalf("the store went anyway: %v", err)
+	}
+
+	// A yes is not the path.
+	out, _ = runMnemoWith(t, env, "yes\n", "store", "remove")
+	if !strings.Contains(out, "Nothing was done.") {
+		t.Errorf("\"yes\" was taken as the path:\n%s", out)
+	}
+	if _, err := os.Stat(storeDir); err != nil {
+		t.Fatalf("the store went on a yes: %v", err)
+	}
+
+	// The path, and this store has no hub, so it is the only copy and that
+	// stops it. The refusal says what would be lost.
+	out, code = runMnemoWith(t, env, storeDir+"\n", "store", "remove")
+	if code != 1 {
+		t.Fatalf("it exited %d with no hub:\n%s", code, out)
+	}
+	if !strings.Contains(out, "no hub") || !strings.Contains(out, "--force") {
+		t.Errorf("the refusal reads:\n%s", out)
+	}
+	if _, err := os.Stat(storeDir); err != nil {
+		t.Fatalf("the only copy was retired: %v", err)
+	}
+
+	// And with --force it goes, moved aside rather than deleted, and the output
+	// says where it went and the one line that ends it for good.
+	out, code = runMnemoWith(t, env, storeDir+"\n", "store", "remove", "--force")
+	if code != 0 {
+		t.Fatalf("it exited %d:\n%s", code, out)
+	}
+	if _, err := os.Stat(storeDir); !os.IsNotExist(err) {
+		t.Errorf("the store is still there: %v", err)
+	}
+	moved := ""
+	entries, err := os.ReadDir(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		if strings.HasPrefix(entry.Name(), "store.retired-") {
+			moved = filepath.Join(home, entry.Name())
+		}
+	}
+	if moved == "" {
+		t.Fatalf("the store was not moved aside, it is simply gone:\n%s", out)
+	}
+	if !strings.Contains(out, "moved "+storeDir+" to "+moved) {
+		t.Errorf("it does not say where it went:\n%s", out)
+	}
+	if !strings.Contains(out, "rm -rf '"+moved+"'") {
+		t.Errorf("it does not give the line that deletes it:\n%s", out)
+	}
+	// What is left is a store with everything in it, under another name.
+	if _, err := os.Stat(filepath.Join(moved, "memories", "a-decision.md")); err != nil {
+		t.Errorf("the memories did not come with it: %v", err)
+	}
+	// And the config is untouched, which is what makes the next save start a
+	// fresh store rather than nothing at all.
+	if !strings.Contains(out, "the config is unchanged") {
+		t.Errorf("it does not say the config is still there:\n%s", out)
+	}
+	// A store that is not there says so, with the path.
+	out, code = runMnemoWith(t, env, "", "store", "remove")
+	if code != 1 || !strings.Contains(out, "There is no store at "+storeDir) {
+		t.Errorf("a missing store exited %d with:\n%s", code, out)
+	}
+}
+
+// --purge deletes instead of moving aside, and says so before it asks.
+func TestStoreRemovePurgeSaysItIsDeletingBeforeItAsks(t *testing.T) {
+	home, env := machine(t, true)
+	storeDir := filepath.Join(home, "store")
+
+	out, code := runMnemoWith(t, env, storeDir+"\n", "store", "remove", "--purge", "--force")
+	if code != 0 {
+		t.Fatalf("it exited %d:\n%s", code, out)
+	}
+	if !strings.Contains(out, "this deletes the store outright, and there is no undo") {
+		t.Errorf("it does not say what --purge does, before asking:\n%s", out)
+	}
+	if !strings.Contains(out, "deleted "+storeDir) {
+		t.Errorf("it does not say what it did:\n%s", out)
+	}
+	if _, err := os.Stat(storeDir); !os.IsNotExist(err) {
+		t.Errorf("the store is still there: %v", err)
+	}
+	entries, err := os.ReadDir(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		if strings.HasPrefix(entry.Name(), "store.retired-") {
+			t.Errorf("--purge left a copy behind at %s", entry.Name())
+		}
+	}
+}
+
+// runMnemoWith is runMnemo with something on stdin, for the one command that
+// asks a question.
+func runMnemoWith(t *testing.T, env []string, stdin string, args ...string) (string, int) {
+	t.Helper()
+	command := exec.Command(built(t), args...)
+	command.Env = env
+	command.Stdin = strings.NewReader(stdin)
+	out, err := command.CombinedOutput()
+	code := 0
+	if exit, ok := err.(*exec.ExitError); ok {
+		code = exit.ExitCode()
+	} else if err != nil {
+		t.Fatalf("mnemo %v: %v", args, err)
+	}
+	return string(out), code
+}
