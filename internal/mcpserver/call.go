@@ -79,6 +79,43 @@ func Local(settings config.Settings, writable *store.Store, box *mailbox.Mailbox
 	}
 }
 
+// Requester is who a request says it is, which over HTTP is all the server has:
+// the headers. They are identification and not authorisation — whoever holds the
+// token is the user, and these say which of their machines and chats is asking.
+type Requester struct {
+	Machine  string
+	Tool     string
+	Agent    string
+	Instance string
+}
+
+// ForRequest builds the context of one call answered on somebody else's behalf.
+//
+// The files are the server's and the caller is not: that is the whole difference
+// between this and Local, and it is why a Call is per request here and built
+// once there. A pending item stamped for a machine belongs to whoever is asking,
+// so the machine comes from the request; the store's hub and its autopush come
+// from wherever the store is.
+func ForRequest(settings config.Settings, writable *store.Store, box *mailbox.Mailbox,
+	requester Requester) *Call {
+	return &Call{
+		store:    writable,
+		box:      box,
+		StoreDir: settings.Paths.Store,
+		Machine:  requester.Machine,
+		Agent:    requester.Agent,
+		Tool:     requester.Tool,
+		Instance: requester.Instance,
+		Lang:     memory.ResolveLang(settings.Lang),
+		Remote:   settings.Remote,
+		Autopush: settings.Autopush,
+		// ServedBy names the machine hosting the store, which is this one. The
+		// answer says it so that a person reading a status knows whose files
+		// they are looking at.
+		ServedBy: settings.Machine,
+	}
+}
+
 // writable is the store, or a refusal for a caller that has none. A read-only
 // context is a real state — the relay builds one for a client that may not
 // write — and the tools have to say so rather than crash.

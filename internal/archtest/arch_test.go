@@ -52,7 +52,7 @@ var allowed = map[string][]string{
 	"internal/mailbox":     {"internal/lock"},
 	"internal/criterion":   {},
 	"internal/mcpserver":   {"internal/store", "internal/gitx", "internal/mailbox", "internal/memory", "internal/criterion", "internal/config", sdk},
-	"internal/httpapi":     {"internal/mcpserver", "internal/mailbox", "internal/config", sdk},
+	"internal/httpapi":     {"internal/mcpserver", "internal/mailbox", "internal/config", "internal/store", "internal/build", sdk},
 	"internal/remote":      {"internal/mcpserver", "internal/mailbox", "internal/config", "internal/tunnel", sdk},
 	"internal/tunnel":      {"internal/config", "internal/lock"},
 	"internal/service":     {"internal/config"},

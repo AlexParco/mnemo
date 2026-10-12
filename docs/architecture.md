@@ -61,7 +61,7 @@ An arrow means "may import". Anything not listed may not.
 | `criterion` | standard library |
 | `config` | `memory`, `BurntSushi/toml` |
 | `mcpserver` | `store`, `gitx`, `mailbox`, `memory`, `criterion`, `config`, MCP SDK |
-| `httpapi` | `mcpserver`, `mailbox`, `config`, MCP SDK |
+| `httpapi` | `mcpserver`, `mailbox`, `config`, `store`, `build`, MCP SDK |
 | `remote` | `mcpserver`, `mailbox`, `config`, `tunnel`, MCP SDK |
 | `tunnel` | `config`, `lock` |
 | `service` | `config` |
