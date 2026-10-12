@@ -40,10 +40,13 @@ var allowed = map[string][]string{
 	"cmd/mnemo": {"internal/cli"},
 	// cli is the command layer: it is allowed everything, including Cobra, which
 	// no other package may reach for.
-	"internal/cli":         {anything, cobra},
-	"internal/config":      {"internal/memory", toml},
-	"internal/lock":        {flock},
-	"internal/memory":      {},
+	"internal/cli":    {anything, cobra},
+	"internal/config": {"internal/memory", toml},
+	"internal/lock":   {flock},
+	"internal/memory": {},
+	// build is what the binary says it is: a version, a commit, a date and the
+	// api number. It imports nothing of ours and everything may import it.
+	"internal/build":       {},
 	"internal/gitx":        {"internal/lock"},
 	"internal/store":       {"internal/memory", "internal/gitx", "internal/lock", "templates"},
 	"internal/mailbox":     {"internal/lock"},
@@ -54,9 +57,7 @@ var allowed = map[string][]string{
 	"internal/tunnel":      {"internal/config", "internal/lock"},
 	"internal/service":     {"internal/config"},
 	"internal/integration": {"internal/config", "internal/mailbox", "internal/remote", sjson, gjson, toml},
-	"internal/hook":        {"internal/config"},
-	"internal/selfupdate":  {"internal/config", "internal/service", "internal/tunnel"},
-	"internal/testutil":    {anything},
+	"internal/selfupdate":  {"internal/build", "internal/config", "internal/service", "internal/tunnel"},
 	"internal/archtest":    {},
 	"templates":            {},
 }

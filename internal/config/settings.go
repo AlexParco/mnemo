@@ -47,6 +47,12 @@ type Settings struct {
 	Tool     string
 	Paths    Paths
 
+	// Server is this machine's own server, when the config has one.
+	Server Hosted
+	// Connection is the server this machine uses instead of its own files, or
+	// nil when there is none saved at all. It can be saved and not connected.
+	Connection *Connection
+
 	// Ignored lists settings whose value was not understood and was replaced by
 	// the default. A value a person set and mnemo silently dropped is worse than
 	// a refusal, so these are reported.
@@ -81,6 +87,24 @@ func Resolve(file *File, flags Overrides) Settings {
 	}
 	s.source["mailbox"] = pick(env("MNEMO_MAILBOX_DIR") != "", Source{"env", "MNEMO_MAILBOX_DIR"},
 		file.Mailbox.Dir != "", Source{"config", "mailbox.dir"})
+
+	s.Server = Hosted{Port: file.Server.Port, Token: file.Server.Token}
+	// The first connected entry wins, and the first entry at all when none is
+	// connected: `remotes` is a list so a second server can be added later, and
+	// only one is supported now.
+	for i := range file.Remotes {
+		remote := file.Remotes[i]
+		carried := Connection{
+			Machine: remote.Machine, SSH: remote.SSH, ServerPort: remote.ServerPort,
+			LocalPort: remote.LocalPort, Token: remote.Token, Connected: remote.Connected,
+		}
+		if s.Connection == nil || carried.Connected {
+			s.Connection = &carried
+		}
+		if carried.Connected {
+			break
+		}
+	}
 
 	s.Machine, s.source["machine"] = resolveMachine(file, flags)
 	s.Lang, s.source["lang"] = resolveLang(file, flags, &s)
@@ -287,4 +311,69 @@ func toolLabel(name string) string {
 		}
 	}
 	return strings.Trim(out.String(), "-")
+}
+
+// Hosted is this machine's own server, when it has one.
+//
+// A machine is a server when the config has a `[server]` section, and a server
+// never connects to another one: its files are the ones everybody else reaches.
+type Hosted struct {
+	Port  int
+	Token string
+}
+
+// Set reports whether a server is configured here.
+func (h Hosted) Set() bool { return h.Port != 0 && h.Token != "" }
+
+// Connection is the server this machine uses instead of its own files.
+//
+// It is the resolved form of the one `[[remotes]]` entry that is connected, so
+// that every command asks one question — is there a connection — rather than
+// walking a list and deciding what `connected` means for itself. A disconnected
+// entry is kept here too, because `mnemo connect` with no code returns to it and
+// `mnemo config` says where it would go.
+type Connection struct {
+	// Machine is the server's label, which is also where its addresses live.
+	Machine string
+	SSH     string
+	// ServerPort is the port on the server's own loopback; LocalPort is this end
+	// of the tunnel, which is what anything here talks to.
+	ServerPort int
+	LocalPort  int
+	Token      string
+	// Connected is false after `mnemo disconnect`, which keeps the entry so it
+	// can be reopened without the code.
+	Connected bool
+}
+
+// Address is where this machine reaches the server: the local end of the tunnel.
+func (c Connection) Address() string {
+	return fmt.Sprintf("127.0.0.1:%d", c.LocalPort)
+}
+
+// Mode is which files a command works on.
+type Mode string
+
+const (
+	// Local is this machine's own store and mailbox.
+	Local Mode = "local"
+	// Serving is a machine that hosts a server. It still works on its own files:
+	// the server is how other machines reach them, not a different place to look.
+	Serving Mode = "server"
+	// Connected is a machine that works on another's files, through the tunnel,
+	// and never falls back to its own.
+	Connected Mode = "connected"
+)
+
+// Mode says which files this command works on, which is the first thing every
+// command that touches data has to know.
+func (s Settings) Mode() Mode {
+	switch {
+	case s.Connection != nil && s.Connection.Connected:
+		return Connected
+	case s.Server.Set():
+		return Serving
+	default:
+		return Local
+	}
 }

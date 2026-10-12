@@ -773,3 +773,79 @@ func TestTheToolLabelIsCleanedAndNotTrusted(t *testing.T) {
 		}
 	}
 }
+
+// Which files a command works on is the first thing it has to know, and the
+// three answers come from the config alone: its own, its own plus a server for
+// others to reach them through, or somebody else's.
+func TestTheModeComesFromTheConfig(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "config"))
+	t.Setenv("MNEMO_MACHINE", "laptop1")
+
+	resolved := Resolve(&File{}, Overrides{})
+	if resolved.Mode() != Local {
+		t.Errorf("a bare config is %q", resolved.Mode())
+	}
+	if resolved.Connection != nil {
+		t.Errorf("a bare config carries a connection: %+v", resolved.Connection)
+	}
+
+	// A machine that hosts a server still works on its own files: the server is
+	// how others reach them, not another place to look.
+	hosting := Resolve(&File{Server: Server{Port: 7433, Token: "a-token"}}, Overrides{})
+	if hosting.Mode() != Serving {
+		t.Errorf("a machine with a server is %q", hosting.Mode())
+	}
+	if !hosting.Server.Set() || hosting.Server.Port != 7433 {
+		t.Errorf("the server is %+v", hosting.Server)
+	}
+	// Half a server is not a server: a port with no token cannot answer a
+	// request, and a token with no port has nothing to listen on.
+	for _, half := range []Server{{Port: 7433}, {Token: "a-token"}} {
+		if Resolve(&File{Server: half}, Overrides{}).Mode() != Local {
+			t.Errorf("%+v counts as a server", half)
+		}
+	}
+
+	saved := Remote{Machine: "vps", SSH: "me@vps", ServerPort: 7433, LocalPort: 7500,
+		Token: "server-token", Connected: true}
+	connected := Resolve(&File{Remotes: []Remote{saved}}, Overrides{})
+	if connected.Mode() != Connected {
+		t.Errorf("a connected machine is %q", connected.Mode())
+	}
+	if connected.Connection == nil {
+		t.Fatal("the connection was not carried")
+	}
+	// What anything here talks to is this end of the tunnel, never the server's
+	// own port: that one is on the server's loopback and unreachable from here.
+	if got := connected.Connection.Address(); got != "127.0.0.1:7500" {
+		t.Errorf("the address is %q", got)
+	}
+
+	// Disconnected keeps the entry, because `mnemo connect` with no code returns
+	// to it — and the mode is local again.
+	saved.Connected = false
+	back := Resolve(&File{Remotes: []Remote{saved}}, Overrides{})
+	if back.Mode() != Local {
+		t.Errorf("a disconnected machine is %q", back.Mode())
+	}
+	if back.Connection == nil || back.Connection.Machine != "vps" {
+		t.Errorf("the saved connection was lost: %+v", back.Connection)
+	}
+
+	// With two entries, the connected one is the one that counts, whichever
+	// order they are in.
+	two := []Remote{
+		{Machine: "old", SSH: "me@old", LocalPort: 1, Connected: false},
+		{Machine: "vps", SSH: "me@vps", LocalPort: 2, Connected: true},
+	}
+	if picked := Resolve(&File{Remotes: two}, Overrides{}).Connection; picked == nil || picked.Machine != "vps" {
+		t.Errorf("it picked %+v", picked)
+	}
+	two[0], two[1] = two[1], two[0]
+	if picked := Resolve(&File{Remotes: two}, Overrides{}).Connection; picked == nil || picked.Machine != "vps" {
+		t.Errorf("reversed, it picked %+v", picked)
+	}
+}

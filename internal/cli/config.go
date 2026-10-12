@@ -81,15 +81,19 @@ func showConfig(out io.Writer, file *config.File, resolved config.Settings) erro
 		rows = append(rows, [3]string{"server.token", config.Mask(file.Server.Token), "config file"})
 	}
 	// Exactly one mode line, always: its absence used to be the only way to tell
-	// a local machine from a connected one.
+	// a local machine from a connected one. Read from the resolved settings and
+	// not from the file, so that what this prints is what every other command
+	// acts on.
 	mode := "local — this machine's own files"
-	for _, remote := range file.Remotes {
-		if remote.Connected {
-			mode = fmt.Sprintf("connected to %s via %s", remote.Machine, remote.SSH)
-		} else {
-			mode = fmt.Sprintf("local — disconnected from %s (%s); mnemo connect reopens it",
-				remote.Machine, remote.SSH)
-		}
+	switch connection := resolved.Connection; {
+	case resolved.Mode() == config.Connected:
+		mode = fmt.Sprintf("connected to %s via %s", connection.Machine, connection.SSH)
+	case resolved.Mode() == config.Serving:
+		mode = fmt.Sprintf("server on 127.0.0.1:%d — other machines reach this machine's files",
+			resolved.Server.Port)
+	case connection != nil:
+		mode = fmt.Sprintf("local — disconnected from %s (%s); mnemo connect reopens it",
+			connection.Machine, connection.SSH)
 	}
 	rows = append(rows, [3]string{"mode", mode, ""})
 

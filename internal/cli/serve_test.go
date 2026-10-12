@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/AlexParco/mnemo/internal/build"
 	"github.com/AlexParco/mnemo/internal/config"
 	"github.com/AlexParco/mnemo/internal/mailbox"
 
@@ -257,16 +258,34 @@ func TestNothingButTheProtocolReachesStdout(t *testing.T) {
 	}
 }
 
+// The version line names the version, where the build came from, and the api
+// number — and `--version` says the same thing as `version`, because somebody
+// who types one and gets a different answer from the other has to wonder which
+// is true.
 func TestVersion(t *testing.T) {
 	_, env := machine(t, false)
-	command := exec.Command(built(t), "version")
-	command.Env = env
-	out, err := command.Output()
-	if err != nil {
-		t.Fatalf("version: %v", err)
+	said := map[string]string{}
+	for _, how := range []string{"version", "--version"} {
+		command := exec.Command(built(t), how)
+		command.Env = env
+		out, err := command.Output()
+		if err != nil {
+			t.Fatalf("%s: %v", how, err)
+		}
+		said[how] = strings.TrimSpace(string(out))
 	}
-	if strings.TrimSpace(string(out)) != Version {
-		t.Errorf("the binary reports %q, the package says %q", strings.TrimSpace(string(out)), Version)
+	if said["version"] != said["--version"] {
+		t.Errorf("version says %q and --version says %q", said["version"], said["--version"])
+	}
+	// Built from a working copy, so it says so rather than naming a release it
+	// is not. The shape is what a release prints, with the values it has.
+	want := fmt.Sprintf("mnemo %s (commit %s, built %s, api %d)",
+		build.Version, build.Commit, build.Date, build.API)
+	if said["version"] != want {
+		t.Errorf("the binary reports %q, want %q", said["version"], want)
+	}
+	if !strings.Contains(said["version"], "api ") {
+		t.Error("the line does not carry the api number, which is what decides whether two machines can talk")
 	}
 }
 

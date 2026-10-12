@@ -52,6 +52,7 @@ An arrow means "may import". Anything not listed may not.
 |---|---|
 | `cmd/mnemo` | `cli` |
 | `templates` | standard library |
+| `build` | standard library. The version, the commit, the date and the `api` number: three layers need them and none should depend on the others, so they live on their own and everything may import them. |
 | `memory` | standard library |
 | `lock` | `gofrs/flock` |
 | `gitx` | `lock` |
@@ -65,11 +66,16 @@ An arrow means "may import". Anything not listed may not.
 | `tunnel` | `config`, `lock` |
 | `service` | `config` |
 | `integration` | `config`, `mailbox`, `remote`, `sjson`/`gjson`, `BurntSushi/toml` |
-| `hook` | `config` |
-| `selfupdate` | `config`, `service`, `tunnel` |
+| `selfupdate` | `build`, `config`, `service`, `tunnel` |
 | `cli` | all of the above, Cobra |
-| `testutil` | anything |
 | `archtest` | standard library |
+
+**Two packages this table used to declare and no longer does.** `hook` was to hold the save
+reminder, and it is in `cli` instead, where the command that runs it is — decision 16 says the
+reminder is in the binary, and a package for one function that only `cli` calls is a layer with
+nothing in it. `testutil` was to hold the mutation sweep, which is a shell script: it runs `go test`
+as a person does, and a Go package that shells out to the Go tool to test the package it lives
+beside would be the harder of the two to trust.
 
 - **The mailbox does not import the store.** It needs to know whether a project exists, and receives
   that as a function.

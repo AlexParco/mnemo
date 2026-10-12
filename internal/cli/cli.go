@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/AlexParco/mnemo/internal/build"
 	"github.com/AlexParco/mnemo/internal/config"
 	"github.com/AlexParco/mnemo/internal/lock"
 	"github.com/AlexParco/mnemo/internal/mailbox"
@@ -19,9 +20,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Version is the binary's version, set at build time with -ldflags. A build
-// from a working copy says so rather than claiming a release it is not.
-var Version = "dev"
+// Version is the binary's version. It lives in internal/build, which the HTTP
+// server and the relay also read, and is kept here as a name the commands
+// already use.
+var Version = build.Version
 
 // flags are the overrides every command accepts, because a person debugging
 // where their memory went needs to be able to point at another store without
@@ -69,6 +71,11 @@ func Execute(ctx context.Context) int {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
+	// --version prints the same line as the command, because somebody who types
+	// one and gets a different answer from the other has to wonder which is true.
+	root.SetVersionTemplate(build.Line() + "\n")
+	root.Version = build.Version
+
 	root.PersistentFlags().StringVar(&flags.Store, "store", "", "use this store instead of the configured one")
 	root.PersistentFlags().StringVar(&flags.Machine, "machine", "", "label for this machine")
 	root.PersistentFlags().StringVar(&flags.Lang, "lang", "", "language mnemo writes in: en or es")
@@ -202,7 +209,7 @@ func versionCommand() *cobra.Command {
 		Short: "Print mnemo's version",
 		Args:  noArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			_, err := fmt.Fprintln(cmd.OutOrStdout(), Version)
+			_, err := fmt.Fprintln(cmd.OutOrStdout(), build.Line())
 			return err
 		},
 	}
